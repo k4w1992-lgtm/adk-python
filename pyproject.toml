@@ -157,7 +157,7 @@ extensions = [
   "crewai[tools];python_version>='3.11' and python_version<'3.12'",       # For CrewaiTool; chromadb/pypika fail on 3.12+
   "docker>=7.0.0",                              # For ContainerCodeExecutor
   "kubernetes>=29.0.0",                         # For GkeCodeExecutor
-  "k8s-agent-sandbox>=0.1.1.post2",             # For GkeCodeExecutor sandbox mode
+  "k8s-agent-sandbox>=0.1.1.post3",             # For GkeCodeExecutor sandbox mode
   "langgraph>=0.2.60, <0.4.8",                  # For LangGraphAgent
   "litellm>=1.75.5, <=1.82.6",                    # For LiteLlm class. Upper bound pinned: versions 1.82.7+ compromised in supply chain attack.
   "llama-index-readers-file>=0.4.0",            # For retrieval using LlamaIndex.
