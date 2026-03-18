@@ -132,7 +132,7 @@ def plot_workflow_graph(
 
     node_type = node.get("type", "node")
     icons = {
-        "agent": "🤖",
+        "agent": "✨",
         "join": "🔀",
     }
     icon = icons.get(node_type, "")
@@ -212,7 +212,8 @@ def plot_workflow_graph(
         is_terminal = True
 
     if is_terminal:
-      terminal_nodes.append(node_name)
+      is_conditional_terminal = bool(outgoing_edges)
+      terminal_nodes.append((node_name, is_conditional_terminal))
 
   if is_workflow and terminal_nodes:
     dot.node(
@@ -227,8 +228,9 @@ def plot_workflow_graph(
         width="0.9",
         fixedsize="true",
     )
-    for t_node in terminal_nodes:
-      dot.edge(t_node, "__END__")
+    for t_node, is_cond in terminal_nodes:
+      label = "  __DEFAULT__" if is_cond else ""
+      dot.edge(t_node, "__END__", label=label)
 
   if format == "dot":
     return dot.source
