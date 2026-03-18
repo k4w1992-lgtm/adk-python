@@ -94,10 +94,16 @@ def plot_workflow_graph(
 
   # Add nodes
   nodes = graph.get("nodes", [])
+  edges = graph.get("edges", [])
   for node in nodes:
     node_name = node.get("name")
     if not node_name or node_name == "__START__":
       continue
+
+    outgoing_edges = [
+        e for e in edges if e.get("from_node", {}).get("name") == node_name
+    ]
+    is_conditional = any(e.get("route") for e in outgoing_edges)
 
     node_data = nodes_state.get(node_name, {})
     status_val = node_data.get("status", NodeStatus.INACTIVE.value)
@@ -123,7 +129,21 @@ def plot_workflow_graph(
     elif status == NodeStatus.CANCELLED:
       fillcolor = "lightgray"
 
-    dot.node(node_name, node_name, style="rounded,filled", fillcolor=fillcolor)
+    if is_conditional:
+      dot.node(
+          node_name,
+          node_name,
+          shape="diamond",
+          style="filled",
+          fillcolor=fillcolor,
+          height="1.2",
+          width="0.8",
+          margin="0.0,0.0",
+      )
+    else:
+      dot.node(
+          node_name, node_name, style="rounded,filled", fillcolor=fillcolor
+      )
 
   # Add edges
   edges = graph.get("edges", [])
