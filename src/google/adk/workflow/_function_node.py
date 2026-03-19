@@ -29,10 +29,14 @@ from pydantic import PrivateAttr
 from pydantic import TypeAdapter
 from typing_extensions import override
 
+from ..auth.auth_tool import AuthConfig
 from ..events.event import Event
 from ..events.request_input import RequestInput
 from ._base_node import BaseNode
 from ._retry_config import RetryConfig
+from .utils._workflow_hitl_utils import create_auth_request_event
+from .utils._workflow_hitl_utils import has_auth_credential
+from .utils._workflow_hitl_utils import process_auth_resume
 
 logger = logging.getLogger('google_adk.' + __name__)
 
@@ -96,6 +100,16 @@ class FunctionNode(BaseNode):
     - All other values are validated/coerced by Pydantic's ``TypeAdapter``.
   """
 
+  auth_config: AuthConfig | None = None
+  """If set, the framework requests user authentication before running.
+
+  When the node runs for the first time and no credential is found in
+  session state, it yields an ``adk_request_credential`` event and
+  interrupts.  On resume, the credential is stored and the node
+  re-runs with the credential available via
+  ``AuthHandler(auth_config).get_auth_response(ctx.state)``.
+  """
+
   # Private attributes (won't be serialized)
   _func: Callable[..., Any] = PrivateAttr()
   _sig: inspect.Signature = PrivateAttr()
@@ -109,6 +123,7 @@ class FunctionNode(BaseNode):
       rerun_on_resume: bool = False,
       retry_config: RetryConfig | None = None,
       timeout: float | None = None,
+      auth_config: AuthConfig | None = None,
   ):
     """Initializes FunctionNode.
 
@@ -125,10 +140,19 @@ class FunctionNode(BaseNode):
       retry_config: If provided, the node will be retried on failure based on
         this configuration.
       timeout: Maximum time in seconds for this node to complete.
+      auth_config: If provided, the framework requests user authentication
+        before running the node. Requires rerun_on_resume=True (the node
+        must rerun after credentials are provided).
     """
 
     if not callable(func):
       raise TypeError('Function must be callable.')
+
+    if auth_config and not rerun_on_resume:
+      raise ValueError(
+          'FunctionNode with auth_config requires rerun_on_resume=True.'
+          ' The node must rerun after credentials are provided.'
+      )
 
     inferred_name = name or getattr(func, '__name__', None)
     if not inferred_name:
@@ -143,6 +167,7 @@ class FunctionNode(BaseNode):
         rerun_on_resume=rerun_on_resume,
         retry_config=retry_config,
         timeout=timeout,
+        auth_config=auth_config,
     )
 
     sig = inspect.signature(func)
@@ -298,6 +323,16 @@ class FunctionNode(BaseNode):
       ctx: Context,
       node_input: Any,
   ) -> AsyncGenerator[Any, None]:
+    # --- Auth gate ---
+    if self.auth_config:
+      interrupt_id = f'wf_auth:{ctx.node_path}'
+      auth_response = ctx.resume_inputs.get(interrupt_id)
+      if auth_response is not None:
+        await process_auth_resume(auth_response, self.auth_config, ctx.state)
+      elif not has_auth_credential(self.auth_config, ctx.state):
+        yield create_auth_request_event(self.auth_config, interrupt_id)
+        return
+
     kwargs: dict[str, Any] = {}
     for param_name, param in self._sig.parameters.items():
       if param_name == 'ctx':

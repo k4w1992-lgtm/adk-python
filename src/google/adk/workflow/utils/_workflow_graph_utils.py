@@ -45,6 +45,7 @@ def build_node(
     rerun_on_resume: bool | None = None,
     retry_config: RetryConfig | None = None,
     timeout: float | None = None,
+    auth_config: Any = None,
 ) -> BaseNode:
   """Converts a NodeLike to a BaseNode, wrapping async funcs in FunctionNode.
 
@@ -56,6 +57,7 @@ def build_node(
     retry_config: If provided, overrides the retry_config property of the
       wrapped node.
     timeout: If provided, overrides the timeout property of the wrapped node.
+    auth_config: If provided, passed to FunctionNode for authentication.
 
   Returns:
     A BaseNode instance.
@@ -132,6 +134,7 @@ def build_node(
         rerun_on_resume=rerun_on_resume or False,
         retry_config=retry_config,
         timeout=timeout,
+        auth_config=auth_config,
     )
   else:
     raise ValueError(

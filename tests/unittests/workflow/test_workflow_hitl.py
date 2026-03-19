@@ -1330,3 +1330,180 @@ async def test_request_input_rerun_with_same_interrupt_id(
   req3 = workflow_testing_utils.get_request_input_events(events3)
   assert len(req3) == 0, 'Should not interrupt again after approve'
   assert capture.received_inputs == ['approved']
+
+
+# ---------------------------------------------------------------------------
+# auth_config tests
+# ---------------------------------------------------------------------------
+
+from google.adk.workflow.utils._workflow_hitl_utils import REQUEST_CREDENTIAL_FUNCTION_CALL_NAME  # noqa: E402
+
+
+@pytest.mark.parametrize('resumable', [True, False])
+@pytest.mark.asyncio
+async def test_function_node_auth_config(
+    request: pytest.FixtureRequest, resumable: bool
+):
+  """FunctionNode with auth_config pauses for auth, then runs after creds."""
+  from fastapi.openapi.models import APIKey
+  from fastapi.openapi.models import APIKeyIn
+  from google.adk.auth.auth_credential import AuthCredential
+  from google.adk.auth.auth_credential import AuthCredentialTypes
+  from google.adk.auth.auth_tool import AuthConfig
+  from google.adk.workflow import FunctionNode
+
+  auth_config = AuthConfig(
+      auth_scheme=APIKey(**{'in': APIKeyIn.header, 'name': 'X-Api-Key'}),
+      raw_auth_credential=AuthCredential(
+          auth_type=AuthCredentialTypes.API_KEY,
+          api_key='placeholder',
+      ),
+      credential_key='test_api_key',
+  )
+
+  call_count = 0
+  received_cred = None
+
+  def do_work(ctx: Context):
+    nonlocal call_count, received_cred
+    call_count += 1
+    received_cred = ctx.get_auth_response(auth_config)
+    return {'result': 'authed'}
+
+  node_a = FunctionNode(do_work, auth_config=auth_config, rerun_on_resume=True)
+  node_b = InputCapturingNode(name='NodeB')
+  app = App(
+      name=request.function.__name__,
+      root_agent=Workflow(
+          name='test_agent',
+          edges=[(START, node_a), (node_a, node_b)],
+      ),
+      resumability_config=(
+          ResumabilityConfig(is_resumable=True) if resumable else None
+      ),
+  )
+  runner = testing_utils.InMemoryRunner(app=app)
+
+  # Run 1: should pause for auth.
+  events1 = await runner.run_async(testing_utils.get_user_content('go'))
+
+  auth_fc_events = workflow_testing_utils.get_auth_request_events(events1)
+  assert len(auth_fc_events) == 1
+  fc = auth_fc_events[0].content.parts[0].function_call
+  auth_fc_id = fc.id
+  invocation_id = events1[0].invocation_id
+  assert call_count == 0
+
+  # Run 2: provide auth credential — node should execute.
+  auth_response = AuthConfig(
+      auth_scheme=auth_config.auth_scheme,
+      raw_auth_credential=auth_config.raw_auth_credential,
+      exchanged_auth_credential=AuthCredential(
+          auth_type=AuthCredentialTypes.API_KEY,
+          api_key='real_api_key_123',
+      ),
+      credential_key='test_api_key',
+  )
+
+  resume_part = types.Part(
+      function_response=types.FunctionResponse(
+          id=auth_fc_id,
+          name=REQUEST_CREDENTIAL_FUNCTION_CALL_NAME,
+          response=auth_response.model_dump(exclude_none=True, by_alias=True),
+      )
+  )
+  events2 = await runner.run_async(
+      new_message=testing_utils.UserContent(resume_part),
+      invocation_id=invocation_id,
+  )
+
+  assert call_count == 1
+  assert received_cred is not None
+  assert received_cred.api_key == 'real_api_key_123'
+  assert node_b.received_inputs == [{'result': 'authed'}]
+
+
+@pytest.mark.parametrize('resumable', [True, False])
+@pytest.mark.asyncio
+async def test_second_auth_node_skips_auth_when_credential_exists(
+    request: pytest.FixtureRequest, resumable: bool
+):
+  """Second FunctionNode with same credential_key skips auth if cred already stored."""
+  from fastapi.openapi.models import APIKey
+  from fastapi.openapi.models import APIKeyIn
+  from google.adk.auth.auth_credential import AuthCredential
+  from google.adk.auth.auth_credential import AuthCredentialTypes
+  from google.adk.auth.auth_tool import AuthConfig
+  from google.adk.workflow import node
+
+  auth_config = AuthConfig(
+      auth_scheme=APIKey(**{'in': APIKeyIn.header, 'name': 'X-Api-Key'}),
+      raw_auth_credential=AuthCredential(
+          auth_type=AuthCredentialTypes.API_KEY,
+          api_key='placeholder',
+      ),
+      credential_key='shared_key',
+  )
+
+  call_log = []
+
+  @node(auth_config=auth_config, rerun_on_resume=True)
+  def first_task():
+    call_log.append('first')
+    return {'status': 'done'}
+
+  @node(auth_config=auth_config, rerun_on_resume=True)
+  def second_task():
+    call_log.append('second')
+    return {'status': 'done'}
+
+  node_a = first_task
+  node_b = second_task
+  sink = InputCapturingNode(name='sink')
+
+  app = App(
+      name=request.function.__name__,
+      root_agent=Workflow(
+          name='test_agent',
+          edges=[(START, node_a), (node_a, node_b), (node_b, sink)],
+      ),
+      resumability_config=(
+          ResumabilityConfig(is_resumable=True) if resumable else None
+      ),
+  )
+  runner = testing_utils.InMemoryRunner(app=app)
+
+  # Run 1: node_a pauses for auth.
+  events1 = await runner.run_async(testing_utils.get_user_content('go'))
+  auth_fc_events = workflow_testing_utils.get_auth_request_events(events1)
+  assert len(auth_fc_events) == 1
+  fc = auth_fc_events[0].content.parts[0].function_call
+  auth_fc_id = fc.id
+  invocation_id = events1[0].invocation_id
+  assert call_log == []
+
+  # Run 2: provide credential — node_a runs, node_b should skip auth and run too.
+  auth_response = AuthConfig(
+      auth_scheme=auth_config.auth_scheme,
+      raw_auth_credential=auth_config.raw_auth_credential,
+      exchanged_auth_credential=AuthCredential(
+          auth_type=AuthCredentialTypes.API_KEY,
+          api_key='the_real_key',
+      ),
+      credential_key='shared_key',
+  )
+  resume_part = types.Part(
+      function_response=types.FunctionResponse(
+          id=auth_fc_id,
+          name=REQUEST_CREDENTIAL_FUNCTION_CALL_NAME,
+          response=auth_response.model_dump(exclude_none=True, by_alias=True),
+      )
+  )
+  events2 = await runner.run_async(
+      new_message=testing_utils.UserContent(resume_part),
+      invocation_id=invocation_id,
+  )
+
+  # Both nodes ran — node_b did NOT pause for a second auth request.
+  assert call_log == ['first', 'second']
+  assert sink.received_inputs == [{'status': 'done'}]

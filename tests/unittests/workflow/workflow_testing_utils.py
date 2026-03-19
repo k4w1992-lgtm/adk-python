@@ -34,6 +34,7 @@ from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.workflow import BaseNode
 from google.adk.workflow._workflow_graph import RouteValue
 from google.adk.workflow.utils._node_path_utils import is_direct_child
+from google.adk.workflow.utils._workflow_hitl_utils import has_auth_request_function_call
 from google.adk.workflow.utils._workflow_hitl_utils import has_request_input_function_call
 from google.genai import types
 from pydantic import ConfigDict
@@ -337,6 +338,11 @@ def simplify_events_with_node_and_agent_state(
 def get_request_input_events(events: list[Any]) -> list[Any]:
   """Returns a list of request input events from the given list of events."""
   return [e for e in events if has_request_input_function_call(e)]
+
+
+def get_auth_request_events(events: list[Any]) -> list[Any]:
+  """Returns a list of auth credential request events from the given list."""
+  return [e for e in events if has_auth_request_function_call(e)]
 
 
 def strip_checkpoint_events(

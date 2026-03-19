@@ -1559,3 +1559,60 @@ async def test_input_schema_none_passthrough(request: pytest.FixtureRequest):
       and is_direct_child(e.node_info.path, 'wf')
   ]
   assert any(e.output == 'got: None' for e in data_events)
+
+
+# ---------------------------------------------------------------------------
+# auth_config tests
+# ---------------------------------------------------------------------------
+
+
+class TestAuthConfig:
+  """Tests for FunctionNode auth_config behavior."""
+
+  def test_raises_without_rerun_on_resume(self):
+    """auth_config raises ValueError when rerun_on_resume is not True."""
+    from fastapi.openapi.models import APIKey
+    from fastapi.openapi.models import APIKeyIn
+    from google.adk.auth.auth_credential import AuthCredential
+    from google.adk.auth.auth_credential import AuthCredentialTypes
+    from google.adk.auth.auth_tool import AuthConfig
+
+    auth_config = AuthConfig(
+        auth_scheme=APIKey(**{'in': APIKeyIn.header, 'name': 'X-Api-Key'}),
+        raw_auth_credential=AuthCredential(
+            auth_type=AuthCredentialTypes.API_KEY,
+            api_key='placeholder',
+        ),
+        credential_key='test_key',
+    )
+    with pytest.raises(ValueError, match='rerun_on_resume=True'):
+      FunctionNode(lambda: None, name='n', auth_config=auth_config)
+
+  def test_no_auth_config_default(self):
+    """auth_config defaults to None."""
+    node = FunctionNode(lambda: None, name='n')
+    assert node.auth_config is None
+
+  def test_rerun_on_resume_explicit_true_with_auth(self):
+    """Explicit rerun_on_resume=True with auth_config is fine."""
+    from fastapi.openapi.models import APIKey
+    from fastapi.openapi.models import APIKeyIn
+    from google.adk.auth.auth_credential import AuthCredential
+    from google.adk.auth.auth_credential import AuthCredentialTypes
+    from google.adk.auth.auth_tool import AuthConfig
+
+    auth_config = AuthConfig(
+        auth_scheme=APIKey(**{'in': APIKeyIn.header, 'name': 'X-Api-Key'}),
+        raw_auth_credential=AuthCredential(
+            auth_type=AuthCredentialTypes.API_KEY,
+            api_key='placeholder',
+        ),
+        credential_key='test_key',
+    )
+    node = FunctionNode(
+        lambda: None,
+        name='n',
+        auth_config=auth_config,
+        rerun_on_resume=True,
+    )
+    assert node.rerun_on_resume is True

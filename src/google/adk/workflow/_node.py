@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import Any
 from typing import Callable
 from typing import overload
+from typing import TYPE_CHECKING
 from typing import TypeVar
 
 from pydantic import Field
@@ -32,6 +33,9 @@ from . import _parallel_worker as parallel_worker_lib
 from ._retry_config import RetryConfig
 from .utils import _workflow_graph_utils as workflow_graph_utils
 
+if TYPE_CHECKING:
+  from ..auth.auth_tool import AuthConfig
+
 T = TypeVar("T", bound=Callable[..., Any])
 
 
@@ -43,6 +47,7 @@ def node(
     retry_config: RetryConfig | None = None,
     timeout: float | None = None,
     parallel_worker: bool = False,
+    auth_config: AuthConfig | None = None,
 ) -> Callable[
     [T], function_node.FunctionNode | parallel_worker_lib._ParallelWorker
 ]:
@@ -58,6 +63,7 @@ def node(
     retry_config: RetryConfig | None = None,
     timeout: float | None = None,
     parallel_worker: bool = False,
+    auth_config: AuthConfig | None = None,
 ) -> base_node.BaseNode:
   ...
 
@@ -70,6 +76,7 @@ def node(
     retry_config: RetryConfig | None = None,
     timeout: float | None = None,
     parallel_worker: bool = False,
+    auth_config: AuthConfig | None = None,
 ) -> Any:
   """Decorator or function to wrap a NodeLike in a node or override its properties.
 
@@ -96,6 +103,8 @@ def node(
       wrapped node.
     timeout: If provided, overrides the timeout property of the wrapped node.
     parallel_worker: If True, wraps the node in a _ParallelWorker.
+    auth_config: If provided, the framework requests user authentication
+      before running the node. Requires rerun_on_resume=True.
 
   Returns:
     If used as a decorator factory (@node() or @node(...)), returns a decorator.
@@ -114,6 +123,7 @@ def node(
         else False,
         retry_config=retry_config,
         timeout=timeout,
+        auth_config=auth_config,
     )
     if parallel_worker:
       return parallel_worker_lib._ParallelWorker(built_node)
@@ -129,6 +139,7 @@ def node(
         rerun_on_resume=rerun_on_resume,
         retry_config=retry_config,
         timeout=timeout,
+        auth_config=auth_config,
     )
     if parallel_worker:
       return parallel_worker_lib._ParallelWorker(built_node)

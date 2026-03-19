@@ -61,6 +61,7 @@ from .utils._node_path_utils import is_direct_child
 from .utils._node_path_utils import join_paths
 from .utils._retry_utils import _get_retry_delay
 from .utils._retry_utils import _should_retry_node
+from .utils._workflow_hitl_utils import REQUEST_CREDENTIAL_FUNCTION_CALL_NAME
 from .utils._workflow_hitl_utils import REQUEST_INPUT_FUNCTION_CALL_NAME
 from .utils._workflow_hitl_utils import unwrap_response
 
@@ -417,9 +418,9 @@ class Workflow(BaseAgent, Node):
       ]
 
       response_data = response_part.function_response.response
-      if (
-          response_part.function_response.name
-          == REQUEST_INPUT_FUNCTION_CALL_NAME
+      if response_part.function_response.name in (
+          REQUEST_INPUT_FUNCTION_CALL_NAME,
+          REQUEST_CREDENTIAL_FUNCTION_CALL_NAME,
       ):
         response_data = unwrap_response(response_data)
 

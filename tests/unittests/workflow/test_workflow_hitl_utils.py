@@ -16,10 +16,12 @@ from __future__ import annotations
 
 from google.adk.events.event import Event
 from google.adk.events.request_input import RequestInput
+from google.adk.workflow.utils._workflow_hitl_utils import create_auth_request_event
 from google.adk.workflow.utils._workflow_hitl_utils import create_request_input_event
 from google.adk.workflow.utils._workflow_hitl_utils import create_request_input_response
 from google.adk.workflow.utils._workflow_hitl_utils import get_request_input_interrupt_ids
 from google.adk.workflow.utils._workflow_hitl_utils import has_request_input_function_call
+from google.adk.workflow.utils._workflow_hitl_utils import REQUEST_CREDENTIAL_FUNCTION_CALL_NAME
 from google.adk.workflow.utils._workflow_hitl_utils import unwrap_response
 from google.adk.workflow.utils._workflow_hitl_utils import wrap_response
 
@@ -214,3 +216,32 @@ class TestGetRequestInputInterruptIds:
         )
     )
     assert get_request_input_interrupt_ids(event) == []
+
+
+# --- create_auth_request_event ---
+
+
+class TestCreateAuthRequestEvent:
+
+  def test_creates_credential_request(self):
+    from fastapi.openapi.models import APIKey
+    from fastapi.openapi.models import APIKeyIn
+    from google.adk.auth.auth_credential import AuthCredential
+    from google.adk.auth.auth_credential import AuthCredentialTypes
+    from google.adk.auth.auth_tool import AuthConfig
+
+    auth_config = AuthConfig(
+        auth_scheme=APIKey(**{"in": APIKeyIn.header, "name": "X-Api-Key"}),
+        raw_auth_credential=AuthCredential(
+            auth_type=AuthCredentialTypes.API_KEY,
+            api_key="test_key",
+        ),
+        credential_key="test_cred",
+    )
+    event = create_auth_request_event(auth_config, "auth-id-1")
+
+    assert event.long_running_tool_ids is not None
+    fc = event.content.parts[0].function_call
+    assert fc.name == REQUEST_CREDENTIAL_FUNCTION_CALL_NAME
+    assert fc.id == "auth-id-1"
+    assert "authConfig" in fc.args
