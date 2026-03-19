@@ -35,7 +35,7 @@ This sample demonstrates a `get_weather` node that intentionally fails randomly 
 
    ```python
    @node(retry_config=RetryConfig(max_retries=5, initial_delay=1))
-   def get_weather() -> str:
+   def get_weather(ctx: Context) -> str:
        # ... flaky logic here ...
    ```
 
