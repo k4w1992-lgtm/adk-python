@@ -40,10 +40,6 @@ from google.adk.auth.credential_manager import _rehydrate_custom_scheme
 from google.adk.auth.credential_manager import CredentialManager
 from google.adk.auth.credential_manager import ServiceAccountCredentialExchanger
 from google.adk.auth.oauth2_discovery import AuthorizationServerMetadata
-from google.adk.features import FeatureName
-from google.adk.features._feature_registry import temporary_feature_override
-from google.adk.integrations._iam_connectors import GcpIamConnectorAuth
-from google.adk.integrations._iam_connectors.gcp_auth_provider import GcpAuthProvider
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.tools.tool_context import ToolContext
 from pydantic import Field
@@ -106,23 +102,11 @@ class TestCredentialManager:
         CredentialManager._auth_provider_registry._providers[DummyAuthScheme]
         == provider1
     )
-
   def test_init(self):
     """Test CredentialManager initialization."""
     auth_config = Mock(spec=AuthConfig)
     manager = CredentialManager(auth_config)
     assert manager._auth_config == auth_config
-
-  def test_init_registers_gcp_auth_provider(self):
-    """Test that GcpIamConnectorAuth is registered with GcpAuthProvider."""
-    auth_config = Mock(spec=AuthConfig)
-    manager = CredentialManager(auth_config)
-
-    provider = manager._auth_provider_registry.get_provider(
-        GcpIamConnectorAuth(connector_name="test")
-    )
-
-    assert isinstance(provider, GcpAuthProvider)
 
   @pytest.mark.asyncio
   async def test_request_credential(self):

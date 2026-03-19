@@ -26,7 +26,6 @@ from fastapi.openapi.models import SecurityScheme
 from fastapi.openapi.models import SecuritySchemeType
 from pydantic import Field
 
-from ..integrations._iam_connectors.gcp_iam_connector_auth import GcpIamConnectorAuth
 from ..utils.feature_decorator import experimental
 from .auth_credential import BaseModelWithConfig
 
