@@ -1723,6 +1723,12 @@ class AdkWebServer:
       active_node_state = {"nodes": {}}
 
       active_node = event.author
+      node_info = getattr(event, "node_info", None)
+      if node_info and getattr(node_info, "path", None):
+        path_parts = node_info.path.split("/")
+        active_node = path_parts[-1]
+        if active_node in ("call_llm", "execute_tool") and len(path_parts) > 1:
+          active_node = path_parts[-2]
 
       if active_node:
         active_node_state["nodes"][active_node] = {"status": NodeStatus.RUNNING.value}
