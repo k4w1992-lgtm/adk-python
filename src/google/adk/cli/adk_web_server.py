@@ -99,7 +99,7 @@ from .utils import evals
 from .utils.base_agent_loader import BaseAgentLoader
 from .utils.graph_serialization import serialize_app_info
 from .utils.graph_visualization import plot_workflow_graph
-from ..workflow._execution_state import NodeStatus
+from ..workflow._node_status import NodeStatus
 from .utils.shared_value import SharedValue
 from .utils.state import create_empty_state
 
