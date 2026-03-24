@@ -95,6 +95,16 @@ class BaseNode(BaseModel):
   ``None`` means no output validation (the default).
   """
 
+  state_schema: type[BaseModel] | None = None
+  """Optional Pydantic model declaring the expected state keys and types.
+
+  When set, ``ctx.state`` mutations are validated at runtime against
+  this schema.  Child nodes inherit the schema from their parent
+  (via InvocationContext) unless they declare their own.
+
+  Prefixed keys (``app:``, ``user:``, ``temp:``) bypass validation.
+  """
+
   def _validate_schema(self, data: Any, schema: Any) -> Any:
     """Validates data against a schema using ``TypeAdapter``.
 

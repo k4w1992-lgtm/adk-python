@@ -159,6 +159,7 @@ def _make_ctx(invocation_id='inv-test', enqueue_events=None):
   ic.session.app_name = 'test_app'
   ic.session.user_id = 'test_user'
   ic.run_config = None
+  ic._state_schema = None
 
   collected = enqueue_events if enqueue_events is not None else []
 

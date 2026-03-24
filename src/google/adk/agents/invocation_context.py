@@ -223,6 +223,14 @@ class InvocationContext(BaseModel):
   plugin_manager: PluginManager = Field(default_factory=PluginManager)
   """The manager for keeping track of plugins in this invocation."""
 
+  _state_schema: Optional[type[BaseModel]] = None
+  """The Pydantic model declaring the expected state keys and types.
+
+  Propagated from the owning agent down the hierarchy.  When set,
+  ``ctx.state`` mutations and ``Event(state={...})`` deltas are
+  validated against this schema at runtime.
+  """
+
   canonical_tools_cache: Optional[list[BaseTool]] = None
   """The cache of canonical tools for this invocation."""
 

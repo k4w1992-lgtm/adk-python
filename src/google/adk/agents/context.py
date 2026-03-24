@@ -28,6 +28,7 @@ from .readonly_context import ReadonlyContext
 
 if TYPE_CHECKING:
   from google.genai import types
+  from pydantic import BaseModel
 
   from ..artifacts.base_artifact_service import ArtifactVersion
   from ..auth.auth_credential import AuthCredential
@@ -165,6 +166,7 @@ class Context(ReadonlyContext):
       retry_count: int = 0,
       output_for_ancestors: list[tuple[str, str]] | None = None,
       event_author: str = '',
+      state_schema: type[BaseModel] | None = None,
   ) -> None:
     """Initializes the Context.
 
@@ -197,6 +199,7 @@ class Context(ReadonlyContext):
     self._state = State(
         value=invocation_context.session.state,
         delta=self._event_actions.state_delta,
+        schema=state_schema or invocation_context._state_schema,
     )
     self._function_call_id = function_call_id
     self._tool_confirmation = tool_confirmation

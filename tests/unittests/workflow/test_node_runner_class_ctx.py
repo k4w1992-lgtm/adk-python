@@ -41,6 +41,7 @@ def _make_ctx():
   ic.session.app_name = 'test'
   ic.session.user_id = 'u'
   ic.run_config = None
+  ic._state_schema = None
 
   collected = []
 

@@ -157,6 +157,7 @@ class NodeRunner:
         in_nodes=self._in_nodes,
         output_for_ancestors=ancestors,
         event_author=self._parent_ctx.event_author,
+        state_schema=self._node.state_schema,
     )
 
     # Carry forward state from a previous run (resume scenario).

@@ -137,6 +137,7 @@ class FunctionNode(BaseNode):
       timeout: float | None = None,
       auth_config: AuthConfig | None = None,
       parameter_binding: Literal['state', 'node_input'] = 'state',
+      state_schema: type[BaseModel] | None = None,
   ):
     """Initializes FunctionNode.
 
@@ -187,6 +188,7 @@ class FunctionNode(BaseNode):
         timeout=timeout,
         auth_config=auth_config,
         parameter_binding=parameter_binding,
+        state_schema=state_schema,
     )
 
     sig = inspect.signature(func)

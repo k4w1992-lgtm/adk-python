@@ -634,6 +634,7 @@ async def _execute_node(
       node_rerun_on_resume=node.rerun_on_resume,
       local_events=local_events,
       transfer_targets=transfer_targets,
+      state_schema=node.state_schema,
   )
 
   node_input = node._validate_input_data(node_input)

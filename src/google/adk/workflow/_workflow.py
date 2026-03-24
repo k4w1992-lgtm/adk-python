@@ -38,6 +38,8 @@ from ..events.event_actions import EventActions
 from ._base_node import BaseNode
 from ._base_node import START
 from ._dynamic_node_registry import dynamic_node_registry
+from ..sessions.state import _validate_state_entry
+from ..sessions.state import StateSchemaError
 from ._errors import NodeInterruptedError
 from ._node import Node
 from ._node_runner import _check_and_schedule_nodes
@@ -177,7 +179,14 @@ class Workflow(BaseAgent, Node):
     path = parent_context.node_path
     if not path:
       path = join_paths(path, self.name)
-    return parent_context.model_copy(update={'agent': self, 'node_path': path})
+    resolved_schema = self.state_schema or parent_context._state_schema
+    return parent_context.model_copy(
+        update={
+            'agent': self,
+            'node_path': path,
+            '_state_schema': resolved_schema,
+        }
+    )
 
   @override
   async def run_node_impl(
@@ -239,6 +248,37 @@ class Workflow(BaseAgent, Node):
       return
 
     self.graph.validate_graph()
+    self._validate_state_schema()
+
+  def _validate_state_schema(self) -> None:
+    """Raises when FunctionNode params don't match state_schema fields.
+
+    Only checks parameters sourced from state (excludes ``ctx`` and
+    ``node_input``).  Non-FunctionNode nodes (LlmAgent, JoinNode, etc.)
+    are skipped because they don't use parameter-based DI.
+    """
+    if not self.state_schema or not self.graph:
+      return
+
+    from ._function_node import FunctionNode
+
+    schema_fields = set(self.state_schema.model_fields.keys())
+
+    for graph_node in self.graph.nodes:
+      if not isinstance(graph_node, FunctionNode):
+        continue
+
+      for param_name in graph_node._sig.parameters:
+        if param_name in ('ctx', 'node_input', 'self'):
+          continue
+
+        if param_name not in schema_fields:
+          raise StateSchemaError(
+              f'FunctionNode {graph_node.name!r} parameter '
+              f'{param_name!r} is not declared in state_schema '
+              f'{self.state_schema.__name__!r}. Declared fields: '
+              f'{sorted(schema_fields)}'
+          )
 
   def _resolve_terminal_paths(self, prefix: str) -> set[str]:
     """Recursively resolves leaf-level terminal event paths.
@@ -606,7 +646,20 @@ class Workflow(BaseAgent, Node):
     if is_event_from_direct_child:
       run_state.local_output_events.append(event)
 
-      if event.actions.state_delta:
+      if event.actions and event.actions.state_delta:
+        # Use the child node's own schema if it defines one, otherwise
+        # fall back to the workflow-level schema.
+        child_name = event.node_info.path.rsplit('/', 1)[-1] if event.node_info.path else ''
+        child_node = run_state.nodes_map.get(child_name)
+        schema = (
+            child_node.state_schema
+            if child_node and child_node.state_schema
+            else run_state.ctx._state_schema
+        )
+        if schema:
+          for key, value in event.actions.state_delta.items():
+            if value is not None:
+              _validate_state_entry(schema, key, value)
         for key, value in event.actions.state_delta.items():
           if value is None:
             run_state.ctx.session.state.pop(key, None)
