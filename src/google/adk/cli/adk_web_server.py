@@ -591,7 +591,8 @@ class AdkWebServer:
     if not node_path:
       return app_info.get("root_agent")
 
-    path_parts = node_path.split('/')
+    # Strip leading/trailing slashes and split, filter out empty strings
+    path_parts = [p for p in node_path.strip('/').split('/') if p]
     current = app_info.get("root_agent")
 
     if not current:
@@ -603,41 +604,27 @@ class AdkWebServer:
       start_idx = 1
 
     for part in path_parts[start_idx:]:
-      # Look in graph.nodes
+      found = None
+      # Check potential containers in order of preference
+      containers = []
       if current.get("graph") and current["graph"].get("nodes"):
-        found = None
-        for node in current["graph"]["nodes"]:
-          if node.get("name") == part:
-            found = node
-            break
-        if found:
-          current = found
-          continue
-
-      # Look in nodes array (for mesh agents)
+        containers.append(current["graph"]["nodes"])
       if current.get("nodes"):
-        found = None
-        for node in current["nodes"]:
-          if node.get("name") == part:
-            found = node
-            break
-        if found:
-          current = found
-          continue
-
-      # Look in sub_agents
+        containers.append(current["nodes"])
       if current.get("sub_agents"):
-        found = None
-        for agent in current["sub_agents"]:
-          if agent.get("name") == part:
-            found = agent
+        containers.append(current["sub_agents"])
+
+      for container in containers:
+        for item in container:
+          if item.get("name") == part:
+            found = item
             break
         if found:
-          current = found
-          continue
+          break
 
-      # Node not found in this level
-      return None
+      if not found:
+        return None
+      current = found
 
     return current
 
@@ -874,7 +861,7 @@ class AdkWebServer:
       return event_dict
 
     if web_assets_dir:
-
+      # TODO: remove this endpoint once build_graph_image is completed
       @app.get("/dev/build_graph/{app_name}")
       async def get_app_info(app_name: str) -> Any:
         runner = await self.get_runner_async(app_name)
