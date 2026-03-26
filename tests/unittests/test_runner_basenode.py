@@ -198,7 +198,6 @@ async def test_standalone_node_resume():
   assert 'result: 42' in outputs
 
 
-@pytest.mark.xfail(reason='Workflow resume not yet implemented.')
 @pytest.mark.asyncio
 async def test_workflow_resume_after_interrupt():
   """Workflow node resumes from HITL interrupt and triggers downstream."""

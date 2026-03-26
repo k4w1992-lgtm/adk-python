@@ -54,6 +54,15 @@ def test_is_direct_child():
   assert not node_path_utils.is_direct_child(None, 'workflow/agent')
 
 
+def test_direct_child_name():
+  assert node_path_utils.direct_child_name('wf', 'wf/nodeA') == 'nodeA'
+  assert node_path_utils.direct_child_name('wf', 'wf/inner/nodeA') == 'inner'
+  assert (
+      node_path_utils.direct_child_name('wf/inner', 'wf/inner/deep/leaf')
+      == 'deep'
+  )
+
+
 def test_is_descendant():
   assert node_path_utils.is_descendant('workflow/agent', 'workflow/agent/node')
   assert node_path_utils.is_descendant(

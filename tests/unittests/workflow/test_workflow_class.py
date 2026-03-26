@@ -279,25 +279,147 @@ async def test_loop_with_conditional_break():
 
 
 # 4. test_resume_behavior
-@pytest.mark.xfail(reason='Resume not yet implemented in new Workflow.')
 @pytest.mark.asyncio
-async def test_resume_after_failure():
-  """Workflow resumes from checkpoint after failure.
+async def test_resume_after_interrupt():
+  """Workflow resumes from HITL interrupt and continues execution.
 
   Maps to: test_resume_behavior in test_workflow_agent.py.
+  Old test used crash/checkpoint resume. New test uses HITL interrupt/FR.
   """
-  assert False, 'TODO: implement resume'
+
+  class _InterruptOnce(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      fc_id = ctx.state.get('_fc_id')
+      if fc_id and ctx.resume_inputs and fc_id in ctx.resume_inputs:
+        ctx.state['_fc_id'] = None
+        yield 'resumed'
+        return
+      import uuid as _uuid
+
+      fc_id = f'fc-{_uuid.uuid4().hex[:8]}'
+      ctx.state['_fc_id'] = fc_id
+      yield Event(
+          content=types.Content(
+              parts=[
+                  types.Part(
+                      function_call=types.FunctionCall(
+                          name='approve', args={}, id=fc_id
+                      )
+                  )
+              ]
+          ),
+          long_running_tool_ids={fc_id},
+      )
+
+  a = _OutputNode(name='NodeA', value='A')
+  b = _InterruptOnce(name='NodeB')
+  c = _OutputNode(name='NodeC', value='C')
+  wf = Workflow(name='wf', edges=[(START, a, b, c)])
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  # Run 1: A completes, B interrupts
+  msg1 = types.Content(parts=[types.Part(text='go')], role='user')
+  events1: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg1
+  ):
+    events1.append(event)
+
+  # A completed, B interrupted
+  assert 'A' in [e.output for e in events1 if e.output is not None]
+  assert any(e.long_running_tool_ids for e in events1)
+  fc_id = None
+  for e in events1:
+    if e.long_running_tool_ids:
+      fc_id = list(e.long_running_tool_ids)[0]
+
+  # Run 2: resume B, then C runs
+  msg2 = types.Content(
+      parts=[
+          types.Part(
+              function_response=types.FunctionResponse(
+                  name='approve', id=fc_id, response={'ok': True}
+              )
+          )
+      ],
+      role='user',
+  )
+  events2: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg2
+  ):
+    events2.append(event)
+
+  outputs = [e.output for e in events2 if e.output is not None]
+  assert 'resumed' in outputs
+  assert 'C' in outputs
 
 
 # 5. test_agent_state_event_recorded
-@pytest.mark.xfail(reason='Checkpoint not yet implemented in new Workflow.')
 @pytest.mark.asyncio
-async def test_checkpoint_events_emitted():
-  """Agent state checkpoint events are emitted.
+async def test_internal_interrupt_event_not_persisted():
+  """Workflow interrupt event is _adk_internal — not in session.
 
   Maps to: test_agent_state_event_recorded in test_workflow_agent.py.
+  Old test verified checkpoint events. New test verifies the workflow's
+  interrupt event is NOT persisted (child's event is sufficient).
   """
-  assert False, 'TODO: implement checkpoint'
+
+  class _InterruptNode(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      yield Event(
+          content=types.Content(
+              parts=[
+                  types.Part(
+                      function_call=types.FunctionCall(
+                          name='tool', args={}, id='fc-1'
+                      )
+                  )
+              ]
+          ),
+          long_running_tool_ids={'fc-1'},
+      )
+
+  wf = Workflow(name='wf', edges=[(START, _InterruptNode(name='ask'))])
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  msg = types.Content(parts=[types.Part(text='go')], role='user')
+  events: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg
+  ):
+    events.append(event)
+
+  # Caller should see the child's interrupt event
+  assert any(e.long_running_tool_ids for e in events)
+
+  # Session should NOT have the workflow-level interrupt event
+  updated = await ss.get_session(
+      app_name='test', user_id='u', session_id=session.id
+  )
+  wf_interrupt_events = [
+      e
+      for e in updated.events
+      if e.long_running_tool_ids and e.node_info.path == 'wf'
+  ]
+  assert wf_interrupt_events == []
+  # But child's interrupt event SHOULD be in session
+  child_interrupt_events = [
+      e
+      for e in updated.events
+      if e.long_running_tool_ids and e.node_info.path == 'wf/ask'
+  ]
+  assert len(child_interrupt_events) == 1
 
 
 # 6. test_run_async_with_implicit_graph
@@ -638,11 +760,8 @@ async def test_wait_for_output_completes_after_all():
   wf = Workflow(
       name='wf',
       edges=[
-          (START, a),
-          (START, b),
-          (a, gate),
-          (b, gate),
-          (gate, downstream),
+          (START, a, gate, downstream),
+          (START, b, gate),
       ],
   )
 
@@ -900,15 +1019,85 @@ async def test_execution_id_unique_nested():
 
 
 # 33. test_resume_with_manual_state_verifies_input_persistence
-@pytest.mark.xfail(reason='Resume not yet implemented in new Workflow.')
 @pytest.mark.asyncio
-async def test_resume_preserves_inputs():
-  """Resume preserves original node inputs.
+async def test_resume_downstream_receives_output():
+  """After resume, downstream node receives the resumed node's output.
 
   Maps to: test_resume_with_manual_state_verifies_input_persistence
-  in test_workflow_agent.py.
+  in test_workflow_agent.py. Old test verified input from checkpoint.
+  New test verifies output flows to downstream after HITL resume.
   """
-  assert False, 'TODO: implement resume'
+
+  class _InterruptNode(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      import uuid as _uuid
+
+      fc_id = ctx.state.get('_fc_id')
+      if fc_id and ctx.resume_inputs and fc_id in ctx.resume_inputs:
+        ctx.state['_fc_id'] = None
+        yield f'response:{ctx.resume_inputs[fc_id]["value"]}'
+        return
+      fc_id = f'fc-{_uuid.uuid4().hex[:8]}'
+      ctx.state['_fc_id'] = fc_id
+      yield Event(
+          content=types.Content(
+              parts=[
+                  types.Part(
+                      function_call=types.FunctionCall(
+                          name='get', args={}, id=fc_id
+                      )
+                  )
+              ]
+          ),
+          long_running_tool_ids={fc_id},
+      )
+
+  a = _OutputNode(name='NodeA', value='from_a')
+  b = _InterruptNode(name='NodeB')
+  c = _InputCapturingNode(name='NodeC')
+  wf = Workflow(name='wf', edges=[(START, a, b, c)])
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  # Run 1: A completes, B interrupts
+  msg1 = types.Content(parts=[types.Part(text='go')], role='user')
+  events1: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg1
+  ):
+    events1.append(event)
+
+  # A completed, B interrupted
+  assert 'from_a' in [e.output for e in events1 if e.output is not None]
+  fc_id = None
+  for e in events1:
+    if e.long_running_tool_ids:
+      fc_id = list(e.long_running_tool_ids)[0]
+  assert fc_id
+
+  # Run 2: resume B with value, C receives B's output
+  msg2 = types.Content(
+      parts=[
+          types.Part(
+              function_response=types.FunctionResponse(
+                  name='get', id=fc_id, response={'value': 42}
+              )
+          )
+      ],
+      role='user',
+  )
+  events2: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg2
+  ):
+    events2.append(event)
+
+  # NodeC should have captured NodeB's resume output
+  assert c.received_inputs == ['response:42']
 
 
 # 34. test_run_async_with_multiple_node_outputs_fails
@@ -1480,3 +1669,229 @@ async def test_terminal_node_output_dedup_nested():
       e for e in output_events if e.node_info.path in ('outer', 'outer/inner')
   ]
   assert len(wf_output_events) == 0
+
+
+# --- Nested workflow tests ---
+
+
+@pytest.mark.asyncio
+async def test_nested_workflow_completes():
+  """Inner workflow runs to completion, outer continues downstream."""
+  inner_node = _OutputNode(name='inner_node', value='inner_result')
+  inner_wf = Workflow(name='inner_wf', edges=[(START, inner_node)])
+  before = _OutputNode(name='before', value='before_result')
+  after = _InputCapturingNode(name='after')
+  wf = Workflow(name='wf', edges=[(START, before, inner_wf, after)])
+
+  events, _, _ = await _run_workflow(wf)
+
+  by_node = _output_by_node(events)
+  assert ('before', 'before_result') in by_node
+  assert ('inner_node', 'inner_result') in by_node
+  assert after.received_inputs == ['inner_result']
+
+
+@pytest.mark.asyncio
+async def test_nested_workflow_interrupt_and_resume():
+  """Inner workflow child interrupts, outer resumes on FR."""
+  import uuid as _uuid
+
+  class _InterruptNode(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      fc_id = ctx.state.get('_nested_fc')
+      if fc_id and ctx.resume_inputs and fc_id in ctx.resume_inputs:
+        ctx.state['_nested_fc'] = None
+        response = ctx.resume_inputs[fc_id]['answer']
+        yield f'approved:{response}'
+        return
+      fc_id = f'fc-{_uuid.uuid4().hex[:8]}'
+      ctx.state['_nested_fc'] = fc_id
+      yield Event(
+          content=types.Content(
+              parts=[
+                  types.Part(
+                      function_call=types.FunctionCall(
+                          name='inner_tool', args={}, id=fc_id
+                      )
+                  )
+              ]
+          ),
+          long_running_tool_ids={fc_id},
+      )
+
+  inner_wf = Workflow(
+      name='inner_wf',
+      edges=[(START, _InterruptNode(name='approval'))],
+  )
+  before = _OutputNode(name='before', value='before_result')
+  after = _InputCapturingNode(name='after')
+  wf = Workflow(
+      name='wf',
+      edges=[(START, before, inner_wf, after)],
+  )
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  # Run 1: before completes, inner_wf/approval interrupts
+  msg1 = types.Content(parts=[types.Part(text='go')], role='user')
+  events1: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg1
+  ):
+    events1.append(event)
+
+  # Should have interrupt from inner's child
+  interrupt_events = [e for e in events1 if e.long_running_tool_ids]
+  assert len(interrupt_events) == 1
+  assert interrupt_events[0].long_running_tool_ids is not None
+  fc_id = list(interrupt_events[0].long_running_tool_ids)[0]
+
+  # Workflow-level interrupt events should NOT be persisted
+  # (they're _adk_internal). Only the leaf child's event at
+  # 'wf/inner_wf/approval' should have interrupt ids in session.
+  updated_session = await ss.get_session(
+      app_name='test', user_id='u', session_id=session.id
+  )
+  assert updated_session is not None
+  wf_interrupt_events = [
+      e
+      for e in updated_session.events
+      if e.long_running_tool_ids and e.node_info.path in ('wf', 'wf/inner_wf')
+  ]
+  assert wf_interrupt_events == []
+
+  # Run 2: resume
+  msg2 = types.Content(
+      parts=[
+          types.Part(
+              function_response=types.FunctionResponse(
+                  name='inner_tool',
+                  id=fc_id,
+                  response={'answer': 'yes'},
+              )
+          )
+      ],
+      role='user',
+  )
+  events2: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg2
+  ):
+    events2.append(event)
+
+  # Inner resumed, after should receive inner's output
+  outputs = [e.output for e in events2 if e.output is not None]
+  assert 'approved:yes' in outputs
+  assert after.received_inputs == ['approved:yes']
+
+
+# --- wait_for_output + HITL resume ---
+
+
+@pytest.mark.asyncio
+async def test_wait_for_output_node_preserved_across_resume():
+  """wait_for_output node is marked WAITING on resume, not re-triggered.
+
+  Scenario:
+    START → A (completes), B (interrupts)
+    A → Gate(wait_for_output, needs 2 triggers)
+    B → Gate
+    Gate → Downstream
+
+  Run 1: A completes → triggers Gate (1/2, no output). B interrupts.
+  Run 2: Resume B → B completes → triggers Gate (2/2, outputs).
+         Gate opens → Downstream runs.
+
+  Without _add_wait_for_output_nodes, Gate would be treated as fresh
+  on resume and only receive 1 trigger (from B), never opening.
+  """
+  import uuid as _uuid
+
+  class _InterruptOnce(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      fc_id = ctx.state.get('_fc_id')
+      if fc_id and ctx.resume_inputs and fc_id in ctx.resume_inputs:
+        ctx.state['_fc_id'] = None
+        yield 'B_done'
+        return
+      fc_id = f'fc-{_uuid.uuid4().hex[:8]}'
+      ctx.state['_fc_id'] = fc_id
+      yield Event(
+          content=types.Content(
+              parts=[
+                  types.Part(
+                      function_call=types.FunctionCall(
+                          name='approve', args={}, id=fc_id
+                      )
+                  )
+              ]
+          ),
+          long_running_tool_ids={fc_id},
+      )
+
+  a = _OutputNode(name='NodeA', value='A')
+  b = _InterruptOnce(name='NodeB')
+  gate = JoinNode(name='Gate')
+  downstream = _OutputNode(name='Downstream', value='done')
+  wf = Workflow(
+      name='wf',
+      edges=[
+          (START, a, gate, downstream),
+          (START, b, gate),
+      ],
+  )
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  # Run 1: A completes, B interrupts, Gate triggered once (no output)
+  msg1 = types.Content(parts=[types.Part(text='go')], role='user')
+  events1: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg1
+  ):
+    events1.append(event)
+
+  outputs1 = [e.output for e in events1 if e.output is not None]
+  assert 'A' in outputs1
+  assert any(e.long_running_tool_ids for e in events1)
+  # Gate should NOT have opened (only 1 of 2 triggers received)
+  assert not any(isinstance(o, dict) and 'NodeA' in o for o in outputs1)
+
+  fc_id = None
+  for e in events1:
+    if e.long_running_tool_ids:
+      fc_id = list(e.long_running_tool_ids)[0]
+
+  # Run 2: resume B → Gate gets 2nd trigger → opens → Downstream runs
+  msg2 = types.Content(
+      parts=[
+          types.Part(
+              function_response=types.FunctionResponse(
+                  name='approve', id=fc_id, response={'ok': True}
+              )
+          )
+      ],
+      role='user',
+  )
+  events2: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg2
+  ):
+    events2.append(event)
+
+  outputs = [e.output for e in events2 if e.output is not None]
+  assert 'B_done' in outputs
+  # Gate opened with both inputs collected
+  gate_output = [o for o in outputs if isinstance(o, dict)]
+  assert len(gate_output) == 1
+  assert 'NodeA' in gate_output[0]
+  assert 'NodeB' in gate_output[0]
+  assert 'done' in outputs

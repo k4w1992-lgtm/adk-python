@@ -25,6 +25,7 @@ from pydantic import alias_generators
 from pydantic import BaseModel
 from pydantic import ConfigDict
 from pydantic import Field
+from pydantic import PrivateAttr
 
 from ..models.llm_response import LlmResponse
 from .event_actions import EventActions
@@ -116,6 +117,15 @@ class Event(LlmResponse):
 
   Branch is used when multiple sub-agent shouldn't see their peer agents'
   conversation history.
+  """
+
+  _adk_internal: bool = PrivateAttr(default=False)
+  """When True, NodeRunner skips enqueueing this event to the session.
+
+  The event still flows through NodeRunner for capturing output,
+  route, and interrupt_ids in NodeRunResult, but is not persisted
+  or yielded to the caller. Used by workflow _finalize to avoid
+  duplicating child interrupt events at the workflow level.
   """
 
   # The following are computed fields.

@@ -135,11 +135,11 @@ class NodeRunner:
         output = event.output
         continue
 
-      if not event.partial:
-        self._flush_deltas(event, ctx)
       self._enrich_event(event, ctx)
-
-      await ctx._invocation_context.enqueue_event(event)
+      if not event._adk_internal:
+        if not event.partial:
+          self._flush_deltas(event, ctx)
+        await ctx._invocation_context.enqueue_event(event)
 
       if event.output is not None:
         if output is not None:

@@ -39,6 +39,9 @@ from ._trigger import Trigger
 from ._workflow_graph import Edge
 from ._workflow_graph import EdgeItem
 from ._workflow_graph import WorkflowGraph
+from .utils._node_path_utils import direct_child_name
+from .utils._node_path_utils import is_descendant
+from .utils._node_path_utils import is_direct_child
 
 if TYPE_CHECKING:
   from ..agents.context import Context
@@ -50,6 +53,26 @@ logger = logging.getLogger('google_adk.' + __name__)
 # ---------------------------------------------------------------------------
 # Loop state (mutable, not persisted)
 # ---------------------------------------------------------------------------
+
+
+@dataclass
+class _ChildScanState:
+  """Per-child state accumulated during event scanning for resume."""
+
+  execution_id: str = ''
+  """Latest execution_id seen for this child."""
+
+  output: Any = None
+  """Output value from the latest execution, if any."""
+
+  interrupt_ids: set[str] = field(default_factory=set)
+  """Interrupt IDs emitted during the latest execution."""
+
+  resolved_ids: set[str] = field(default_factory=set)
+  """Interrupt IDs resolved by FR events in the session."""
+
+  resolved_responses: dict[str, Any] = field(default_factory=dict)
+  """FR response data keyed by interrupt ID."""
 
 
 @dataclass
@@ -134,14 +157,21 @@ class Workflow(BaseNode):
     if self._graph is None:
       return
 
-    loop_state = _LoopState()
-    # TODO: Resume support:
-    # - If checkpoint exists in session, restore _LoopState from it.
-    # - If no checkpoint (checkpointing not enabled), reconstruct
-    #   state from session event list (scan for completed/waiting nodes).
-    # - Match ctx.resume_inputs against WAITING nodes.
-    # - Set matched nodes to PENDING instead of seeding start triggers.
-    self._seed_start_triggers(loop_state, node_input)
+    # --- SETUP: resume from events or start fresh ---
+    # TODO: resume from checkpoint event.
+    if ctx.resume_inputs:
+      loop_state = _LoopState()
+      self._restore_static_nodes_from_events(loop_state, ctx)
+      if loop_state.nodes:
+        self._process_resume(loop_state, ctx)
+      else:
+        logger.warning(
+            'Workflow %s: resume_inputs provided but no resumable state found.',
+            self.name,
+        )
+    else:
+      loop_state = _LoopState()
+      self._seed_start_triggers(loop_state, node_input)
 
     # Create closure for dynamic node scheduling
     loop_state.schedule_dynamic_node = self._make_schedule_dynamic_node(
@@ -263,6 +293,7 @@ class Workflow(BaseNode):
     node = self._get_static_node_by_name(node_name)
     is_terminal = node_name in self._graph._terminal_node_names
 
+    node_state = loop_state.nodes[node_name]
     runner = NodeRunner(
         node=node,
         parent_ctx=ctx,
@@ -274,9 +305,12 @@ class Workflow(BaseNode):
         },
         additional_output_for_ancestor=(ctx.node_path if is_terminal else None),
     )
-    loop_state.nodes[node_name].execution_id = runner.execution_id
+    node_state.execution_id = runner.execution_id
+    resume_inputs = (
+        dict(node_state.resume_inputs) if node_state.resume_inputs else None
+    )
     loop_state.pending_tasks[node_name] = asyncio.create_task(
-        runner.run(node_input=trigger.input)
+        runner.run(node_input=trigger.input, resume_inputs=resume_inputs)
     )
 
   def _make_schedule_dynamic_node(
@@ -401,21 +435,194 @@ class Workflow(BaseNode):
       if node_state.status == NodeStatus.WAITING and node_state.interrupts:
         loop_state.interrupt_ids.update(node_state.interrupts)
 
+  # --- Resume ---
+
+  def _restore_static_nodes_from_events(
+      self, loop_state: _LoopState, ctx: Context
+  ) -> None:
+    """Reconstruct child node statuses and outputs from session events.
+
+    Single forward pass through session events for this invocation.
+    For each direct child, tracks the latest execution_id's state:
+    output, interrupt IDs, and resolved IDs (from FR events). Then
+    derives NodeState per child.
+
+    Status priority:
+      WAITING — has unresolved interrupt IDs
+      COMPLETED — has output
+      PENDING — all interrupts resolved, no output (re-run)
+      WAITING — wait_for_output node triggered but no output yet
+
+    TODO (next CL): Restore node_input via edge walking.
+    """
+    children = self._scan_child_events(ctx)
+    if not children:
+      return
+
+    nodes: dict[str, NodeState] = {}
+    node_outputs: dict[str, Any] = {}
+
+    for child_name, child in children.items():
+      unresolved = child.interrupt_ids - child.resolved_ids
+
+      if unresolved:
+        nodes[child_name] = NodeState(
+            status=NodeStatus.WAITING,
+            interrupts=list(unresolved),
+        )
+      elif child.output is not None:
+        nodes[child_name] = NodeState(status=NodeStatus.COMPLETED)
+        node_outputs[child_name] = child.output
+      elif child.interrupt_ids:
+        # All resolved → PENDING for re-run
+        nodes[child_name] = NodeState(
+            status=NodeStatus.PENDING,
+            resume_inputs=child.resolved_responses,
+        )
+
+    # wait_for_output nodes that were triggered but produced no output
+    self._add_wait_for_output_nodes(nodes, children)
+
+    loop_state.nodes = nodes
+    loop_state.node_outputs = node_outputs
+    loop_state.interrupt_ids = {
+        interrupt_id
+        for state in nodes.values()
+        if state.status == NodeStatus.WAITING
+        for interrupt_id in state.interrupts
+    }
+
+  def _scan_child_events(self, ctx: Context) -> dict[str, _ChildScanState]:
+    """Scan session events and collect per-child state.
+
+    Forward pass through events for this invocation. For each direct
+    child, tracks the latest execution_id and accumulates output,
+    interrupt IDs, and resolved interrupt IDs.
+
+    Returns:
+      dict of child_name → _ChildScanState. Empty if no child had
+      interrupts (nothing to resume).
+    """
+    ic = ctx._invocation_context
+    workflow_path = ctx.node_path
+    invocation_id = ic.invocation_id
+
+    # Keyed by direct child name (first path component after workflow).
+    # Events from nested descendants are attributed to their direct child.
+    children: dict[str, _ChildScanState] = {}
+    # interrupt_id → direct child name, for resolving FRs to children
+    interrupt_owner: dict[str, str] = {}
+
+    for event in ic.session.events:
+      if event.invocation_id != invocation_id:
+        continue
+
+      # FR events resolve interrupts.
+      if event.author == 'user' and event.content and event.content.parts:
+        for part in event.content.parts:
+          fr = part.function_response
+          if fr and fr.id and fr.id in interrupt_owner:
+            owner = interrupt_owner[fr.id]
+            children[owner].resolved_ids.add(fr.id)
+            children[owner].resolved_responses[fr.id] = fr.response
+        continue
+
+      if not is_descendant(workflow_path, event.node_info.path):
+        continue
+
+      child_name = direct_child_name(workflow_path, event.node_info.path)
+      if not child_name:
+        continue
+
+      child = children.setdefault(child_name, _ChildScanState())
+
+      # New execution_id → reset child state (previous execution stale).
+      exec_id = event.node_info.execution_id
+      if exec_id and child.execution_id != exec_id:
+        child.execution_id = exec_id
+        child.output = None
+        child.interrupt_ids.clear()
+        child.resolved_ids.clear()
+
+      # Output only from direct children (not nested descendants)
+      if (
+          is_direct_child(event.node_info.path, workflow_path)
+          and event.output is not None
+      ):
+        child.output = event.output
+
+      # Interrupt from any descendant → attributed to direct child.
+      if event.long_running_tool_ids:
+        for interrupt_id in event.long_running_tool_ids:
+          child.interrupt_ids.add(interrupt_id)
+          interrupt_owner[interrupt_id] = child_name
+
+    return children
+
+  def _add_wait_for_output_nodes(
+      self,
+      nodes: dict[str, NodeState],
+      children: dict[str, _ChildScanState],
+  ) -> None:
+    """Add WAITING for wait_for_output nodes triggered but without output.
+
+    A wait_for_output node is not considered complete until it yields
+    an output. We mark it WAITING so the orchestration loop doesn't
+    treat it as a fresh node on resume.
+
+    A wait_for_output node "ran" if any predecessor exists in the
+    known children or nodes dict (it would have been triggered).
+    """
+    known_names = set(children) | set(nodes)
+    for graph_node in self._graph.nodes:
+      if (
+          not graph_node.wait_for_output
+          or graph_node.name in nodes
+          or graph_node.name in children
+      ):
+        continue
+      predecessors = {
+          e.from_node.name
+          for e in self._graph.edges
+          if e.to_node.name == graph_node.name
+      }
+      if predecessors & known_names:
+        nodes[graph_node.name] = NodeState(status=NodeStatus.WAITING)
+
+  def _process_resume(self, loop_state: _LoopState, ctx: Context) -> None:
+    """Seed triggers for PENDING nodes and collect interrupt IDs."""
+    for node_name, node_state in loop_state.nodes.items():
+      if node_state.status == NodeStatus.PENDING:
+        loop_state.trigger_buffer.setdefault(node_name, []).append(
+            Trigger(
+                input=node_state.input,
+                triggered_by=node_state.triggered_by or '',
+            )
+        )
+
   # --- FINALIZE ---
 
   async def _finalize(
       self, loop_state: _LoopState
   ) -> AsyncGenerator[Any, None]:
-    """Yield interrupt signal or terminal output for propagation."""
+    """Yield interrupt event (internal, not persisted) or terminal output.
+
+    The interrupt event is marked _adk_internal so NodeRunner skips
+    persisting it. Child interrupt events are already in the session.
+    This event only propagates interrupt_ids via NodeRunResult.
+    """
     from ..events.event import Event
 
     if loop_state.interrupt_ids:
-      yield Event(long_running_tool_ids=loop_state.interrupt_ids)
+      event = Event(long_running_tool_ids=loop_state.interrupt_ids)
+      event._adk_internal = True
+      yield event
       return
 
     # Yield terminal output so NodeRunResult.output is set.
     # Needed for nested workflows — parent sees child's output
     # via NodeRunResult. Terminal nodes = no outgoing edges.
+    # TODO: Replace structural terminal detection Event.output_for.
     terminal_outputs = [
         loop_state.node_outputs[name]
         for name in self._graph._terminal_node_names
