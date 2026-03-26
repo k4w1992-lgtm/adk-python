@@ -424,13 +424,13 @@ class Runner:
       session_id: str,
       new_message: Optional[types.Content] = None,
       run_config: Optional[RunConfig] = None,
+      yield_user_message: bool = False,
   ) -> AsyncGenerator[Event, None]:
     """Run a BaseNode through NodeRunner.
 
     Events flow through ic.event_queue via NodeRunner.
 
-    TODO: Add tracing, plugin lifecycle, and resumability support
-    for the node runtime path.
+    TODO: Add tracing and plugin lifecycle for the node runtime path.
     """
     from .workflow._node_runner_class import NodeRunner
 
@@ -438,14 +438,42 @@ class Runner:
     session = await self._get_or_create_session(
         user_id=user_id, session_id=session_id
     )
+
+    # Validate and resolve resume inputs
+    resume_inputs = self._extract_resume_inputs(new_message)
+    self._validate_new_message(new_message, resume_inputs)
+
+    invocation_id = (
+        self._resolve_invocation_id_from_fr(session, new_message)
+        if new_message
+        else None
+    )
+
     ic = self._new_invocation_context(
         session,
         new_message=new_message,
         run_config=run_config or RunConfig(),
+        invocation_id=invocation_id,
     )
     ic.event_queue = asyncio.Queue()
 
-    # 2. Start root node in background
+    # 2. Append user message to session and resolve node_input
+    if resume_inputs:
+      # Resume: find original user message, use as node_input
+      node_input = self._find_original_user_content(
+          ic.session, ic.invocation_id
+      )
+    else:
+      # Fresh: use user message as node_input
+      node_input = new_message
+
+    # Append user message to session for history
+    if new_message:
+      user_event = await self._append_user_event(ic, new_message)
+      if yield_user_message and user_event:
+        yield user_event
+
+    # 3. Start root node in background
     from .agents.context import Context
 
     root_ctx = Context(ic)
@@ -454,18 +482,114 @@ class Runner:
 
     async def _drive_root_node():
       try:
-        await root_node_runner.run(node_input=ic.user_content)
+        await root_node_runner.run(
+            node_input=node_input,
+            resume_inputs=resume_inputs,
+        )
       finally:
         await ic.event_queue.put((done_sentinel, None))
 
     task = asyncio.create_task(_drive_root_node())
 
-    # 3. Main loop: consume events, persist, yield
+    # 4. Main loop: consume events, persist, yield
     try:
       async for event in self._consume_event_queue(ic, done_sentinel):
         yield event
     finally:
       await self._cleanup_root_task(task, self.node.name)
+
+  def _extract_resume_inputs(
+      self, message: Optional[types.Content]
+  ) -> dict[str, Any] | None:
+    """Extract function response payloads from a message as resume_inputs."""
+    if not message or not message.parts:
+      return None
+    inputs = {}
+    for part in message.parts:
+      if part.function_response and part.function_response.id:
+        inputs[part.function_response.id] = part.function_response.response
+    return inputs or None
+
+  def _validate_new_message(
+      self,
+      message: Optional[types.Content],
+      resume_inputs: dict[str, Any] | None,
+  ) -> None:
+    """Validate that new_message doesn't mix FR and text parts."""
+    if not resume_inputs or not message or not message.parts:
+      return
+    if any(p.text for p in message.parts):
+      raise ValueError(
+          'Message cannot contain both function responses and text.'
+          ' Function responses resume an existing invocation while'
+          ' text starts a new one.'
+      )
+
+  def _resolve_invocation_id_from_fr(
+      self,
+      session: Session,
+      new_message: types.Content,
+  ) -> Optional[str]:
+    """Infer invocation_id by matching function responses to FC events.
+
+    Raises ValueError if responses resolve to different invocations.
+    """
+    fr_ids = {
+        p.function_response.id
+        for p in new_message.parts or []
+        if p.function_response and p.function_response.id
+    }
+    if not fr_ids:
+      return None
+
+    # Find invocation_id for each FR by matching its FC in session
+    invocation_ids = set()
+    for event in reversed(session.events):
+      for fc in event.get_function_calls():
+        if fc.id in fr_ids:
+          invocation_ids.add(event.invocation_id)
+          fr_ids.discard(fc.id)
+      if not fr_ids:
+        break
+
+    if fr_ids:
+      raise ValueError(
+          f'Function call not found for function response ids: {fr_ids}.'
+      )
+    if len(invocation_ids) > 1:
+      raise ValueError(
+          'Function responses resolve to multiple'
+          f' invocations: {invocation_ids}.'
+      )
+    return invocation_ids.pop()
+
+  async def _append_user_event(
+      self, ic: InvocationContext, content: types.Content
+  ) -> Event:
+    """Append a user message event to the session and return it."""
+    event = Event(
+        invocation_id=ic.invocation_id,
+        author='user',
+        content=content,
+    )
+    return await self.session_service.append_event(
+        session=ic.session, event=event
+    )
+
+  def _find_original_user_content(
+      self, session: Session, invocation_id: str
+  ) -> types.Content | None:
+    """Find the original user text message for a given invocation_id."""
+    for event in session.events:
+      if (
+          event.invocation_id == invocation_id
+          and event.author == 'user'
+          and event.content
+          and event.content.parts
+          and any(p.text for p in event.content.parts)
+      ):
+        return event.content
+    return None
 
   async def _consume_event_queue(
       self, ic: InvocationContext, done_sentinel: object
@@ -620,6 +744,7 @@ class Runner:
       new_message: Optional[types.Content] = None,
       state_delta: Optional[dict[str, Any]] = None,
       run_config: Optional[RunConfig] = None,
+      yield_user_message: bool = False,
   ) -> AsyncGenerator[Event, None]:
     """Main entry method to run the agent in this runner.
 
@@ -637,6 +762,8 @@ class Runner:
       new_message: A new message to append to the session.
       state_delta: Optional state changes to apply to the session.
       run_config: The run config for the agent.
+      yield_user_message: If True, yield the user message event before
+        agent/node events.
 
     Yields:
       The events generated by the agent.
@@ -656,6 +783,7 @@ class Runner:
           session_id=session_id,
           new_message=new_message,
           run_config=run_config,
+          yield_user_message=yield_user_message,
       ):
         yield event
       return
