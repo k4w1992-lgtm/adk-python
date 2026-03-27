@@ -1826,6 +1826,10 @@ class AdkWebServer:
       function_calls = event.get_function_calls()
       function_responses = event.get_function_responses()
 
+      # Extract function calls/responses from event content
+      function_calls = getattr(event.content, "function_calls", None) if event.content else None
+      function_responses = getattr(event.content, "function_responses", None) if event.content else None
+
       if function_calls:
         function_call_highlights = []
         for function_call in function_calls:
