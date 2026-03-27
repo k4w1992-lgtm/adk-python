@@ -159,6 +159,11 @@ class Workflow(BaseNode):
     self._collect_remaining_interrupts(loop_state)
 
     # --- FINALIZE ---
+    # Terminal node output already has output_for including this
+    # workflow's path. Mark output as delegated so the workflow's
+    # NodeRunner skips creating a duplicate output event.
+    if self._has_terminal_output(loop_state):
+      ctx._output_delegated = True
     async for item in self._finalize(loop_state):
       yield item
 
@@ -256,6 +261,7 @@ class Workflow(BaseNode):
     from ._node_runner_class import NodeRunner
 
     node = self._get_static_node_by_name(node_name)
+    is_terminal = node_name in self._graph._terminal_node_names
 
     runner = NodeRunner(
         node=node,
@@ -266,6 +272,7 @@ class Workflow(BaseNode):
             for e in self._graph.edges
             if e.to_node.name == node_name
         },
+        additional_output_for_ancestor=(ctx.node_path if is_terminal else None),
     )
     loop_state.nodes[node_name].execution_id = runner.execution_id
     loop_state.pending_tasks[node_name] = asyncio.create_task(
@@ -424,6 +431,13 @@ class Workflow(BaseNode):
       )
 
   # --- Utilities ---
+
+  def _has_terminal_output(self, loop_state: _LoopState) -> bool:
+    """Check if any terminal node produced output."""
+    return any(
+        name in loop_state.node_outputs
+        for name in self._graph._terminal_node_names
+    )
 
   def _get_static_node_by_name(self, name: str) -> BaseNode:
     """Find a node in the graph by name."""

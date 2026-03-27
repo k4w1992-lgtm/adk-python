@@ -99,9 +99,12 @@ class NodeRunner:
     """Create a child Context for the node, inheriting from parent."""
     from ..agents.context import Context
 
-    ancestors = list(self._parent_ctx._output_for_ancestors or [])
     if self._additional_output_for_ancestor:
-      ancestors = [self._additional_output_for_ancestor] + ancestors
+      ancestors = [self._additional_output_for_ancestor] + list(
+          self._parent_ctx._output_for_ancestors or []
+      )
+    else:
+      ancestors = []
 
     return Context(
         self._parent_ctx._invocation_context,

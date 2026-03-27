@@ -1210,11 +1210,13 @@ async def test_use_as_output_function_to_function():
   assert ('func_b', 'from_b') in by_node
   assert not any(name == 'func_a' for name, _ in by_node)
 
-  # output_for includes both child and parent paths.
+  # output_for includes child, parent, and workflow paths.
+  # func_a is terminal, so its output also represents the workflow's.
   output_event = [e for e in events if e.node_info.name == 'func_b'][0]
   assert output_event.node_info.output_for == [
       'wf/func_a/func_b',
       'wf/func_a',
+      'wf',
   ]
 
 
@@ -1307,12 +1309,14 @@ async def test_use_as_output_nested_delegation():
   assert ('func_c', 'from_c') in by_node
   assert not any(name in ('func_a', 'func_b') for name, _ in by_node)
 
-  # output_for includes full ancestor chain.
+  # output_for includes full ancestor chain plus workflow path.
+  # func_a is terminal, so the chain extends to the workflow.
   output_event = [e for e in events if e.node_info.name == 'func_c'][0]
   assert output_event.node_info.output_for == [
       'wf/func_a/func_b/func_c',
       'wf/func_a/func_b',
       'wf/func_a',
+      'wf',
   ]
 
 
@@ -1390,8 +1394,89 @@ async def test_without_use_as_output_parent_emits_duplicate():
   assert ('func_b', 'from_b') in by_node
   assert ('func_a', 'from_b') in by_node
 
-  # Without delegation, output_for contains only the node's own path.
+  # func_b's output_for is just its own path (no delegation).
   b_event = [e for e in events if e.node_info.name == 'func_b'][0]
   assert b_event.node_info.output_for == ['wf/func_a/func_b']
+  # func_a is terminal, so its output_for includes the workflow path.
   a_event = [e for e in events if e.node_info.name == 'func_a'][0]
-  assert a_event.node_info.output_for == ['wf/func_a']
+  assert a_event.node_info.output_for == ['wf/func_a', 'wf']
+
+
+@pytest.mark.asyncio
+async def test_terminal_node_output_dedup():
+  """Terminal node output is not duplicated by the workflow.
+
+  The terminal node's output event includes the workflow path in
+  output_for, and the workflow does not emit a separate output event.
+  """
+
+  def step_a(node_input: str) -> str:
+    return node_input.upper()
+
+  def step_b(node_input: str) -> str:
+    return f'final: {node_input}'
+
+  wf = Workflow(name='wf', edges=[(START, step_a, step_b)])
+  events, _, _ = await _run_workflow(wf, 'hello')
+
+  output_events = [e for e in events if e.output is not None]
+
+  # step_a is not terminal — its output_for is just its own path.
+  a_events = [e for e in output_events if e.node_info.name == 'step_a']
+  assert len(a_events) == 1
+  assert a_events[0].node_info.output_for == ['wf/step_a']
+
+  # step_b is terminal — its output_for includes the workflow path.
+  b_events = [e for e in output_events if e.node_info.name == 'step_b']
+  assert len(b_events) == 1
+  assert b_events[0].node_info.output_for == ['wf/step_b', 'wf']
+  assert b_events[0].output == 'final: HELLO'
+
+  # No duplicate output event from the workflow itself.
+  wf_events = [e for e in output_events if e.node_info.path == 'wf']
+  assert len(wf_events) == 0
+
+
+@pytest.mark.asyncio
+async def test_terminal_node_output_dedup_nested():
+  """Terminal output dedup works for nested workflows.
+
+  Inner workflow's terminal node output propagates to the outer
+  workflow without duplication.
+  """
+
+  def inner_node(node_input: str) -> str:
+    return node_input.upper()
+
+  inner_wf = Workflow(name='inner', edges=[(START, inner_node)])
+
+  def outer_node(node_input: str) -> str:
+    return f'wrapped: {node_input}'
+
+  outer_wf = Workflow(name='outer', edges=[(START, inner_wf, outer_node)])
+  events, _, _ = await _run_workflow(outer_wf, 'test')
+
+  output_events = [e for e in events if e.output is not None]
+
+  # inner_node is terminal in inner_wf — includes inner_wf path.
+  inner_events = [e for e in output_events if e.node_info.name == 'inner_node']
+  assert len(inner_events) == 1
+  assert inner_events[0].node_info.output_for == [
+      'outer/inner/inner_node',
+      'outer/inner',
+  ]
+
+  # outer_node is terminal in outer_wf — includes outer_wf path.
+  outer_events = [e for e in output_events if e.node_info.name == 'outer_node']
+  assert len(outer_events) == 1
+  assert outer_events[0].node_info.output_for == [
+      'outer/outer_node',
+      'outer',
+  ]
+  assert outer_events[0].output == 'wrapped: TEST'
+
+  # No duplicate output events from the workflows themselves.
+  wf_output_events = [
+      e for e in output_events if e.node_info.path in ('outer', 'outer/inner')
+  ]
+  assert len(wf_output_events) == 0
