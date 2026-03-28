@@ -89,6 +89,7 @@ class SingleAgentReactNode(BaseNode):
     # which lacks canonical_model. Always override.
     # TODO: remove this dependency.
     ctx._invocation_context.agent = self.agent
+    ctx.event_author = self.agent.name
 
     # Always provide our own scheduler so child nodes
     # (LlmCallNode, ParallelToolCallNode) are managed by this node,

@@ -157,6 +157,9 @@ class Workflow(BaseNode):
     if self._graph is None:
       return
 
+    # Set event_author so child events are attributed to this workflow.
+    ctx.event_author = self.name
+
     # --- SETUP: resume from events or start fresh ---
     # TODO: resume from checkpoint event.
     if ctx.resume_inputs:

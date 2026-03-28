@@ -164,6 +164,7 @@ class Context(ReadonlyContext):
       transfer_targets: list[Any] | None = None,
       retry_count: int = 0,
       output_for_ancestors: list[str] | None = None,
+      event_author: str = '',
   ) -> None:
     """Initializes the Context.
 
@@ -189,6 +190,8 @@ class Context(ReadonlyContext):
 
     from ..events.event_actions import EventActions
     from ..sessions.state import State
+
+    # TODO: clean up: group the below private fields with categories.
 
     self._event_actions = event_actions or EventActions()
     self._state = State(
@@ -218,6 +221,7 @@ class Context(ReadonlyContext):
     self._output_emitted: bool = False
     self._route_value: RouteValue | list[RouteValue] | None = None
     self._interrupt_ids: set[str] = set()
+    self._event_author = event_author
     self._output_for_ancestors: list[str] = output_for_ancestors or []
     """Ancestor node paths whose output this node's output also represents.
 
@@ -355,6 +359,22 @@ class Context(ReadonlyContext):
     long_running_tool_ids.
     """
     return set(self._interrupt_ids)
+
+  @property
+  def event_author(self) -> str:
+    """Author name stamped on events emitted by this node.
+
+    Set by the orchestrator to override the default (node name).
+    For example, Workflow sets this to its own name so all child
+    events appear under the workflow's author.
+
+    Empty string means use the node's own name (default).
+    """
+    return self._event_author
+
+  @event_author.setter
+  def event_author(self, value: str) -> None:
+    self._event_author = value
 
   @property
   def transfer_targets(self) -> list[Any]:

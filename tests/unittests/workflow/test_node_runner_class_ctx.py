@@ -54,6 +54,7 @@ def _make_ctx():
   ctx.node_path = ''
   ctx._schedule_dynamic_node_internal = None
   ctx._output_for_ancestors = []
+  ctx.event_author = ''
   return ctx, collected
 
 
@@ -454,3 +455,55 @@ async def test_prior_and_new_interrupt_ids_merged():
   ).run()
 
   assert child_ctx.interrupt_ids == {'fc-old', 'fc-new'}
+
+
+# =========================================================================
+# event_author — parent orchestrator overrides event author
+# =========================================================================
+
+
+@pytest.mark.asyncio
+async def test_event_author_defaults_to_node_name():
+  """Without event_author, events use the node's own name."""
+
+  class _Node(BaseNode):
+
+    async def _run_impl(self, *, ctx, node_input):
+      yield 'result'
+
+  parent_ctx, events = _make_ctx()
+  await NodeRunner(node=_Node(name='my_node'), parent_ctx=parent_ctx).run()
+
+  assert events[0].author == 'my_node'
+
+
+@pytest.mark.asyncio
+async def test_event_author_overrides_node_name():
+  """When parent sets event_author, events use that instead."""
+
+  class _Node(BaseNode):
+
+    async def _run_impl(self, *, ctx, node_input):
+      yield 'result'
+
+  parent_ctx, events = _make_ctx()
+  parent_ctx.event_author = 'my_workflow'
+  await NodeRunner(node=_Node(name='my_node'), parent_ctx=parent_ctx).run()
+
+  assert events[0].author == 'my_workflow'
+
+
+@pytest.mark.asyncio
+async def test_event_author_overrides_preset_author():
+  """event_author always wins, even over a pre-set event author."""
+
+  class _Node(BaseNode):
+
+    async def _run_impl(self, *, ctx, node_input):
+      yield Event(author='custom_author', output='result')
+
+  parent_ctx, events = _make_ctx()
+  parent_ctx.event_author = 'my_workflow'
+  await NodeRunner(node=_Node(name='my_node'), parent_ctx=parent_ctx).run()
+
+  assert events[0].author == 'my_workflow'

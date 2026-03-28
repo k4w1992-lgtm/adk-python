@@ -149,6 +149,7 @@ class NodeRunner:
         triggered_by=self._triggered_by,
         in_nodes=self._in_nodes,
         output_for_ancestors=ancestors,
+        event_author=self._parent_ctx.event_author,
     )
 
     # Carry forward state from a previous run (resume scenario).
@@ -255,11 +256,8 @@ class NodeRunner:
 
   def _enrich_event(self, event: Event, ctx: Context) -> None:
     """Set author, node_info, invocation_id on the event."""
-    if not event.author:
-      # TODO: Use ctx.event_author when available (PR 6) so
-      # orchestrators (WorkflowNode, MeshNode) can stamp their name
-      # on all child node events.
-      event.author = self._node.name
+    # TODO: revisit after we settle Event.author logic for content/message.
+    event.author = ctx.event_author or self._node.name
     event.invocation_id = ctx._invocation_context.invocation_id
     event.node_info.path = ctx.node_path
     event.node_info.execution_id = self._execution_id

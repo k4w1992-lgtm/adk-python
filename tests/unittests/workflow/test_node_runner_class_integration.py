@@ -171,6 +171,8 @@ def _make_ctx(invocation_id='inv-test', enqueue_events=None):
   ctx._invocation_context = ic
   ctx.node_path = ''
   ctx.schedule_dynamic_node = None
+  ctx.event_author = ''
+  ctx._output_for_ancestors = []
   return ctx, collected
 
 
@@ -278,10 +280,9 @@ async def test_events_enqueued_in_yield_order():
   ctx, events = _make_ctx()
   await NodeRunner(node=node, parent_ctx=ctx).run()
 
-  authors = [
-      e.author for e in events if e.author in ('step1', 'step2', 'step3')
-  ]
-  assert authors == ['step1', 'step2', 'step3']
+  # All 3 events enqueued, authored by node name (framework overrides).
+  assert len(events) == 3
+  assert all(e.author == 'multi' for e in events)
 
 
 @pytest.mark.asyncio
@@ -353,16 +354,14 @@ async def test_route_captured_in_result():
 
 
 @pytest.mark.asyncio
-async def test_preset_author_preserved():
-  """A node that sets its own author on events has that respected."""
+async def test_preset_author_overridden_by_framework():
+  """Framework always sets author — preset author is overridden."""
   node = _MultiEventNode(name='multi')
   ctx, events = _make_ctx()
   await NodeRunner(node=node, parent_ctx=ctx).run()
 
-  authors = [
-      e.author for e in events if e.author in ('step1', 'step2', 'step3')
-  ]
-  assert authors == ['step1', 'step2', 'step3']
+  # All events get node name, not the preset 'step1'/'step2'/'step3'.
+  assert all(e.author == 'multi' for e in events)
 
 
 class _MultiOutputNode(BaseNode):
