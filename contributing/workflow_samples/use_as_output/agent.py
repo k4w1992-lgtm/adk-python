@@ -12,20 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from google.adk import Agent
 from google.adk import Context
 from google.adk.workflow import node
 from google.adk.workflow._base_node import START
 from google.adk.workflow._workflow_class import Workflow
 
 
-def transform(node_input: str) -> str:
-  return node_input.upper()
+summarizer = Agent(
+    name='summarizer',
+    model='gemini-2.5-flash',
+    instruction='Summarize the following text in one sentence.',
+)
 
 
 @node(rerun_on_resume=True)
 async def orchestrate(ctx: Context, node_input: str) -> str:
   return await ctx.run_node(
-      transform, node_input=node_input, use_as_output=True
+      summarizer, node_input=node_input, use_as_output=True
   )
 
 

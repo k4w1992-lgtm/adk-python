@@ -16,6 +16,8 @@
 
 - Sets a branch for content isolation (single_turn mode only)
 - Converts node_input to user content (single_turn mode only)
+- Runs leaf single_turn agents via SingleAgentReactNode (new Workflow)
+  or _SingleLlmAgent (old Workflow)
 - Re-emits finish_task output so the outer node_runner can route it
 """
 
@@ -57,8 +59,12 @@ class _LlmAgentWrapper(BaseNode):
   """Adapts a task/single_turn LlmAgent for use as a workflow graph node.
 
   Output handling by mode:
-    single_turn (leaf, no sub_agents): Bypasses Mesh by running
-      _SingleLlmAgent directly. Output is extracted via
+    single_turn (leaf, no sub_agents, new Workflow): Runs the ReAct
+      loop via SingleAgentReactNode. LlmCallNode events are enqueued
+      internally; the wrapper post-processes the final text output
+      (output_schema validation, output_key storage).
+    single_turn (leaf, no sub_agents, old Workflow): Bypasses Mesh by
+      running _SingleLlmAgent directly. Output is extracted via
       LlmAgent._maybe_save_output_to_state and emitted as a
       separate Event before END_OF_AGENT.
     single_turn (with sub_agents): Runs the full LlmAgent which
@@ -72,6 +78,7 @@ class _LlmAgentWrapper(BaseNode):
   agent: LlmAgent = Field(...)
   rerun_on_resume: bool = Field(default=True)
   _single: Any = PrivateAttr(default=None)
+  _react: Any = PrivateAttr(default=None)
 
   @model_validator(mode='before')
   @classmethod
@@ -96,12 +103,21 @@ class _LlmAgentWrapper(BaseNode):
     if self.agent.mode == 'task':
       self.wait_for_output = True
 
-    # For leaf single_turn agents, use _SingleLlmAgent directly,
-    # bypassing the _Mesh orchestration layer.
+    # For leaf single_turn agents, prepare both execution paths.
+    # The old Workflow (uses _node_runner.py, no event_queue) needs
+    # _SingleLlmAgent. The new Workflow (_workflow_class.py, sets
+    # event_queue) uses SingleAgentReactNode. The choice is made at
+    # runtime in _run_impl based on event_queue presence.
     if self.agent.mode == 'single_turn' and not self.agent.sub_agents:
+      from ..agents.llm._single_agent_react_node import (
+          SingleAgentReactNode,
+      )
       from ..agents.llm._single_llm_agent import _SingleLlmAgent
 
       self._single = _SingleLlmAgent.from_base_llm_agent(self.agent)
+      self._react = SingleAgentReactNode(
+          name=self.agent.name, agent=self.agent
+      )
 
     return self
 
@@ -121,6 +137,10 @@ class _LlmAgentWrapper(BaseNode):
       if copied._single is not None:
         copied._single = copied._single.model_copy(
             update={'name': update['name']}
+        )
+      if copied._react is not None:
+        copied._react = copied._react.model_copy(
+            update={'name': update['name'], 'agent': copied.agent}
         )
     return copied
 
@@ -153,12 +173,27 @@ class _LlmAgentWrapper(BaseNode):
     ic = ctx._invocation_context.model_copy(
         update={'branch': branch},
     )
+    # event_queue is excluded from model_copy; propagate manually
+    # so child NodeRunners can enqueue events.
+    ic.event_queue = ctx._invocation_context.event_queue
     agent_ctx = Context(
         invocation_context=ic,
         node_path=ctx.node_path,
         execution_id=ctx.execution_id,
     )
     return agent_ctx, agent_input
+
+  def _use_react_path(self, ctx: Context) -> bool:
+    """Returns True if we should use SingleAgentReactNode (new Workflow).
+
+    The new Workflow (_workflow_class.py) runs via Runner._run_node_async
+    which sets ic.event_queue. The old Workflow (_workflow.py) runs via
+    Runner.run_async (agent path) which does not set event_queue.
+    """
+    return (
+        self._react is not None
+        and ctx._invocation_context.event_queue is not None
+    )
 
   @override
   async def _run_impl(
@@ -171,6 +206,47 @@ class _LlmAgentWrapper(BaseNode):
     self._validate_input(node_input)
     agent_ctx, agent_input = self._prepare_input(ctx, node_input)
 
+    if self._use_react_path(ctx):
+      # New Workflow: leaf single_turn via SingleAgentReactNode.
+      # Inject input as user content in session, then run the react
+      # loop. LlmCallNode events are enqueued to event_queue internally;
+      # only the final text output comes through the generator.
+      if agent_input is not None:
+        ic = agent_ctx._invocation_context
+        ic.session.events.append(
+            Event(
+                invocation_id=ic.invocation_id,
+                author='user',
+                branch=ic.branch,
+                content=agent_input,
+            )
+        )
+      output = None
+      async for event in self._react.run(
+          ctx=agent_ctx, node_input=None
+      ):
+        if isinstance(event, Event) and event.output is not None:
+          output = event.output
+
+      if output is not None:
+        if isinstance(output, str) and self.agent.output_schema:
+          if not output.strip():
+            return
+          from ..utils._schema_utils import validate_schema
+
+          output = validate_schema(self.agent.output_schema, output)
+        if self.agent.output_key:
+          ctx.actions.state_delta[self.agent.output_key] = output
+        # Mark output as delegated so the wrapper's NodeRunner
+        # captures the value without enqueuing a separate output
+        # event. The LlmCallNode content event (already enqueued)
+        # carries the visible response; this avoids duplication.
+        ctx._output_delegated = True
+        yield output
+      return
+      yield  # noqa: unreachable — keeps this an async generator
+
+    # Determine inner runner: _SingleLlmAgent for leaf, agent for others.
     inner = self._single if self._single is not None else self.agent
 
     # When the agent has parallel_worker=True, call run_node_impl()
@@ -182,8 +258,8 @@ class _LlmAgentWrapper(BaseNode):
 
     if self.agent.mode == 'single_turn':
       if self._single is not None:
-        # Leaf agent bypass: since we skip LlmAgent.run_node_impl(),
-        # replicate its output handling here.
+        # Old Workflow: leaf agent bypass. Since we skip
+        # LlmAgent.run_node_impl(), replicate its output handling.
         # _maybe_save_output_to_state applies output_schema/output_key
         # and clears content on the final response. We emit the output
         # as a pathless Event before END_OF_AGENT.

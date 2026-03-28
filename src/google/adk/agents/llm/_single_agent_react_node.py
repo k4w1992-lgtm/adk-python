@@ -83,12 +83,12 @@ class SingleAgentReactNode(BaseNode):
       ctx: Context,
       node_input: Any,
   ) -> AsyncGenerator[Any, None]:
-    # Ensure IC has the agent — needed by downstream code
-    # (e.g. _build_response_event reads invocation_context.agent.name).
-    # When run via Runner(node=...), ic.agent is None.
+    # Set IC agent — needed by downstream code
+    # (e.g. _build_basic_request reads agent.canonical_model).
+    # When run inside a Workflow, ic.agent may be the Workflow itself
+    # which lacks canonical_model. Always override.
     # TODO: remove this dependency.
-    if ctx._invocation_context.agent is None:
-      ctx._invocation_context.agent = self.agent
+    ctx._invocation_context.agent = self.agent
 
     # Always provide our own scheduler so child nodes
     # (LlmCallNode, ParallelToolCallNode) are managed by this node,
