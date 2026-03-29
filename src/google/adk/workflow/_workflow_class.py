@@ -59,7 +59,7 @@ logger = logging.getLogger('google_adk.' + __name__)
 class _ChildScanState:
   """Per-child state accumulated during event scanning for resume."""
 
-  execution_id: str = ''
+  execution_id: str | None = None
   """Latest execution_id seen for this child."""
 
   output: Any = None
@@ -301,6 +301,9 @@ class Workflow(BaseNode):
     runner = NodeRunner(
         node=node,
         parent_ctx=ctx,
+        # Reuse execution_id on resume so events appear as one
+        # continuous execution. Fresh dispatches get a new UUID.
+        execution_id=node_state.execution_id,
         triggered_by=trigger.triggered_by,
         in_nodes={  # TODO: move to WorkflowGraph and add tests.
             e.from_node.name
@@ -467,20 +470,30 @@ class Workflow(BaseNode):
 
     for child_name, child in children.items():
       unresolved = child.interrupt_ids - child.resolved_ids
+      existing_exec_id = child.execution_id
 
       if unresolved:
+        # Node still has unresolved interrupts → stay WAITING.
         nodes[child_name] = NodeState(
             status=NodeStatus.WAITING,
             interrupts=list(unresolved),
+            execution_id=existing_exec_id,
         )
       elif child.output is not None:
-        nodes[child_name] = NodeState(status=NodeStatus.COMPLETED)
+        # Node's all interrupts are resolved and had output in previous run.
+        nodes[child_name] = NodeState(
+            status=NodeStatus.COMPLETED,
+            execution_id=existing_exec_id,
+        )
         node_outputs[child_name] = child.output
       elif child.interrupt_ids:
-        # All resolved → PENDING for re-run
+        # Node had interrupts, all resolved, no output yet → PENDING for re-run.
+        # TODO handle rerun_on_resume=False in this case, which doesn't need to
+        # run, just forward resume_inputs to output.
         nodes[child_name] = NodeState(
             status=NodeStatus.PENDING,
             resume_inputs=child.resolved_responses,
+            execution_id=existing_exec_id,
         )
 
     # wait_for_output nodes that were triggered but produced no output

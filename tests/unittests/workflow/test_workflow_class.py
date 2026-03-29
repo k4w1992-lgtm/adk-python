@@ -21,15 +21,18 @@ workflow behavior through Runner(node=...) instead of agent.run_async().
 from collections import Counter
 from typing import Any
 from typing import AsyncGenerator
+import uuid
 
 from google.adk.agents.context import Context
 from google.adk.events.event import Event
+from google.adk.events.request_input import RequestInput
 from google.adk.runners import Runner
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.workflow._base_node import BaseNode
 from google.adk.workflow._base_node import START
 from google.adk.workflow._join_node import JoinNode
 from google.adk.workflow._workflow_class import Workflow
+from google.adk.workflow.utils._workflow_hitl_utils import create_request_input_response
 from google.genai import types
 from pydantic import ConfigDict
 from pydantic import Field
@@ -297,9 +300,8 @@ async def test_resume_after_interrupt():
         ctx.state['_fc_id'] = None
         yield 'resumed'
         return
-      import uuid as _uuid
 
-      fc_id = f'fc-{_uuid.uuid4().hex[:8]}'
+      fc_id = f'fc-{uuid.uuid4().hex[:8]}'
       ctx.state['_fc_id'] = fc_id
       yield Event(
           content=types.Content(
@@ -1033,14 +1035,13 @@ async def test_resume_downstream_receives_output():
     async def _run_impl(
         self, *, ctx: Context, node_input: Any
     ) -> AsyncGenerator[Any, None]:
-      import uuid as _uuid
 
       fc_id = ctx.state.get('_fc_id')
       if fc_id and ctx.resume_inputs and fc_id in ctx.resume_inputs:
         ctx.state['_fc_id'] = None
         yield f'response:{ctx.resume_inputs[fc_id]["value"]}'
         return
-      fc_id = f'fc-{_uuid.uuid4().hex[:8]}'
+      fc_id = f'fc-{uuid.uuid4().hex[:8]}'
       ctx.state['_fc_id'] = fc_id
       yield Event(
           content=types.Content(
@@ -1694,7 +1695,6 @@ async def test_nested_workflow_completes():
 @pytest.mark.asyncio
 async def test_nested_workflow_interrupt_and_resume():
   """Inner workflow child interrupts, outer resumes on FR."""
-  import uuid as _uuid
 
   class _InterruptNode(BaseNode):
 
@@ -1707,7 +1707,7 @@ async def test_nested_workflow_interrupt_and_resume():
         response = ctx.resume_inputs[fc_id]['answer']
         yield f'approved:{response}'
         return
-      fc_id = f'fc-{_uuid.uuid4().hex[:8]}'
+      fc_id = f'fc-{uuid.uuid4().hex[:8]}'
       ctx.state['_nested_fc'] = fc_id
       yield Event(
           content=types.Content(
@@ -1809,7 +1809,6 @@ async def test_wait_for_output_node_preserved_across_resume():
   Without _add_wait_for_output_nodes, Gate would be treated as fresh
   on resume and only receive 1 trigger (from B), never opening.
   """
-  import uuid as _uuid
 
   class _InterruptOnce(BaseNode):
 
@@ -1821,7 +1820,7 @@ async def test_wait_for_output_node_preserved_across_resume():
         ctx.state['_fc_id'] = None
         yield 'B_done'
         return
-      fc_id = f'fc-{_uuid.uuid4().hex[:8]}'
+      fc_id = f'fc-{uuid.uuid4().hex[:8]}'
       ctx.state['_fc_id'] = fc_id
       yield Event(
           content=types.Content(
@@ -1895,3 +1894,71 @@ async def test_wait_for_output_node_preserved_across_resume():
   assert 'NodeA' in gate_output[0]
   assert 'NodeB' in gate_output[0]
   assert 'done' in outputs
+
+
+# --- execution_id reuse on resume ---
+
+
+@pytest.mark.asyncio
+async def test_execution_id_reused_on_resume():
+  """Resumed node reuses execution_id from original interrupted run."""
+
+  class _InterruptOnce(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      fc_id = ctx.state.get('_fc_id')
+      if fc_id and ctx.resume_inputs and fc_id in ctx.resume_inputs:
+        ctx.state['_fc_id'] = None
+        yield 'resumed'
+        return
+      fc_id = str(uuid.uuid4())
+      ctx.state['_fc_id'] = fc_id
+      yield RequestInput(interrupt_id=fc_id)
+
+  wf = Workflow(
+      name='wf',
+      edges=[(START, _InterruptOnce(name='ask'))],
+  )
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  # Run 1: interrupts
+  msg1 = types.Content(parts=[types.Part(text='go')], role='user')
+  events1: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg1
+  ):
+    events1.append(event)
+
+  fc_id = None
+  original_exec_id = None
+  for e in events1:
+    if e.long_running_tool_ids:
+      fc_id = list(e.long_running_tool_ids)[0]
+      original_exec_id = e.node_info.execution_id
+
+  assert fc_id is not None
+  assert original_exec_id is not None
+
+  # Run 2: resume
+  msg2 = types.Content(
+      parts=[create_request_input_response(fc_id, {'ok': True})],
+      role='user',
+  )
+  events2: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg2
+  ):
+    events2.append(event)
+
+  # Resumed node should have the same execution_id
+  resumed_events = [
+      e
+      for e in events2
+      if e.node_info.path == 'wf/ask' and e.output is not None
+  ]
+  assert len(resumed_events) == 1
+  assert resumed_events[0].node_info.execution_id == original_exec_id
