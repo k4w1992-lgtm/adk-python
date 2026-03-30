@@ -1693,6 +1693,42 @@ async def test_nested_workflow_completes():
 
 
 @pytest.mark.asyncio
+async def test_nested_workflow_event_author():
+  """Events are authored by the nearest orchestrator (workflow/agent).
+
+  Setup: outer_wf → inner_wf → inner_node.
+  Assert:
+    - inner_node's events are authored by inner_wf (nearest).
+    - outer_wf's direct children are authored by outer_wf.
+    - inner_wf overrides the author for its subtree.
+  """
+  inner_node = _OutputNode(name='inner_node', value='inner_result')
+  inner_wf = Workflow(name='inner_wf', edges=[(START, inner_node)])
+  outer_node = _OutputNode(name='outer_node', value='outer_result')
+  wf = Workflow(
+      name='outer_wf',
+      edges=[(START, outer_node, inner_wf)],
+  )
+
+  events, _, _ = await _run_workflow(wf)
+
+  # outer_node's events authored by outer_wf (nearest orchestrator).
+  outer_events = [
+      e for e in events if e.node_info.path == 'outer_wf/outer_node'
+  ]
+  assert outer_events
+  assert all(e.author == 'outer_wf' for e in outer_events)
+
+  # inner_node's events authored by inner_wf (nearest orchestrator),
+  # NOT outer_wf.
+  inner_events = [
+      e for e in events if e.node_info.path == 'outer_wf/inner_wf/inner_node'
+  ]
+  assert inner_events
+  assert all(e.author == 'inner_wf' for e in inner_events)
+
+
+@pytest.mark.asyncio
 async def test_nested_workflow_interrupt_and_resume():
   """Inner workflow child interrupts, outer resumes on FR."""
 
