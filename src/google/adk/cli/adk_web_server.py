@@ -592,7 +592,7 @@ class AdkWebServer:
       return app_info.get("root_agent")
 
     # Strip leading/trailing slashes and split, filter out empty strings
-    path_parts = [p for p in node_path.strip('/').split('/') if p]
+    path_parts = [p for p in node_path.strip("/").split("/") if p]
     current = app_info.get("root_agent")
 
     if not current:
@@ -627,6 +627,43 @@ class AdkWebServer:
       current = found
 
     return current
+
+  def _get_all_sub_workflows(
+      self, app_info: dict, current_path: str = ""
+  ) -> dict[str, dict]:
+    """Recursively discover all sub-workflows within the given app info.
+
+    Args:
+      app_info: Current app_info snippet or agent dict
+      current_path: The accumulated string path (e.g., 'agent_a/workflow_b')
+
+    Returns:
+      A dictionary mapping the node path to the corresponding agent info dict.
+    """
+    workflows = {}
+
+    agent_info = app_info.get("root_agent", app_info)
+    if agent_info.get("graph"):
+      workflows[current_path] = agent_info
+
+    children = list(agent_info.get("sub_agents", []))
+    children.extend(agent_info.get("nodes", []))
+    graph = agent_info.get("graph")
+    if graph:
+      children.extend(graph.get("nodes", []))
+
+    for child in children:
+      child_name = child.get("name")
+      if not child_name:
+        continue
+      child_path = (
+          f"{current_path}/{child_name}" if current_path else child_name
+      )
+      workflows.update(
+          self._get_all_sub_workflows({"root_agent": child}, child_path)
+      )
+
+    return workflows
 
   def _instantiate_extra_plugins(self) -> list[BasePlugin]:
     """Instantiate extra plugins from the configured list.
@@ -888,10 +925,8 @@ class AdkWebServer:
 
     @app.get("/dev/build_graph_image/{app_name}")
     async def get_app_info_image(
-        app_name: str,
-        dark_mode: bool = False,
-        node: str = ""
-    ) -> Any:
+        app_name: str, dark_mode: bool = False, node: Optional[str] = None
+    ) -> dict[str, GetEventGraphResult]:
       runner = await self.get_runner_async(app_name)
 
       if not runner.app:
@@ -905,17 +940,21 @@ class AdkWebServer:
       if node:
         target_agent = self._navigate_to_node(app_info, node)
         if not target_agent:
-          raise HTTPException(
-              status_code=404,
-              detail=f"Node not found: {node}"
-          )
+          raise HTTPException(status_code=404, detail=f"Node not found: {node}")
         # Create a temporary app_info structure for the target level
         app_info = {"root_agent": target_agent}
 
-      dot_string = plot_workflow_graph(
-          app_info, format="dot", dark_mode=dark_mode
-      )
-      return GetEventGraphResult(dot_src=dot_string)
+      workflows = self._get_all_sub_workflows(app_info, node if node else "")
+
+      results = {}
+      for path, info in workflows.items():
+        dot_string = plot_workflow_graph(
+            {"root_agent": info}, format="dot", dark_mode=dark_mode
+        )
+        if dot_string:
+          results[path] = GetEventGraphResult(dot_src=dot_string)
+
+      return results
 
     @app.get("/debug/trace/session/{session_id}", tags=[TAG_DEBUG])
     async def get_session_trace(session_id: str) -> Any:
@@ -1767,97 +1806,6 @@ class AdkWebServer:
           event_generator(),
           media_type="text/event-stream",
       )
-
-    @app.get(
-        "/apps/{app_name}/users/{user_id}/sessions/{session_id}/events/{event_id}/graph",
-        response_model_exclude_none=True,
-        tags=[TAG_DEBUG],
-    )
-    async def get_event_graph(
-        app_name: str, user_id: str, session_id: str, event_id: str
-    ):
-      session = await self.session_service.get_session(
-          app_name=app_name, user_id=user_id, session_id=session_id
-      )
-      session_events = session.events if session else []
-      event = next((x for x in session_events if x.id == event_id), None)
-      if not event:
-        return {}
-
-      runner = await self.get_runner_async(app_name)
-      if not runner.app:
-        return {}
-
-      app_info = serialize_app_info(runner.app)
-      # dict to store active node, everything is under a key called "nodes"
-      # inside the nodes key, each active node is a dict with active node name
-      # as key and status as value
-      # TODO: remove the nodes level
-      active_node_state = {"nodes": {}}
-
-      active_node = event.author
-      node_info = getattr(event, "node_info", None)
-      if node_info and getattr(node_info, "path", None):
-        path_parts = node_info.path.split("/")
-        active_node = path_parts[-1]
-        if active_node in ("call_llm", "execute_tool") and len(path_parts) > 1:
-          active_node = path_parts[-2]
-
-      if active_node:
-        active_node_state["nodes"][active_node] = {
-            "status": NodeStatus.RUNNING.value
-        }
-
-      root_agent_info = app_info.get("root_agent", {})
-      is_workflow = bool(root_agent_info.get("graph"))
-
-      if is_workflow:
-        dot_string = plot_workflow_graph(
-            app_info, agent_state=active_node_state, format="dot"
-        )
-        if dot_string:
-          return GetEventGraphResult(dot_src=dot_string)
-        return {}
-
-      # Fallback to legacy get_agent_graph for single-agent (non-workflow) apps
-      agent_or_app = self.agent_loader.load_agent(app_name)
-      root_agent = self._get_root_agent(agent_or_app)
-      dot_graph = None
-      function_calls = event.get_function_calls()
-      function_responses = event.get_function_responses()
-
-      # Extract function calls/responses from event content
-      function_calls = getattr(event.content, "function_calls", None) if event.content else None
-      function_responses = getattr(event.content, "function_responses", None) if event.content else None
-
-      if function_calls:
-        function_call_highlights = []
-        for function_call in function_calls:
-          from_name = event.author
-          to_name = function_call.name
-          function_call_highlights.append((from_name, to_name))
-        dot_graph = await agent_graph.get_agent_graph(
-            root_agent, function_call_highlights
-        )
-      elif function_responses:
-        function_responses_highlights = []
-        for function_response in function_responses:
-          from_name = function_response.name
-          to_name = event.author
-          function_responses_highlights.append((from_name, to_name))
-        dot_graph = await agent_graph.get_agent_graph(
-            root_agent, function_responses_highlights
-        )
-      else:
-        from_name = event.author
-        to_name = ""
-        dot_graph = await agent_graph.get_agent_graph(
-            root_agent, [(from_name, to_name)]
-        )
-
-      if dot_graph and isinstance(dot_graph, graphviz.Digraph):
-        return GetEventGraphResult(dot_src=dot_graph.source)
-      return {}
 
     @app.websocket("/run_live")
     async def run_agent_live(
