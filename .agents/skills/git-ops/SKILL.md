@@ -27,9 +27,8 @@ Use **Conventional Commits**:
 
 ### Description Phrasing
 
-The description should tell the reviewer **why this change matters**,
-not just what files were touched. Focus on the user-visible outcome
-or the problem being solved.
+**CRITICAL**: The subject line must answer **why**, not just **what**.
+A reviewer reading only the subject should understand the motivation.
 
 - **State the outcome**, not the mechanics:
   - Good: `Fix race condition when two agents write to same session`
@@ -37,9 +36,16 @@ or the problem being solved.
 - **Name the capability added**, not the implementation:
   - Good: `Support parallel tool execution in workflows`
   - Bad: `Add asyncio.gather call in execute_tools_node`
+- **For refactors, state the reason**, not just the action:
+  - Good: `Make graph public for dev UI serialization`
+  - Bad: `Make graph a public field on new Workflow`
 - **For bug fixes, state what was broken**:
   - Good: `Prevent duplicate events when resuming HITL`
   - Bad: `Check interrupt_id before appending`
+
+Self-check before committing: read your subject line and ask
+"does this tell me *why* someone made this change?" If it only
+describes *what* changed, rewrite it.
 
 ### Rules
 
