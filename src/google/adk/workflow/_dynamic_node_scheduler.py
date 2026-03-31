@@ -17,11 +17,19 @@
 Handles ctx.run_node() calls by tracking dynamic nodes in the
 Workflow's _LoopState. Supports dedup (cached output), resume
 (lazy event scan + re-run), and fresh execution.
+
+Also provides ``DefaultNodeScheduler``, a lightweight scheduler
+that any BaseNode can use to manage dynamic children via
+``ctx.run_node()``. DefaultNodeScheduler reuses all
+DynamicNodeScheduler logic but owns its own state instead of
+sharing a Workflow's _LoopState.
 """
 
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
+from dataclasses import field
 from typing import Any
 from typing import TYPE_CHECKING
 
@@ -33,7 +41,42 @@ from .utils._workflow_hitl_utils import unwrap_response as _unwrap_fr_response
 if TYPE_CHECKING:
   from ..agents.context import Context
   from ._base_node import BaseNode
-  from ._workflow_class import _LoopState
+
+
+@dataclass
+class DynamicNodeState:
+  """State for tracking dynamic nodes scheduled via ctx.run_node().
+
+  Base class for both Workflow's ``_LoopState`` and standalone
+  ``DefaultNodeScheduler``. DynamicNodeScheduler reads/writes
+  these fields for dedup, resume, and interrupt propagation.
+  """
+
+  dynamic_nodes: dict[str, NodeState] = field(default_factory=dict)
+  """Dynamic node states. Populated lazily by the schedule
+  callback on first ctx.run_node() call per name."""
+
+  dynamic_outputs: dict[str, Any] = field(default_factory=dict)
+  """Cached dynamic node outputs."""
+
+  dynamic_pending_tasks: dict[str, asyncio.Task] = field(default_factory=dict)
+  """Running dynamic node tasks."""
+
+  # --- Shared (static + dynamic) ---
+
+  interrupt_ids: set[str] = field(default_factory=set)
+  """Union of all unresolved interrupt IDs across static and
+  dynamic child nodes.
+
+  Populated by:
+  - _restore_static_nodes_from_events: from WAITING static nodes
+  - _handle_completion: when a static node interrupts at runtime
+  - schedule callback: when a dynamic node interrupts
+
+  Read by _finalize to propagate to the Workflow's own ctx,
+  which the parent orchestrator checks after this Workflow
+  completes.
+  """
 
 
 class DynamicNodeScheduler:
@@ -49,7 +92,7 @@ class DynamicNodeScheduler:
   3. Waiting: prior events show interrupt → resolve or propagate.
   """
 
-  def __init__(self, loop_state: _LoopState) -> None:
+  def __init__(self, loop_state: DynamicNodeState) -> None:
     self._loop_state = loop_state
 
   async def __call__(
@@ -82,14 +125,6 @@ class DynamicNodeScheduler:
     # user-specified or auto-generated via _next_child_name).
     name = node_name or node.name  # fallback for safety
     node_path = join_paths(ctx.node_path, name)
-
-    # Handle use_as_output delegation.
-    if use_as_output:
-      if ctx._output_delegated:
-        raise ValueError(
-            f'Node {ctx.node_path} already has a use_as_output delegate.'
-        )
-      ctx._output_delegated = True
 
     # Phase 1: Lazy rehydration from session events.
     if node_path not in self._loop_state.dynamic_nodes:
@@ -338,3 +373,28 @@ class DynamicNodeScheduler:
     else:
       state.status = NodeStatus.COMPLETED
       self._loop_state.dynamic_outputs[node_path] = child_ctx.output
+
+
+# ---------------------------------------------------------------------------
+# DefaultNodeScheduler — default scheduler for standalone nodes
+# ---------------------------------------------------------------------------
+
+
+class DefaultNodeScheduler(DynamicNodeScheduler):
+  """Default scheduler for nodes without a Workflow.
+
+  Enables ``ctx.run_node()`` to work correctly on re-run
+  (``rerun_on_resume=True``) by tracking dynamic children: caching
+  completed outputs, forwarding resume_inputs for interrupted
+  children, and propagating unresolved interrupts.
+
+  Reuses all DynamicNodeScheduler logic but owns its own
+  ``DynamicNodeState`` instead of sharing a Workflow's ``_LoopState``.
+
+  State starts empty — on resume, ``_rehydrate_from_events()``
+  lazily reconstructs child states from session events, so no
+  external state injection is needed.
+  """
+
+  def __init__(self) -> None:
+    super().__init__(DynamicNodeState())

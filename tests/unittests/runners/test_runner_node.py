@@ -541,11 +541,143 @@ async def test_run_node_use_as_output_attributes_child_output_to_parent():
 
   events, _, _ = await _run_node(_ParentNode(name='parent'), message='go')
 
-  # The child's output event should list the parent's path in output_for
+  # The child's output event should list the parent's path in output_for.
+  # With use_as_output=True, the parent's own yield is suppressed —
+  # only the child's output (attributed to the parent) is emitted.
   child_output = next(e for e in events if e.output == 'child result')
-  parent_path = next(
-      e for e in events if e.output is not None and e.output != 'child result'
-  ).node_info.path
-  assert parent_path in child_output.node_info.output_for
+  assert 'parent/child' in child_output.node_info.path
+  assert any(
+      'parent' in p and 'child' not in p
+      for p in child_output.node_info.output_for
+  )
+
+
+# ---------------------------------------------------------------------------
+# DefaultNodeScheduler — dynamic child resume via ctx.run_node()
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_run_node_child_resume_via_child_tracker():
+  """Completed children are cached on resume; interrupted child re-runs."""
+
+  class _ChildA(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      yield 'child_a_output'
+
+  class _ChildB(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      if ctx.resume_inputs and 'fc-1' in ctx.resume_inputs:
+        yield f'resumed: {ctx.resume_inputs["fc-1"]["answer"]}'
+        return
+      yield _make_interrupt_event(fc_name='ask', fc_id='fc-1')
+
+  class _ParentNode(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      a = await ctx.run_node(_ChildA(name='a'), 'input_a')
+      b = await ctx.run_node(_ChildB(name='b'), 'input_b')
+      yield f'{a} + {b}'
+
+  events1, events2, _, _, _ = await _run_two_turns(
+      _ParentNode(name='parent'),
+      'go',
+      _make_resume_message(fc_name='ask', fc_id='fc-1', response={'answer': 42}),
+  )
+
+  assert any(e.long_running_tool_ids for e in events1)
+  outputs = [e.output for e in events2 if e.output is not None]
+  assert 'child_a_output + resumed: 42' in outputs
+
+
+@pytest.mark.asyncio
+async def test_run_node_child_tracker_caches_by_call_count():
+  """Only interrupted children re-run; completed children are skipped."""
+
+  call_counts = {'a': 0, 'b': 0, 'c': 0}
+
+  class _CountingChild(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      call_counts[self.name] += 1
+      if self.name == 'c':
+        if ctx.resume_inputs and 'fc-1' in ctx.resume_inputs:
+          yield 'c_resumed'
+          return
+        yield _make_interrupt_event(fc_name='tool', fc_id='fc-1')
+        return
+      yield f'{self.name}_out'
+
+  class _Parent(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      a = await ctx.run_node(_CountingChild(name='a'), 'x')
+      b = await ctx.run_node(_CountingChild(name='b'), 'y')
+      c = await ctx.run_node(_CountingChild(name='c'), 'z')
+      yield f'{a},{b},{c}'
+
+  events1, events2, _, _, _ = await _run_two_turns(
+      _Parent(name='p'),
+      'go',
+      _make_resume_message(fc_name='tool', fc_id='fc-1', response={}),
+  )
+
+  assert any(e.long_running_tool_ids for e in events1)
+  outputs = [e.output for e in events2 if e.output is not None]
+  assert 'a_out,b_out,c_resumed' in outputs
+  assert call_counts == {'a': 1, 'b': 1, 'c': 2}
+
+
+@pytest.mark.asyncio
+async def test_run_node_use_as_output_with_resume():
+  """use_as_output child resumes correctly; child output is attributed to parent."""
+
+  class _Child(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      if ctx.resume_inputs and 'fc-1' in ctx.resume_inputs:
+        yield f'approved: {ctx.resume_inputs["fc-1"]["ok"]}'
+        return
+      yield _make_interrupt_event(fc_name='approve', fc_id='fc-1')
+
+  class _Parent(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      result = await ctx.run_node(
+          _Child(name='child'), 'data', use_as_output=True
+      )
+      yield f'parent saw: {result}'
+
+  events1, events2, _, _, _ = await _run_two_turns(
+      _Parent(name='parent'),
+      'go',
+      _make_resume_message(fc_name='approve', fc_id='fc-1', response={'ok': True}),
+  )
+
+  assert any(e.long_running_tool_ids for e in events1)
+  outputs = [e.output for e in events2 if e.output is not None]
+  assert any('approved: True' in o for o in outputs)
 
 

@@ -25,6 +25,7 @@ from google.adk.agents.context import Context
 from google.adk.events.event import Event
 from google.adk.events.event import NodeInfo
 from google.adk.workflow._base_node import BaseNode
+from google.adk.workflow._dynamic_node_scheduler import DefaultNodeScheduler
 from google.adk.workflow._dynamic_node_scheduler import DynamicNodeScheduler
 from google.adk.workflow._node_state import NodeState
 from google.adk.workflow._node_status import NodeStatus
@@ -346,45 +347,111 @@ async def test_waiting_resolved_resumes_node():
   assert child_ctx.output == 'resumed: response'
 
 
+# =========================================================================
+# DefaultNodeScheduler — standalone scheduler
+# =========================================================================
+
+
 @pytest.mark.asyncio
-async def test_use_as_output_sets_delegated():
-  """use_as_output=True sets _output_delegated on parent ctx."""
+async def test_child_tracker_fresh_execution():
+  """DefaultNodeScheduler runs a fresh node just like DynamicNodeScheduler."""
 
   class _Child(BaseNode):
 
     async def _run_impl(self, *, ctx, node_input):
-      yield 'out'
+      yield f'ct: {node_input}'
 
   ctx, _ = _make_parent_ctx()
-  ls = _LoopState()
-  scheduler = DynamicNodeScheduler(ls)
+  tracker = DefaultNodeScheduler()
 
-  await scheduler(
+  child_ctx = await tracker(
       ctx,
       _Child(name='child'),
       'unused',
-      'input',
+      'data',
       node_name='child',
-      use_as_output=True,
   )
 
-  assert ctx._output_delegated is True
+  assert child_ctx.output == 'ct: data'
 
 
 @pytest.mark.asyncio
-async def test_double_use_as_output_raises():
-  """Second use_as_output=True raises ValueError."""
+async def test_child_tracker_dedup_returns_cached():
+  """DefaultNodeScheduler returns cached output for completed nodes."""
   ctx, _ = _make_parent_ctx()
-  ctx._output_delegated = True
-  ls = _LoopState()
-  scheduler = DynamicNodeScheduler(ls)
+  tracker = DefaultNodeScheduler()
 
-  with pytest.raises(ValueError, match='use_as_output'):
-    await scheduler(
-        ctx,
-        BaseNode(name='child'),
-        'unused',
-        'input',
-        node_name='child',
-        use_as_output=True,
-    )
+  # Pre-populate state as if node already completed.
+  tracker._loop_state.dynamic_nodes['wf/parent/child'] = NodeState(
+      status=NodeStatus.COMPLETED, run_id='r-1'
+  )
+  tracker._loop_state.dynamic_outputs['wf/parent/child'] = 'cached'
+
+  child_ctx = await tracker(
+      ctx,
+      BaseNode(name='child'),
+      'unused',
+      'input',
+      node_name='child',
+  )
+
+  assert child_ctx.output == 'cached'
+
+
+@pytest.mark.asyncio
+async def test_child_tracker_resume_with_resolved_interrupts():
+  """DefaultNodeScheduler re-runs nodes with resolved interrupts."""
+
+  class _Resumable(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(self, *, ctx, node_input):
+      if ctx.resume_inputs and 'fc-1' in ctx.resume_inputs:
+        yield f'resumed: {ctx.resume_inputs["fc-1"]}'
+        return
+      yield 'should not reach here'
+
+  ctx, _ = _make_parent_ctx()
+  tracker = DefaultNodeScheduler()
+
+  # Pre-populate state as if node interrupted and was resolved.
+  tracker._loop_state.dynamic_nodes['wf/parent/child'] = NodeState(
+      status=NodeStatus.WAITING,
+      interrupts=[],
+      run_id='r-1',
+      resume_inputs={'fc-1': 'approved'},
+  )
+
+  child_ctx = await tracker(
+      ctx,
+      _Resumable(name='child'),
+      'unused',
+      'input',
+      node_name='child',
+  )
+
+  assert child_ctx.output == 'resumed: approved'
+
+
+@pytest.mark.asyncio
+async def test_child_tracker_propagates_unresolved_interrupts():
+  """DefaultNodeScheduler propagates unresolved interrupts."""
+  ctx, _ = _make_parent_ctx()
+  tracker = DefaultNodeScheduler()
+
+  tracker._loop_state.dynamic_nodes['wf/parent/child'] = NodeState(
+      status=NodeStatus.WAITING,
+      interrupts=['fc-1'],
+      run_id='r-1',
+  )
+
+  child_ctx = await tracker(
+      ctx,
+      BaseNode(name='child'),
+      'unused',
+      'input',
+      node_name='child',
+  )
+
+  assert child_ctx.interrupt_ids == {'fc-1'}
+  assert 'fc-1' in tracker._loop_state.interrupt_ids

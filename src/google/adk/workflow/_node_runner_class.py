@@ -137,14 +137,21 @@ class NodeRunner:
     else:
       ancestors = []
 
+    # Inherit the parent's dynamic-node scheduler. If none exists
+    # (standalone node, no Workflow), create a DefaultNodeScheduler so that
+    # ctx.run_node() works correctly on re-run with resume.
+    scheduler = self._parent_ctx._schedule_dynamic_node_internal
+    if scheduler is None:
+      from ._dynamic_node_scheduler import DefaultNodeScheduler
+
+      scheduler = DefaultNodeScheduler()
+
     ctx = Context(
         self._parent_ctx._invocation_context,
         node_path=self._build_node_path(),
         run_id=self._run_id,
         resume_inputs=resume_inputs,
-        schedule_dynamic_node_internal=(
-            self._parent_ctx._schedule_dynamic_node_internal
-        ),
+        schedule_dynamic_node_internal=scheduler,
         triggered_by=self._triggered_by,
         in_nodes=self._in_nodes,
         output_for_ancestors=ancestors,

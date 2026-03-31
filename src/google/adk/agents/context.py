@@ -422,9 +422,7 @@ class Context(ReadonlyContext):
       unique_string = f'{self._run_id}-{node_name}'
     else:
       self._child_run_counter += 1
-      unique_string = (
-          f'{self._run_id}-{self._child_run_counter}-{node_name}'
-      )
+      unique_string = f'{self._run_id}-{self._child_run_counter}-{node_name}'
     # TODO(swapnilag): use a better hash method.
     hashed_id = hashlib.sha256(unique_string.encode('utf-8')).hexdigest()[:15]
     return f'{node_name}_{hashed_id}'
@@ -482,6 +480,16 @@ class Context(ReadonlyContext):
     # returns child Context. Fall back to the legacy scheduler.
     if self._schedule_dynamic_node_internal:
       from ..workflow._errors import NodeInterruptedError
+
+      # Output delegation: once set, the calling node's own output
+      # events are suppressed — the child's output (annotated with
+      # output_for) becomes the calling node's output.
+      if use_as_output:
+        if self._output_delegated:
+          raise ValueError(
+              f'Node {self.node_path} already has a use_as_output delegate.'
+          )
+        self._output_delegated = True
 
       # Generate deterministic tracking name.
       # TODO: replace `name` with suffix.

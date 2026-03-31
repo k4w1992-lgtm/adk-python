@@ -33,6 +33,7 @@ from pydantic import Field
 from ._base_node import BaseNode
 from ._base_node import START
 from ._dynamic_node_scheduler import DynamicNodeScheduler
+from ._dynamic_node_scheduler import DynamicNodeState
 from ._node_runner_class import NodeRunner
 from ._node_state import NodeState
 from ._node_status import NodeStatus
@@ -77,8 +78,12 @@ class _ChildScanState:
 
 
 @dataclass
-class _LoopState:
+class _LoopState(DynamicNodeState):
   """Mutable, in-memory state for one Workflow execution.
+
+  Extends ``DynamicNodeState`` (which provides dynamic_nodes,
+  dynamic_outputs, dynamic_pending_tasks, interrupt_ids) with
+  graph-specific fields for static nodes and triggers.
 
   Scoped to a single _run_impl invocation. Not persisted —
   static node state is reconstructed from session events on
@@ -96,34 +101,6 @@ class _LoopState:
 
   pending_tasks: dict[str, asyncio.Task] = field(default_factory=dict)
   """Running static node tasks."""
-
-  # --- Dynamic nodes (keyed by full node_path) ---
-
-  dynamic_nodes: dict[str, NodeState] = field(default_factory=dict)
-  """Dynamic node states. Populated lazily by the schedule
-  callback on first ctx.run_node() call per name."""
-
-  dynamic_outputs: dict[str, Any] = field(default_factory=dict)
-  """Cached dynamic node outputs."""
-
-  dynamic_pending_tasks: dict[str, asyncio.Task] = field(default_factory=dict)
-  """Running dynamic node tasks."""
-
-  # --- Shared (static + dynamic) ---
-
-  interrupt_ids: set[str] = field(default_factory=set)
-  """Union of all unresolved interrupt IDs across static and
-  dynamic child nodes.
-
-  Populated by:
-  - _restore_static_nodes_from_events: from WAITING static nodes
-  - _handle_completion: when a static node interrupts at runtime
-  - schedule callback: when a dynamic node interrupts
-
-  Read by _finalize to propagate to the Workflow's own ctx,
-  which the parent orchestrator checks after this Workflow
-  completes.
-  """
 
   trigger_buffer: dict[str, list[Trigger]] = field(default_factory=dict)
   """Queued triggers waiting to be dispatched, keyed by target node name.
