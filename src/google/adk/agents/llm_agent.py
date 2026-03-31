@@ -72,8 +72,8 @@ from .llm._base_llm_agent import OnModelErrorCallback
 from .llm._base_llm_agent import OnToolErrorCallback
 from .llm._base_llm_agent import ToolUnion
 from .llm._mesh import _Mesh
-from .llm._single_llm_agent import _convert_tool_union_to_tools
 from .llm._single_llm_agent import _SingleLlmAgent
+from .llm._tool_utils import _convert_tool_union_to_tools
 from .llm.task._finish_task_tool import FINISH_TASK_TOOL_NAME
 from .llm.task._finish_task_tool import FinishTaskTool
 from .llm.task._request_task_tool import RequestTaskTool
@@ -192,7 +192,7 @@ class LlmAgent(_Mesh, BaseLlmAgent):
     """
     import asyncio
 
-    from .llm._single_llm_agent import _convert_tool_union_to_tools
+    from .llm._tool_utils import _convert_tool_union_to_tools
 
     multiple_tools = len(self.tools) > 1
     model = self.canonical_model

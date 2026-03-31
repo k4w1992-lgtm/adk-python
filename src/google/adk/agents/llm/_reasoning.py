@@ -410,7 +410,7 @@ async def _process_agent_tools(
           tool_context=tool_context, llm_request=llm_request
       )
 
-    from ...agents.llm_agent import _convert_tool_union_to_tools
+    from ._tool_utils import _convert_tool_union_to_tools
 
     # Then process all tools from this tool union
     tools = await _convert_tool_union_to_tools(
