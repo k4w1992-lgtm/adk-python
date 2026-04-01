@@ -754,9 +754,11 @@ class TestPipelineCallLlm:
     """before_model_callback can short-circuit the LLM call."""
 
     def before_cb(callback_context, llm_request):
-      return types.Content(
-          role='model',
-          parts=[types.Part.from_text(text='Intercepted!')],
+      return LlmResponse(
+          content=types.Content(
+              role='model',
+              parts=[types.Part.from_text(text='Intercepted!')],
+          )
       )
 
     mock_model = testing_utils.MockModel.create(
