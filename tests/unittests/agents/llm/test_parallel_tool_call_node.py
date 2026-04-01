@@ -24,7 +24,6 @@ from __future__ import annotations
 import asyncio
 
 from google.adk.agents.llm._parallel_tool_call_node import ParallelToolCallNode
-from google.adk.agents.llm._parallel_tool_call_node import ParallelToolCallResult
 from google.adk.tools.function_tool import FunctionTool
 from google.adk.workflow._node_runner_class import NodeRunner
 from google.genai import types
@@ -113,11 +112,11 @@ class TestParallelToolCallNode:
     fr = function_responses_by_name(events)
     assert fr['add'] == {'result': 3}
 
-    outputs = output_events(events)
+    outputs = [
+        e for e in events if e.node_info and e.node_info.message_as_output
+    ]
     assert len(outputs) == 1
-    result = outputs[0].output
-    assert isinstance(result, ParallelToolCallResult)
-    assert 'fc-1' in result.tool_results
+    assert outputs[0].node_info.message_as_output
 
   async def test_parallel_tool_calls(self):
     """Multiple function calls — executed in parallel, results merged."""
@@ -154,12 +153,11 @@ class TestParallelToolCallNode:
     assert fr['add'] == {'result': 3}
     assert fr['multiply'] == {'result': 12}
 
-    outputs = output_events(events)
+    outputs = [
+        e for e in events if e.node_info and e.node_info.message_as_output
+    ]
     assert len(outputs) == 1
-    result = outputs[0].output
-    assert isinstance(result, ParallelToolCallResult)
-    assert 'fc-add' in result.tool_results
-    assert 'fc-mul' in result.tool_results
+    assert outputs[0].node_info.message_as_output
 
   async def test_transfer_to_agent_propagated(self):
     """Tool sets transfer_to_agent — propagated in ParallelToolCallResult."""
@@ -180,11 +178,12 @@ class TestParallelToolCallNode:
     content = types.Content(role='model', parts=[types.Part(function_call=fc)])
     events = await _collect_events(node, ctx, content)
 
-    outputs = output_events(events)
+    outputs = [
+        e for e in events if e.node_info and e.node_info.message_as_output
+    ]
     assert len(outputs) == 1
-    result = outputs[0].output
-    assert isinstance(result, ParallelToolCallResult)
-    assert result.transfer_to_agent == 'target_agent'
+    assert outputs[0].node_info.message_as_output
+    assert ctx.actions.transfer_to_agent == 'target_agent'
 
   async def test_same_tool_called_twice(self):
     """Same tool called twice with different args — both execute."""
@@ -212,8 +211,9 @@ class TestParallelToolCallNode:
 
     assert sorted(call_log) == ['a', 'b']
 
-    outputs = output_events(events)
+    outputs = [
+        e for e in events if e.node_info and e.node_info.message_as_output
+    ]
     assert len(outputs) == 1
-    result = outputs[0].output
-    assert isinstance(result, ParallelToolCallResult)
-    assert len(result.tool_results) == 2
+    assert outputs[0].node_info.message_as_output
+    assert len(outputs[0].content.parts) == 2

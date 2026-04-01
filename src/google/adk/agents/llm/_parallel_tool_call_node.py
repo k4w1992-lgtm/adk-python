@@ -40,25 +40,6 @@ from ._functions import get_long_running_function_calls
 from ._tool_call_node import ToolCallNode
 
 
-class ParallelToolCallResult(BaseModel):
-  """Result of parallel tool execution."""
-
-  tool_results: dict[str, Any]
-  """Mapping from function_call_id to function response dict."""
-
-  transfer_to_agent: str | None = None
-  """Agent name to transfer control to, if any."""
-
-  request_task: dict[str, Any] | None = None
-  """Task request from a tool, if any."""
-
-  finish_task: dict[str, Any] | None = None
-  """Task completion signal from a tool, if any."""
-
-  skip_summarization: bool | None = None
-  """Whether to skip summarization."""
-
-
 def _build_merged_event(
     completed: list[tuple[types.FunctionCall, Context]],
     invocation_context: InvocationContext,
@@ -183,6 +164,7 @@ class ParallelToolCallNode(BaseNode):
       return
 
     # Handle pending long-running tools (mixed case).
+    pending_ids = set()
     if long_running_tool_ids:
       function_call_event = Event(
           invocation_id=invocation_context.invocation_id,
@@ -194,39 +176,49 @@ class ParallelToolCallNode(BaseNode):
       )
       yield function_call_event
 
-    # Yield the merged function response event.
-    yield merged_event.model_copy()
-
-    # Check for pending long-running tools that returned None.
-    if long_running_tool_ids:
       responded_ids = {child_ctx.function_call_id for _, child_ctx in completed}
       pending_ids = long_running_tool_ids - responded_ids
-      if pending_ids:
-        yield _long_running_interrupt_event(
-            invocation_context, function_calls, pending_ids
-        )
-        return
+
+    # Bubble up actions to parent context for checking termination conditions.
+    actions = merged_event.actions
+    if actions:
+      ctx.actions.transfer_to_agent = (
+          actions.transfer_to_agent or ctx.actions.transfer_to_agent
+      )
+      ctx.actions.request_task = (
+          actions.request_task or ctx.actions.request_task
+      )
+      ctx.actions.finish_task = actions.finish_task or ctx.actions.finish_task
+      ctx.actions.skip_summarization = (
+          actions.skip_summarization or ctx.actions.skip_summarization
+      )
+
+    if pending_ids:
+      yield merged_event.model_copy()
+      yield _long_running_interrupt_event(
+          invocation_context, function_calls, pending_ids
+      )
+      return
 
     # Check for structured output.
     json_response = _output_schema_processor.get_structured_model_response(
         merged_event
     )
     if json_response:
+      yield merged_event.model_copy()
       final_event = _output_schema_processor.create_final_model_response_event(
           invocation_context, json_response
       )
-      yield final_event.model_copy()
+      if final_event.node_info is None:
+        from ...events.event import NodeInfo
 
-    # Build structured result for parent to read via ctx.run_node.
-    actions = merged_event.actions
-    result = ParallelToolCallResult(
-        tool_results={
-            child_ctx.function_call_id: child_ctx.output
-            for _, child_ctx in completed
-        },
-        transfer_to_agent=actions.transfer_to_agent if actions else None,
-        request_task=actions.request_task if actions else None,
-        finish_task=actions.finish_task if actions else None,
-        skip_summarization=actions.skip_summarization if actions else None,
-    )
-    yield result
+        final_event.node_info = NodeInfo()
+      final_event.node_info.message_as_output = True
+      yield final_event.model_copy()
+    else:
+      if merged_event.node_info is None:
+        from ...events.event import NodeInfo
+
+        merged_event.node_info = NodeInfo()
+      merged_event.node_info.message_as_output = True
+      yield merged_event.model_copy()

@@ -29,7 +29,6 @@ from ..llm_agent import LlmAgent
 from ._llm_call_node import _build_llm_request
 from ._llm_call_node import LlmCallNode
 from ._parallel_tool_call_node import ParallelToolCallNode
-from ._parallel_tool_call_node import ParallelToolCallResult
 
 logger = logging.getLogger('google_adk.' + __name__)
 
@@ -152,12 +151,12 @@ class SingleAgentReactNode(BaseNode):
         break
 
       # 4. Check termination conditions
-      tool_result = tool_ctx.output
-      if isinstance(tool_result, ParallelToolCallResult) and (
-          tool_result.transfer_to_agent
-          or tool_result.request_task
-          or tool_result.finish_task
-          or tool_result.skip_summarization
+      actions = tool_ctx.actions
+      if actions and (
+          actions.transfer_to_agent
+          or actions.request_task
+          or actions.finish_task
+          or actions.skip_summarization
       ):
         break
 
