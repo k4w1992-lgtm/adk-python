@@ -20,6 +20,7 @@ from typing import AsyncGenerator
 import uuid
 
 from google.genai import types
+from pydantic import BaseModel
 from pydantic import ConfigDict
 from pydantic import Field
 from typing_extensions import override
@@ -31,6 +32,16 @@ from ...context import Context
 from .._execute_tools_node import _long_running_interrupt_event
 from .._functions import generate_auth_event
 from .._functions import generate_request_confirmation_event
+
+
+class ToolActions(BaseModel):
+  skip_summarization: bool | None = None
+  transfer_to_agent: Any = None
+
+
+class ToolNodeOutput(BaseModel):
+  response: Any
+  actions: ToolActions = Field(default_factory=ToolActions)
 
 
 class ToolNode(BaseNode):
@@ -105,4 +116,8 @@ class ToolNode(BaseNode):
       yield response_event.model_copy()
       return
 
-    yield function_response
+    tool_actions = ToolActions(
+        skip_summarization=ctx.actions.skip_summarization,
+        transfer_to_agent=ctx.actions.transfer_to_agent,
+    )
+    yield ToolNodeOutput(response=function_response, actions=tool_actions)

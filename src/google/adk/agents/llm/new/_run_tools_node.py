@@ -33,31 +33,33 @@ from ...context import Context
 from ...invocation_context import InvocationContext
 from .._functions import _get_tool
 from .._functions import deep_merge_dicts
+from ._tool_node import ToolActions
 from ._tool_node import ToolNode
+from ._tool_node import ToolNodeOutput
 
 
 def _build_merged_event(
-    completed: list[tuple[types.FunctionCall, Context]],
+    completed: list[tuple[types.FunctionCall, ToolNodeOutput]],
     invocation_context: InvocationContext,
 ) -> Event:
-  """Builds a merged function response Event from completed tool contexts."""
+  """Builds a merged function response Event from completed tool outputs."""
   merged_parts = []
-  for fc, child_ctx in completed:
-    response = child_ctx.output
+  for fc, tool_output in completed:
+    response = tool_output.response
     part = types.Part.from_function_response(
         name=fc.name,
         response=response,
     )
-    part.function_response.id = child_ctx.function_call_id
+    part.function_response.id = fc.id
     merged_parts.append(part)
 
-  # Merge actions from all child contexts.
+  # Merge actions from all tool outputs.
   merged_actions_data: dict[str, Any] = {}
-  for _, child_ctx in completed:
-    if child_ctx.actions:
+  for _, tool_output in completed:
+    if tool_output.actions:
       merged_actions_data = deep_merge_dicts(
           merged_actions_data,
-          child_ctx.actions.model_dump(exclude_none=True),
+          tool_output.actions.model_dump(exclude_none=True),
       )
   merged_actions = EventActions.model_validate(merged_actions_data)
 
@@ -74,7 +76,7 @@ class RunToolsNode(BaseNode):
   """Executes multiple tool calls in parallel via ``ctx.run_node``.
 
   For each ``FunctionCall``, creates a ``ToolNode`` and runs it
-  via ``ctx._run_node_internal`` in parallel using ``asyncio.create_task``.
+  via ``ctx.run_node`` in parallel using ``asyncio.create_task``.
   """
 
   model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -106,10 +108,9 @@ class RunToolsNode(BaseNode):
           tool=tool,
       )
       task = asyncio.create_task(
-          ctx._run_node_internal(
+          ctx.run_node(
               tool_node,
               node_input=fc,
-              name=tool_node.name,
               run_id=fc.id or str(i),
           )
       )
@@ -117,41 +118,37 @@ class RunToolsNode(BaseNode):
 
     run_results = await asyncio.gather(*tasks)
 
-    # Pair each function call with its child context; keep only completed ones.
-    completed: list[tuple[types.FunctionCall, Context]] = [
-        (fc, child_ctx)
-        for fc, child_ctx in zip(function_calls, run_results)
-        if child_ctx.output is not None
-    ]
-
-    interrupted_ctxs = [
-        child_ctx for child_ctx in run_results if child_ctx.interrupt_ids
+    # Pair each function call with its output; keep only completed ones.
+    completed: list[tuple[types.FunctionCall, ToolNodeOutput]] = [
+        (fc, res)
+        for fc, res in zip(function_calls, run_results)
+        if res is not None
     ]
 
     if not completed:
       return
 
-    # Build merged event from child contexts for auth/confirmation checks
-    # and session content.
+    # Build merged event from tool outputs.
     merged_event = _build_merged_event(completed, invocation_context)
 
-    # Bubble up actions to parent context for checking termination conditions.
-    actions = merged_event.actions
-    if actions:
-      ctx.actions.transfer_to_agent = (
-          actions.transfer_to_agent or ctx.actions.transfer_to_agent
-      )
-      ctx.actions.request_task = (
-          actions.request_task or ctx.actions.request_task
-      )
-      ctx.actions.finish_task = actions.finish_task or ctx.actions.finish_task
-      ctx.actions.skip_summarization = (
-          actions.skip_summarization or ctx.actions.skip_summarization
-      )
+    merged_tool_actions = ToolActions()
+    all_skip_true = True
 
-    if interrupted_ctxs:
-      yield merged_event.model_copy()
-      return
+    for _, tool_output in completed:
+      if tool_output.actions.transfer_to_agent is not None:
+        if merged_tool_actions.transfer_to_agent is not None:
+          raise ValueError(
+              'transfer_to_agent cannot be set by more than one tool.'
+          )
+        merged_tool_actions.transfer_to_agent = (
+            tool_output.actions.transfer_to_agent
+        )
+
+      if tool_output.actions.skip_summarization is not True:
+        all_skip_true = False
+
+    if all_skip_true:
+      merged_tool_actions.skip_summarization = True
 
     # Check for structured output.
     json_response = _output_schema_processor.get_structured_model_response(
@@ -167,6 +164,7 @@ class RunToolsNode(BaseNode):
 
         final_event.node_info = NodeInfo()
       final_event.node_info.message_as_output = True
+      final_event.output = merged_tool_actions
       yield final_event.model_copy()
     else:
       if merged_event.node_info is None:
@@ -174,4 +172,5 @@ class RunToolsNode(BaseNode):
 
         merged_event.node_info = NodeInfo()
       merged_event.node_info.message_as_output = True
+      merged_event.output = merged_tool_actions
       yield merged_event.model_copy()

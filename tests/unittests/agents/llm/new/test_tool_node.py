@@ -49,7 +49,7 @@ class TestToolNode:
 
     outputs = output_events(events)
     assert len(outputs) == 1
-    assert outputs[0].output == {'result': 5}
+    assert outputs[0].output.response == {'result': 5}
 
   async def test_tool_returning_dict(self):
     """Tool returning a dict — output preserved as-is."""
@@ -68,7 +68,7 @@ class TestToolNode:
 
     outputs = output_events(events)
     assert len(outputs) == 1
-    assert outputs[0].output == {'found': True, 'value': 42}
+    assert outputs[0].output.response == {'found': True, 'value': 42}
 
   async def test_tool_with_no_args(self):
     """Tool with no args — empty args dict passed."""
@@ -87,7 +87,7 @@ class TestToolNode:
 
     outputs = output_events(events)
     assert len(outputs) == 1
-    assert outputs[0].output == {'result': '12:00'}
+    assert outputs[0].output.response == {'result': '12:00'}
 
   async def test_function_call_id_auto_generated(self):
     """FunctionCall without id — ToolNode generates one."""
@@ -106,8 +106,8 @@ class TestToolNode:
 
     outputs = output_events(events)
     assert len(outputs) == 1
-    # The output is the response dict; function_call_id is on the context.
-    assert outputs[0].output == {'result': 'ok'}
+    # The output is the ToolNodeOutput; response is the response dict.
+    assert outputs[0].output.response == {'result': 'ok'}
 
   async def test_tool_sets_transfer_action(self):
     """Tool that sets transfer_to_agent — action on context, not output."""
@@ -127,5 +127,6 @@ class TestToolNode:
 
     outputs = output_events(events)
     assert len(outputs) == 1
-    assert outputs[0].output == {'result': 'transferring'}
-    # Actions are on the context, verified via RunToolsNode tests.
+    assert outputs[0].output.response == {'result': 'transferring'}
+    # Actions are bubbled up to ToolNodeOutput.
+    assert outputs[0].output.actions.transfer_to_agent == 'other_agent'

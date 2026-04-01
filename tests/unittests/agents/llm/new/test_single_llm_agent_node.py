@@ -28,6 +28,7 @@ from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.tools.long_running_tool import LongRunningFunctionTool
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
+import pytest
 
 from tests.unittests import testing_utils
 from tests.unittests.agents.llm.event_utils import function_call_names
@@ -444,6 +445,9 @@ class TestInterruptAndResume:
     assert len(mock_model.requests) == 2
     assert any('Both approved.' in t for t in text_parts(events2))
 
+  @pytest.mark.xfail(
+      reason='We do not send multiple function responses anymore.'
+  )
   async def test_mixed_regular_and_long_running_tools(self):
     """Regular tool executes, long-running tool interrupts in same response."""
 

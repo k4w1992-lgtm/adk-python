@@ -126,8 +126,7 @@ class SingleLlmAgentNode(BaseNode):
       llm_node = CallLlmNode(agent=self.agent)
       content = await ctx.run_node(llm_node, node_input=llm_request)
 
-      # 3. Check for text-only response to terminate ReAct loop
-      # llm_ctx.output is now types.Content (the model's response content)
+      # 3. Check for function calls.
       has_function_calls = False
       if content and getattr(content, 'parts', None):
         has_function_calls = any(
@@ -141,22 +140,10 @@ class SingleLlmAgentNode(BaseNode):
       tool_node = RunToolsNode(
           tools_dict=llm_request.tools_dict,
       )
-      tool_ctx = await ctx._run_node_internal(tool_node, node_input=content)
+      tool_actions = await ctx.run_node(tool_node, node_input=content)
 
-      # 3. No tool result — tools were interrupted (long-running,
-      # auth, etc.).  The interrupt event was already enqueued by
-      # RunToolsNode.
-      if tool_ctx.output is None:
-        break
-
-      # 4. Check termination conditions
-      actions = tool_ctx.actions
-      if actions and (
-          actions.transfer_to_agent
-          or actions.request_task
-          or actions.finish_task
-          or actions.skip_summarization
-      ):
+      # 5. Check termination conditions
+      if tool_actions.transfer_to_agent or tool_actions.skip_summarization:
         break
 
     return

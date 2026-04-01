@@ -183,7 +183,7 @@ class TestRunToolsNode:
     ]
     assert len(outputs) == 1
     assert outputs[0].node_info.message_as_output
-    assert ctx.actions.transfer_to_agent == 'target_agent'
+    assert outputs[0].output.transfer_to_agent == 'target_agent'
 
   async def test_same_tool_called_twice(self):
     """Same tool called twice with different args — both execute."""
