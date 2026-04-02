@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 
 from google.adk.agents.llm.new._run_tools_node import RunToolsNode
+from google.adk.agents.llm.new._tool_node import ToolActions
 from google.adk.tools.function_tool import FunctionTool
 from google.adk.workflow._node_runner_class import NodeRunner
 from google.genai import types
@@ -56,8 +57,12 @@ def _wire_scheduler(ctx):
   ic.event_queue = asyncio.Queue()
 
   async def _schedule(
-      current_ctx, node, node_input,
-      *, node_name=None, run_id=None,  # noqa: ARG001
+      current_ctx,
+      node,
+      node_input,
+      *,
+      node_name=None,
+      run_id=None,  # noqa: ARG001
       **_kwargs,
   ):
     runner = NodeRunner(
@@ -112,11 +117,9 @@ class TestRunToolsNode:
     fr = function_responses_by_name(events)
     assert fr['add'] == {'result': 3}
 
-    outputs = [
-        e for e in events if e.node_info and e.node_info.message_as_output
-    ]
+    outputs = events
     assert len(outputs) == 1
-    assert outputs[0].node_info.message_as_output
+    assert isinstance(outputs[0].output, ToolActions)
 
   async def test_parallel_tool_calls(self):
     """Multiple function calls — executed in parallel, results merged."""
@@ -153,11 +156,9 @@ class TestRunToolsNode:
     assert fr['add'] == {'result': 3}
     assert fr['multiply'] == {'result': 12}
 
-    outputs = [
-        e for e in events if e.node_info and e.node_info.message_as_output
-    ]
+    outputs = events
     assert len(outputs) == 1
-    assert outputs[0].node_info.message_as_output
+    assert isinstance(outputs[0].output, ToolActions)
 
   async def test_transfer_to_agent_propagated(self):
     """Tool sets transfer_to_agent — propagated in ParallelToolCallResult."""
@@ -178,11 +179,9 @@ class TestRunToolsNode:
     content = types.Content(role='model', parts=[types.Part(function_call=fc)])
     events = await _collect_events(node, ctx, content)
 
-    outputs = [
-        e for e in events if e.node_info and e.node_info.message_as_output
-    ]
+    outputs = events
     assert len(outputs) == 1
-    assert outputs[0].node_info.message_as_output
+    assert isinstance(outputs[0].output, ToolActions)
     assert outputs[0].output.transfer_to_agent == 'target_agent'
 
   async def test_same_tool_called_twice(self):
@@ -211,9 +210,7 @@ class TestRunToolsNode:
 
     assert sorted(call_log) == ['a', 'b']
 
-    outputs = [
-        e for e in events if e.node_info and e.node_info.message_as_output
-    ]
+    outputs = events
     assert len(outputs) == 1
-    assert outputs[0].node_info.message_as_output
+    assert isinstance(outputs[0].output, ToolActions)
     assert len(outputs[0].content.parts) == 2
