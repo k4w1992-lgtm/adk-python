@@ -204,6 +204,8 @@ def simplify_event_with_node(
       return simplify_content(event.content)
 
     node_name = node_name_map.get(event.node_name, event.node_name)
+    if '@' in node_name and not node_name_map:
+      node_name = node_name.split('@')[0]
     simplified_event = {'node_name': node_name}
 
     # Also simplify event.output if it contains Content.

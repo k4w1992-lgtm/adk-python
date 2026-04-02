@@ -35,11 +35,11 @@ Example:
   )
 
 Node paths:
-  root_agent: "root_agent"
-  workflow_a: "root_agent/workflow_a"
-  workflow_b: "root_agent/workflow_b"
-  node1: "root_agent/workflow_a/node1"
-  node2: "root_agent/workflow_b/node2"
+  root_agent: "root_agent@1"
+  workflow_a: "root_agent@1/workflow_a@1"
+  workflow_b: "root_agent@1/workflow_b@1"
+  node1: "root_agent@1/workflow_a@1/node1@1"
+  node2: "root_agent@1/workflow_b@1/node2@1"
 """
 
 
@@ -52,7 +52,7 @@ def get_node_name_from_path(path: str) -> str:
   Returns:
     The node name.
   """
-  return path.split('/')[-1]
+  return path.split('/')[-1].partition('@')[0]
 
 
 def get_parent_path(path: str) -> str:
@@ -85,8 +85,8 @@ def join_paths(parent: str | None, child: str) -> str:
 def is_direct_child(child_path: str | None, parent_path: str | None) -> bool:
   """Checks if the child path is a direct child of the parent path.
 
-  Example: is_direct_child('wf/nodeA', 'wf') → True
-           is_direct_child('wf/inner/nodeA', 'wf') → False
+  Example: is_direct_child('wf@1/nodeA@1', 'wf@1') → True
+           is_direct_child('wf@1/inner@1/nodeA@1', 'wf@1') → False
 
   TODO: Fix parameter order to (parent_path, child_path) to match
   is_descendant() and direct_child_name() conventions.
@@ -107,7 +107,7 @@ def is_direct_child(child_path: str | None, parent_path: str | None) -> bool:
 def direct_child_name(parent_path: str, descendant_path: str) -> str:
   """Extracts the first-level child name from a descendant path.
 
-  Example: direct_child_name('wf', 'wf/inner/nodeA') → 'inner'
+  Example: direct_child_name('wf@1', 'wf@1/inner@1/nodeA@1') → 'inner@1'
   """
   return descendant_path[len(parent_path) + 1 :].split('/')[0]
 

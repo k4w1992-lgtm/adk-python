@@ -168,6 +168,8 @@ def _output_by_node(events):
   for e in events:
     if e.output is not None and e.node_info.path and '/' in e.node_info.path:
       node_name = e.node_info.path.rsplit('/', 1)[-1]
+      if '@' in node_name:
+        node_name = node_name.rsplit('@', 1)[0]
       results.append((node_name, e.output))
   return results
 
@@ -412,14 +414,14 @@ async def test_internal_interrupt_event_not_persisted():
   wf_interrupt_events = [
       e
       for e in updated.events
-      if e.long_running_tool_ids and e.node_info.path == 'wf'
+      if e.long_running_tool_ids and e.node_info.path == 'wf@1'
   ]
   assert wf_interrupt_events == []
   # But child's interrupt event SHOULD be in session
   child_interrupt_events = [
       e
       for e in updated.events
-      if e.long_running_tool_ids and e.node_info.path == 'wf/ask'
+      if e.long_running_tool_ids and e.node_info.path and e.node_info.path.endswith('ask@1')
   ]
   assert len(child_interrupt_events) == 1
 
@@ -1056,7 +1058,7 @@ async def test_run_id_sequential_in_loop():
   loop_run_ids = [
       e.node_info.run_id
       for e in events
-      if e.node_info.run_id and e.node_name == 'loop'
+      if e.node_info.run_id and e.node_name.split('@')[0] == 'loop'
   ]
   assert loop_run_ids == ['1', '2', '3']
 
@@ -1293,8 +1295,8 @@ async def test_node_path_correct():
   events, _, _ = await _run_workflow(wf)
   paths = [e.node_info.path for e in events if e.node_info.path]
 
-  assert any(p.endswith('NodeA') for p in paths)
-  assert any(p.endswith('NodeB') for p in paths)
+  assert any(p.endswith('NodeA@1') for p in paths)
+  assert any(p.endswith('NodeB@1') for p in paths)
   assert all('None' not in p for p in paths)
 
 
@@ -1438,11 +1440,11 @@ async def test_use_as_output_function_to_function():
 
   # output_for includes child, parent, and workflow paths.
   # func_a is terminal, so its output also represents the workflow's.
-  output_event = [e for e in events if e.node_info.name == 'func_b'][0]
+  output_event = [e for e in events if e.node_info.name.split('@')[0] == 'func_b'][0]
   assert output_event.node_info.output_for == [
-      ('wf/func_a/func_b', '1'),
-      ('wf/func_a', '1'),
-      ('wf', '1'),
+      'wf@1/func_a@1/func_b@1',
+      'wf@1/func_a@1',
+      'wf@1',
   ]
 
 
@@ -1537,12 +1539,12 @@ async def test_use_as_output_nested_delegation():
 
   # output_for includes full ancestor chain plus workflow path.
   # func_a is terminal, so the chain extends to the workflow.
-  output_event = [e for e in events if e.node_info.name == 'func_c'][0]
+  output_event = [e for e in events if e.node_info.name.split('@')[0] == 'func_c'][0]
   assert output_event.node_info.output_for == [
-      ('wf/func_a/func_b/func_c', '1'),
-      ('wf/func_a/func_b', '1'),
-      ('wf/func_a', '1'),
-      ('wf', '1'),
+      'wf@1/func_a@1/func_b@1/func_c@1',
+      'wf@1/func_a@1/func_b@1',
+      'wf@1/func_a@1',
+      'wf@1',
   ]
 
 
@@ -1618,11 +1620,11 @@ async def test_without_use_as_output_parent_emits_duplicate():
   assert ('func_a', 'from_b') in by_node
 
   # func_b's output_for is just its own path (no delegation).
-  b_event = [e for e in events if e.node_info.name == 'func_b'][0]
-  assert b_event.node_info.output_for == [('wf/func_a/func_b', '1')]
+  b_event = [e for e in events if e.node_info.name.split('@')[0] == 'func_b'][0]
+  assert b_event.node_info.output_for == ['wf@1/func_a@1/func_b@1']
   # func_a is terminal, so its output_for includes the workflow path.
-  a_event = [e for e in events if e.node_info.name == 'func_a'][0]
-  assert a_event.node_info.output_for == [('wf/func_a', '1'), ('wf', '1')]
+  a_event = [e for e in events if e.node_info.name and e.node_info.name.split('@')[0] == 'func_a'][0]
+  assert a_event.node_info.output_for == ['wf@1/func_a@1', 'wf@1']
 
 
 @pytest.mark.asyncio
@@ -1645,18 +1647,18 @@ async def test_terminal_node_output_dedup():
   output_events = [e for e in events if e.output is not None]
 
   # step_a is not terminal — its output_for is just its own path.
-  a_events = [e for e in output_events if e.node_info.name == 'step_a']
+  a_events = [e for e in output_events if e.node_info.name and e.node_info.name.split('@')[0] == 'step_a']
   assert len(a_events) == 1
-  assert a_events[0].node_info.output_for == [('wf/step_a', '1')]
+  assert a_events[0].node_info.output_for == ['wf@1/step_a@1']
 
   # step_b is terminal — its output_for includes the workflow path.
-  b_events = [e for e in output_events if e.node_info.name == 'step_b']
+  b_events = [e for e in output_events if e.node_info.name and e.node_info.name.split('@')[0] == 'step_b']
   assert len(b_events) == 1
-  assert b_events[0].node_info.output_for == [('wf/step_b', '1'), ('wf', '1')]
+  assert b_events[0].node_info.output_for == ['wf@1/step_b@1', 'wf@1']
   assert b_events[0].output == 'final: HELLO'
 
   # No duplicate output event from the workflow itself.
-  wf_events = [e for e in output_events if e.node_info.path == 'wf']
+  wf_events = [e for e in output_events if e.node_info.path == 'wf@1']
   assert len(wf_events) == 0
 
 
@@ -1682,25 +1684,25 @@ async def test_terminal_node_output_dedup_nested():
   output_events = [e for e in events if e.output is not None]
 
   # inner_node is terminal in inner_wf — includes inner_wf path.
-  inner_events = [e for e in output_events if e.node_info.name == 'inner_node']
+  inner_events = [e for e in output_events if e.node_info.name and e.node_info.name.split('@')[0] == 'inner_node']
   assert len(inner_events) == 1
   assert inner_events[0].node_info.output_for == [
-      ('outer/inner/inner_node', '1'),
-      ('outer/inner', '1'),
+      'outer@1/inner@1/inner_node@1',
+      'outer@1/inner@1',
   ]
 
   # outer_node is terminal in outer_wf — includes outer_wf path.
-  outer_events = [e for e in output_events if e.node_info.name == 'outer_node']
+  outer_events = [e for e in output_events if e.node_info.name and e.node_info.name.split('@')[0] == 'outer_node']
   assert len(outer_events) == 1
   assert outer_events[0].node_info.output_for == [
-      ('outer/outer_node', '1'),
-      ('outer', '1'),
+      'outer@1/outer_node@1',
+      'outer@1',
   ]
   assert outer_events[0].output == 'wrapped: TEST'
 
   # No duplicate output events from the workflows themselves.
   wf_output_events = [
-      e for e in output_events if e.node_info.path in ('outer', 'outer/inner')
+      e for e in output_events if e.node_info.path in ('outer@1', 'outer@1/inner@1')
   ]
   assert len(wf_output_events) == 0
 
@@ -1747,7 +1749,7 @@ async def test_nested_workflow_event_author():
 
   # outer_node's events authored by outer_wf (nearest orchestrator).
   outer_events = [
-      e for e in events if e.node_info.path == 'outer_wf/outer_node'
+      e for e in events if e.node_info.path == 'outer_wf@1/outer_node@1'
   ]
   assert outer_events
   assert all(e.author == 'outer_wf' for e in outer_events)
@@ -1755,7 +1757,7 @@ async def test_nested_workflow_event_author():
   # inner_node's events authored by inner_wf (nearest orchestrator),
   # NOT outer_wf.
   inner_events = [
-      e for e in events if e.node_info.path == 'outer_wf/inner_wf/inner_node'
+      e for e in events if e.node_info.path == 'outer_wf@1/inner_wf@1/inner_node@1'
   ]
   assert inner_events
   assert all(e.author == 'inner_wf' for e in inner_events)
@@ -2027,7 +2029,7 @@ async def test_run_id_reused_on_resume():
   resumed_events = [
       e
       for e in events2
-      if e.node_info.path == 'wf/ask' and e.output is not None
+      if e.node_info.path and e.node_info.path.endswith('ask@1') and e.output is not None
   ]
   assert len(resumed_events) == 1
   assert resumed_events[0].node_info.run_id == original_run_id
@@ -2150,3 +2152,36 @@ async def test_nested_workflow_partial_resume():
     if e.long_running_tool_ids:
       final_interrupts.update(e.long_running_tool_ids)
   assert not final_interrupts
+
+
+@pytest.mark.asyncio
+async def test_scan_child_events_ignores_descendant_run_id_resets():
+  """_scan_child_events only resets run_id from direct child events."""
+  from unittest.mock import MagicMock
+  from google.adk.events.event import Event
+  from google.adk.events.event import NodeInfo
+
+  # We create a Workflow instance to test its private method _scan_child_events.
+  wf = Workflow(name='wf', edges=[])
+
+  # Given a direct child event and a descendant event.
+  event1 = Event(
+      author='node',
+      node_info=NodeInfo(path='wf@1/child@1', run_id='1'),
+  )
+  event2 = Event(
+      author='node',
+      node_info=NodeInfo(path='wf@1/child@1/grandchild@2', run_id='2'),
+  )
+
+  ctx = MagicMock()
+  ctx._invocation_context = MagicMock()
+  ctx._invocation_context.session = MagicMock()
+  ctx._invocation_context.session.events = [event1, event2]
+  # _scan_child_events reads ctx.node_path to determine the base workflow path.
+  ctx.node_path = 'wf@1'
+
+  children = wf._scan_child_events(ctx)
+
+  # Assert child 'child' run_id remains '1' (not '2' from the descendant).
+  assert children['child'].run_id == '1'

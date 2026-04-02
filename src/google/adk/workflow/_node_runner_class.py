@@ -76,7 +76,7 @@ class NodeRunner:
     # Core
     self._node = node
     self._parent_ctx = parent_ctx
-    self._run_id = run_id or '1'
+    self._run_id = str(run_id) if run_id else '1'
 
     # Graph context
     self._triggered_by = triggered_by
@@ -116,7 +116,8 @@ class NodeRunner:
     """Construct this node's path from parent context."""
     from .utils._node_path_utils import join_paths
 
-    return join_paths(self._parent_ctx.node_path or None, self._node.name)
+    path_with_run = f'{self._node.name}@{self.run_id}'
+    return join_paths(self._parent_ctx.node_path or None, path_with_run)
 
   def _create_child_context(
       self,
@@ -132,7 +133,7 @@ class NodeRunner:
 
     if self._additional_output_for_ancestor:
       ancestors = [
-          (self._additional_output_for_ancestor, self._parent_ctx.run_id)
+          self._additional_output_for_ancestor
       ] + list(self._parent_ctx._output_for_ancestors or [])
     else:
       ancestors = []
@@ -142,9 +143,10 @@ class NodeRunner:
     # ctx.run_node() works correctly on re-run with resume.
     scheduler = self._parent_ctx._schedule_dynamic_node_internal
     if scheduler is None:
-      from ._dynamic_node_scheduler import DefaultNodeScheduler
+      from ._dynamic_node_scheduler import DynamicNodeScheduler
+      from ._dynamic_node_scheduler import DynamicNodeState
 
-      scheduler = DefaultNodeScheduler()
+      scheduler = DynamicNodeScheduler(DynamicNodeState())
 
     ctx = Context(
         self._parent_ctx._invocation_context,
@@ -283,4 +285,6 @@ class NodeRunner:
     event.node_info.path = ctx.node_path
     event.node_info.run_id = self._run_id
     if event.output is not None:
-      event.node_info.output_for = [(ctx.node_path, ctx.run_id)] + ctx._output_for_ancestors
+      event.node_info.output_for = [
+          ctx.node_path
+      ] + ctx._output_for_ancestors

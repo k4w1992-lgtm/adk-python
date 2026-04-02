@@ -164,7 +164,7 @@ class Context(ReadonlyContext):
       node_rerun_on_resume: bool = True,
       transfer_targets: list[Any] | None = None,
       retry_count: int = 0,
-      output_for_ancestors: list[tuple[str, str]] | None = None,
+      output_for_ancestors: list[str] | None = None,
       event_author: str = '',
       state_schema: type[BaseModel] | None = None,
   ) -> None:
@@ -225,10 +225,10 @@ class Context(ReadonlyContext):
     self._route_value: RouteValue | list[RouteValue] | None = None
     self._interrupt_ids: set[str] = set()
     self._event_author = event_author
-    self._output_for_ancestors: list[tuple[str, str]] = output_for_ancestors or []
+    self._output_for_ancestors: list[str] = output_for_ancestors or []
     """Ancestor node paths whose output this node's output also represents.
 
-    E.g. ['wf/parent', 'wf/grandparent'] means this node's output event
+    E.g. ['wf/parent@1', 'wf/grandparent@1'] means this node's output event
     is also considered the output for those ancestor paths.
     """
     # Use a session proxy when local_events are provided (workflow mode).

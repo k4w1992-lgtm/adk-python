@@ -25,7 +25,7 @@ from google.adk.agents.context import Context
 from google.adk.events.event import Event
 from google.adk.events.event import NodeInfo
 from google.adk.workflow._base_node import BaseNode
-from google.adk.workflow._dynamic_node_scheduler import DefaultNodeScheduler
+from google.adk.workflow._dynamic_node_scheduler import DynamicNodeState
 from google.adk.workflow._dynamic_node_scheduler import DynamicNodeRun
 from google.adk.workflow._dynamic_node_scheduler import DynamicNodeScheduler
 from google.adk.workflow._node_state import NodeState
@@ -121,20 +121,19 @@ async def test_rehydrate_finds_completed_node():
   """Scan finds output event → node marked COMPLETED."""
   events = [
       _make_event(
-          path='wf/parent/child',
+          path='wf/parent/child@r-1',
           output='result',
-          run_id='r-1',
       ),
   ]
   ctx, _ = _make_parent_ctx(events=events)
   ls = _LoopState()
   scheduler = DynamicNodeScheduler(ls)
 
-  scheduler._rehydrate_from_events(ctx, 'wf/parent/child', target_run_id='r-1')
+  scheduler._rehydrate_from_events(ctx, 'wf/parent/child@r-1')
 
-  assert 'wf/parent/child' in ls.runs
-  assert ls.runs['wf/parent/child']['r-1'].state.status == NodeStatus.COMPLETED
-  assert ls.runs['wf/parent/child']['r-1'].output == 'result'
+  assert 'wf/parent/child@r-1' in ls.runs
+  assert ls.runs['wf/parent/child@r-1'].state.status == NodeStatus.COMPLETED
+  assert ls.runs['wf/parent/child@r-1'].output == 'result'
 
 
 @pytest.mark.asyncio
@@ -142,35 +141,33 @@ async def test_rehydrate_finds_interrupted_node():
   """Scan finds interrupt event → node marked WAITING."""
   events = [
       _make_event(
-          path='wf/parent/child',
+          path='wf/parent/child@r-1',
           interrupt_ids=['fc-1'],
-          run_id='r-1',
       ),
   ]
   ctx, _ = _make_parent_ctx(events=events)
   ls = _LoopState()
   scheduler = DynamicNodeScheduler(ls)
 
-  scheduler._rehydrate_from_events(ctx, 'wf/parent/child', target_run_id='r-1')
+  scheduler._rehydrate_from_events(ctx, 'wf/parent/child@r-1')
 
-  state = ls.runs['wf/parent/child']['r-1'].state
+  assert 'wf/parent/child@r-1' in ls.runs
+  state = ls.runs['wf/parent/child@r-1'].state
   assert state.status == NodeStatus.WAITING
   assert 'fc-1' in state.interrupts
 
 
 @pytest.mark.asyncio
 async def test_rehydrate_with_target_run_id_skips_others():
-  """Scan with target_run_id only rehydrates that specific run."""
+  """Scan with unique path only rehydrates that specific run."""
   events = [
       _make_event(
-          path='wf/parent/child',
+          path='wf/parent/child@r-1',
           output='result-1',
-          run_id='r-1',
       ),
       _make_event(
-          path='wf/parent/child',
+          path='wf/parent/child@r-2',
           output='result-2',
-          run_id='r-2',
       ),
   ]
   ctx, _ = _make_parent_ctx(events=events)
@@ -178,40 +175,33 @@ async def test_rehydrate_with_target_run_id_skips_others():
   scheduler = DynamicNodeScheduler(ls)
 
   # When targeting r-2
-  scheduler._rehydrate_from_events(ctx, 'wf/parent/child', target_run_id='r-2')
+  scheduler._rehydrate_from_events(ctx, 'wf/parent/child@r-2')
 
   # Then only r-2 is in state
-  assert 'wf/parent/child' in ls.runs
-  assert 'r-1' not in ls.runs['wf/parent/child']
-  assert 'r-2' in ls.runs['wf/parent/child']
-  assert ls.runs['wf/parent/child']['r-2'].state.status == NodeStatus.COMPLETED
-  assert ls.runs['wf/parent/child']['r-2'].output == 'result-2'
+  assert 'wf/parent/child@r-2' in ls.runs
+  assert 'wf/parent/child@r-1' not in ls.runs
+  assert ls.runs['wf/parent/child@r-2'].state.status == NodeStatus.COMPLETED
+  assert ls.runs['wf/parent/child@r-2'].output == 'result-2'
 
 
 @pytest.mark.asyncio
-async def test_rehydrate_with_target_run_id_includes_delegated():
-  """Scan with target_run_id includes events delegated to that run."""
+async def test_rehydrate_includes_delegated():
+  """Scan includes events delegated to that run."""
   events = [
       _make_event(
-          path='wf/parent/child/inner',
+          path='wf/parent/child@r-target/inner@r-inner',
           output='delegated-val',
-          run_id='r-inner',
-          output_for=[('wf/parent/child', 'r-target')],
+          output_for=['wf/parent/child@r-target'],
       ),
   ]
   ctx, _ = _make_parent_ctx(events=events)
   ls = _LoopState()
   scheduler = DynamicNodeScheduler(ls)
 
-  # When targeting r-target
-  scheduler._rehydrate_from_events(
-      ctx, 'wf/parent/child', target_run_id='r-target'
-  )
+  scheduler._rehydrate_from_events(ctx, 'wf/parent/child@r-target')
 
-  # Then r-target is rehydrated via delegation
-  assert 'wf/parent/child' in ls.runs
-  assert 'r-target' in ls.runs['wf/parent/child']
-  assert ls.runs['wf/parent/child']['r-target'].output == 'delegated-val'
+  assert 'wf/parent/child@r-target' in ls.runs
+  assert ls.runs['wf/parent/child@r-target'].output == 'delegated-val'
 
 
 @pytest.mark.asyncio
@@ -219,9 +209,8 @@ async def test_rehydrate_resolves_interrupt_with_fr():
   """Scan finds interrupt + FR → all resolved, ready to re-run."""
   events = [
       _make_event(
-          path='wf/parent/child',
+          path='wf/parent/child@r-1',
           interrupt_ids=['fc-1'],
-          run_id='r-1',
       ),
       _make_fr_event('fc-1', {'approved': True}),
   ]
@@ -229,9 +218,9 @@ async def test_rehydrate_resolves_interrupt_with_fr():
   ls = _LoopState()
   scheduler = DynamicNodeScheduler(ls)
 
-  scheduler._rehydrate_from_events(ctx, 'wf/parent/child', target_run_id='r-1')
+  scheduler._rehydrate_from_events(ctx, 'wf/parent/child@r-1')
 
-  state = ls.runs['wf/parent/child']['r-1'].state
+  state = ls.runs['wf/parent/child@r-1'].state
   assert state.status == NodeStatus.WAITING
   assert state.interrupts == []  # all resolved
   assert 'fc-1' in state.resume_inputs
@@ -247,9 +236,9 @@ async def test_rehydrate_no_events_does_nothing():
   ls = _LoopState()
   scheduler = DynamicNodeScheduler(ls)
 
-  scheduler._rehydrate_from_events(ctx, 'wf/parent/child', target_run_id='r-1')
+  scheduler._rehydrate_from_events(ctx, 'wf/parent/child@r-1')
 
-  assert 'wf/parent/child' not in ls.runs
+  assert 'wf/parent/child@r-1' not in ls.runs
 
 
 @pytest.mark.asyncio
@@ -257,24 +246,28 @@ async def test_rehydrate_subtree_interrupt():
   """Interrupts from nested descendants are collected."""
   events = [
       _make_event(
-          path='wf/parent/child/inner',
+          path='wf/parent/child@r-1/inner@r-inner',
           interrupt_ids=['fc-deep'],
-          run_id='r-1',
       ),
   ]
   ctx, _ = _make_parent_ctx(events=events)
   ls = _LoopState()
   scheduler = DynamicNodeScheduler(ls)
 
-  scheduler._rehydrate_from_events(ctx, 'wf/parent/child', target_run_id='r-1')
+  scheduler._rehydrate_from_events(ctx, 'wf/parent/child@r-1')
 
-  state = ls.runs['wf/parent/child']['r-1'].state
-  assert 'fc-deep' in state.interrupts
+  assert 'wf/parent/child@r-1' in ls.runs
+  state = ls.runs['wf/parent/child@r-1'].state
+  assert state.status == NodeStatus.WAITING
+  assert state.interrupts == ['fc-deep']
 
 
 @pytest.mark.asyncio
 @pytest.mark.xfail(
-    reason="TODO: Logic doesn't work for sub-nodes under parallel worker where they have identical node_path"
+    reason=(
+        "TODO: Logic doesn't work for sub-nodes under parallel worker where"
+        ' they have identical node_path'
+    )
 )
 async def test_rehydrate_parallel_worker_interrupts_xfail():
   """Interrupts from parallel child nodes sharing the parent's path."""
@@ -311,83 +304,24 @@ async def test_rehydrate_output_for_delegation():
   """Output via output_for delegation is recognized."""
   events = [
       _make_event(
-          path='wf/parent/child/inner',
+          path='wf/parent/child@r-1/inner@r-inner',
           output='delegated',
-          run_id='r-1',
-          output_for=[
-              ('wf/parent/child/inner', 'r-1'),
-              ('wf/parent/child', 'r-1'),
-          ],
+          output_for=['wf/parent/child@r-1'],
       ),
   ]
   ctx, _ = _make_parent_ctx(events=events)
   ls = _LoopState()
   scheduler = DynamicNodeScheduler(ls)
 
-  scheduler._rehydrate_from_events(ctx, 'wf/parent/child', target_run_id='r-1')
+  scheduler._rehydrate_from_events(ctx, 'wf/parent/child@r-1')
 
-  assert ls.runs['wf/parent/child']['r-1'].output == 'delegated'
-
-
-@pytest.mark.asyncio
-async def test_rehydrate_output_for_delegation_run_id_isolation():
-  """Delegation only applies if target run ID matches."""
-  events = [
-      _make_event(
-          path='wf/parent/child/inner',
-          output='delegated',
-          run_id='r-child',
-          output_for=[
-              ('wf/parent/child', 'r-different'),
-          ],
-      ),
-  ]
-  ctx, _ = _make_parent_ctx(events=events)
-  ls = _LoopState()
-  scheduler = DynamicNodeScheduler(ls)
-
-  scheduler._rehydrate_from_events(
-      ctx, 'wf/parent/child', target_run_id='r-different'
-  )
-
-  # It should find its way to r-different
-  assert ls.runs['wf/parent/child']['r-different'].output == 'delegated'
+  assert ls.runs['wf/parent/child@r-1'].output == 'delegated'
 
 
-@pytest.mark.asyncio
-async def test_rehydrate_groups_by_run_id():
-  """Scan groups events by run_id per path, preventing merging."""
-  events = [
-      _make_event(
-          path='wf/parent/child',
-          interrupt_ids=['fc-1'],
-          run_id='r-1',
-      ),
-      _make_event(
-          path='wf/parent/child',
-          output='result-2',
-          run_id='r-2',
-      ),
-  ]
-  ctx, _ = _make_parent_ctx(events=events)
-  ls = _LoopState()
-  scheduler = DynamicNodeScheduler(ls)
+# Obsolete isolation test removed.
 
-  # Rehydrate r-1 first
-  scheduler._rehydrate_from_events(ctx, 'wf/parent/child', target_run_id='r-1')
-  # Then rehydrate r-2
-  scheduler._rehydrate_from_events(ctx, 'wf/parent/child', target_run_id='r-2')
 
-  assert 'wf/parent/child' in ls.runs
-  runs = ls.runs['wf/parent/child']
-  assert 'r-1' in runs
-  assert 'r-2' in runs
-
-  assert runs['r-1'].state.status == NodeStatus.WAITING
-  assert 'fc-1' in runs['r-1'].state.interrupts
-
-  assert runs['r-2'].state.status == NodeStatus.COMPLETED
-  assert runs['r-2'].output == 'result-2'
+# Obsolete test removed.
 
 
 # =========================================================================
@@ -417,7 +351,7 @@ async def test_fresh_execution_runs_node():
   )
 
   assert child_ctx.output == 'hello: input'
-  assert 'wf/parent/child' in ls.runs
+  assert 'wf/parent/child@1' in ls.runs
 
 
 @pytest.mark.asyncio
@@ -426,12 +360,10 @@ async def test_completed_dedup_returns_cached():
 
   ctx, _ = _make_parent_ctx()
   ls = _LoopState()
-  ls.runs['wf/parent/child'] = {
-      'r-1': DynamicNodeRun(
-          state=NodeState(status=NodeStatus.COMPLETED, run_id='r-1'),
-          output='cached',
-      )
-  }
+  ls.runs['wf/parent/child@r-1'] = DynamicNodeRun(
+      state=NodeState(status=NodeStatus.COMPLETED, run_id='r-1'),
+      output='cached',
+  )
 
   scheduler = DynamicNodeScheduler(ls)
 
@@ -452,13 +384,11 @@ async def test_waiting_unresolved_propagates_interrupts():
 
   ctx, _ = _make_parent_ctx()
   ls = _LoopState()
-  ls.runs['wf/parent/child'] = {
-      'r-1': DynamicNodeRun(
-          state=NodeState(
-              status=NodeStatus.WAITING, interrupts=['fc-1'], run_id='r-1'
-          )
+  ls.runs['wf/parent/child@r-1'] = DynamicNodeRun(
+      state=NodeState(
+          status=NodeStatus.WAITING, interrupts=['fc-1'], run_id='r-1'
       )
-  }
+  )
 
   scheduler = DynamicNodeScheduler(ls)
 
@@ -489,16 +419,14 @@ async def test_waiting_resolved_resumes_node():
 
   ctx, _ = _make_parent_ctx()
   ls = _LoopState()
-  ls.runs['wf/parent/child'] = {
-      'r-1': DynamicNodeRun(
-          state=NodeState(
-              status=NodeStatus.WAITING,
-              interrupts=[],
-              run_id='r-1',
-              resume_inputs={'fc-1': 'response'},
-          )
+  ls.runs['wf/parent/child@r-1'] = DynamicNodeRun(
+      state=NodeState(
+          status=NodeStatus.WAITING,
+          interrupts=[],
+          run_id='r-1',
+          resume_inputs={'fc-1': 'response'},
       )
-  }
+  )
 
   scheduler = DynamicNodeScheduler(ls)
 
@@ -528,7 +456,7 @@ async def test_default_scheduler_fresh_execution():
       yield f'ct: {node_input}'
 
   ctx, _ = _make_parent_ctx()
-  tracker = DefaultNodeScheduler()
+  tracker = DynamicNodeScheduler(DynamicNodeState())
 
   child_ctx = await tracker(
       ctx,
@@ -545,15 +473,13 @@ async def test_default_scheduler_fresh_execution():
 async def test_default_scheduler_dedup_returns_cached():
   """DefaultNodeScheduler returns cached output for completed nodes."""
   ctx, _ = _make_parent_ctx()
-  tracker = DefaultNodeScheduler()
+  tracker = DynamicNodeScheduler(DynamicNodeState())
 
   # Pre-populate state as if node already completed.
-  tracker._state.runs['wf/parent/child'] = {
-      'r-1': DynamicNodeRun(
-          state=NodeState(status=NodeStatus.COMPLETED, run_id='r-1'),
-          output='cached',
-      )
-  }
+  tracker._state.runs['wf/parent/child@r-1'] = DynamicNodeRun(
+      state=NodeState(status=NodeStatus.COMPLETED, run_id='r-1'),
+      output='cached',
+  )
 
   child_ctx = await tracker(
       ctx,
@@ -580,19 +506,17 @@ async def test_default_scheduler_resume_with_resolved_interrupts():
       yield 'should not reach here'
 
   ctx, _ = _make_parent_ctx()
-  tracker = DefaultNodeScheduler()
+  tracker = DynamicNodeScheduler(DynamicNodeState())
 
   # Pre-populate state as if node interrupted and was resolved.
-  tracker._state.runs['wf/parent/child'] = {
-      'r-1': DynamicNodeRun(
-          state=NodeState(
-              status=NodeStatus.WAITING,
-              interrupts=[],
-              run_id='r-1',
-              resume_inputs={'fc-1': 'approved'},
-          )
+  tracker._state.runs['wf/parent/child@r-1'] = DynamicNodeRun(
+      state=NodeState(
+          status=NodeStatus.WAITING,
+          interrupts=[],
+          run_id='r-1',
+          resume_inputs={'fc-1': 'approved'},
       )
-  }
+  )
 
   child_ctx = await tracker(
       ctx,
@@ -609,15 +533,13 @@ async def test_default_scheduler_resume_with_resolved_interrupts():
 async def test_default_scheduler_propagates_unresolved_interrupts():
   """DefaultNodeScheduler propagates unresolved interrupts."""
   ctx, _ = _make_parent_ctx()
-  tracker = DefaultNodeScheduler()
+  tracker = DynamicNodeScheduler(DynamicNodeState())
 
-  tracker._state.runs['wf/parent/child'] = {
-      'r-1': DynamicNodeRun(
-          state=NodeState(
-              status=NodeStatus.WAITING, interrupts=['fc-1'], run_id='r-1'
-          )
+  tracker._state.runs['wf/parent/child@r-1'] = DynamicNodeRun(
+      state=NodeState(
+          status=NodeStatus.WAITING, interrupts=['fc-1'], run_id='r-1'
       )
-  }
+  )
 
   child_ctx = await tracker(
       ctx,

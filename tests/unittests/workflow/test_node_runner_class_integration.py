@@ -221,7 +221,7 @@ async def test_event_path_contains_node_name():
 
   output_events = [e for e in events if e.output is not None]
   event = output_events[0]
-  assert event.node_info.path == 'path_test'
+  assert event.node_info.path == 'path_test@exec-456'
   assert event.node_info.run_id == 'exec-456'
   assert event.invocation_id == 'inv-123'
 
@@ -316,7 +316,7 @@ async def test_node_path_includes_parent():
   await runner.run(node_input='x')
 
   output_events = [e for e in events if e.output is not None]
-  assert output_events[0].node_info.path == 'parent_path/child'
+  assert output_events[0].node_info.path == 'parent_path/child@1'
 
 
 @pytest.mark.asyncio

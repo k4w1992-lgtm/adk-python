@@ -125,8 +125,9 @@ async def test_simple_node_output():
   """Runner yields output from a simple BaseNode."""
   events, _, _ = await _run_node(_EchoNode(name='echo'), message='hi')
 
-  outputs = [e.output for e in events if e.output is not None]
-  assert outputs == ['Echo: hi']
+  output_events = [e for e in events if e.output is not None]
+  assert [e.output for e in output_events] == ['Echo: hi']
+  assert output_events[0].node_info.path == 'echo@1'
 
 
 @pytest.mark.asyncio
@@ -199,8 +200,9 @@ async def test_workflow_node_output():
   wf = Workflow(name='wf', edges=[(START, upper)])
   events, _, _ = await _run_node(wf, message='hi')
 
-  outputs = [e.output for e in events if e.output is not None]
-  assert 'HI' in outputs
+  output_events = [e for e in events if e.output == 'HI']
+  assert len(output_events) == 1
+  assert output_events[0].node_info.path == 'wf@1/upper@1'
 
 
 # ---------------------------------------------------------------------------
@@ -548,7 +550,7 @@ async def test_run_node_use_as_output_attributes_child_output_to_parent():
   # With use_as_output=True, the parent's own yield is suppressed —
   # only the child's output (attributed to the parent) is emitted.
   child_output = next(e for e in events if e.output == 'child result')
-  assert 'parent/child' in child_output.node_info.path
+  assert 'parent@1/child@1' in child_output.node_info.path
   assert any(
       'parent' in p and 'child' not in p
       for p in child_output.node_info.output_for
@@ -780,11 +782,11 @@ async def test_run_node_use_as_output_nested_delegation():
   # Then
   inner_output = next(e for e in events if e.output == 'inner_val')
   output_for = inner_output.node_info.output_for
-  paths = [t[0] for t in output_for]
+  paths = output_for
 
   assert len(output_for) == 3
   assert any('middle' in p for p in paths)
   assert any('outer' in p for p in paths)
   assert any('inner' in p for p in paths)
-  for _, run_id in output_for:
-    assert run_id != ''
+  for p in output_for:
+    assert '@' in p

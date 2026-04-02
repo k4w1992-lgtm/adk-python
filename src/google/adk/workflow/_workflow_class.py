@@ -538,8 +538,8 @@ class Workflow(BaseNode):
     interrupt_owner: dict[str, str] = {}
 
     for event in ic.session.events:
-      if event.invocation_id != invocation_id:
-        continue
+      # Read all events in session to find interrupts from past turns.
+      # We do not filter by invocation_id because rehydration needs history.
 
       # FR events resolve interrupts.
       if event.author == 'user' and event.content and event.content.parts:
@@ -557,14 +557,20 @@ class Workflow(BaseNode):
         continue
 
       child_name = direct_child_name(workflow_path, event.node_info.path)
+      child_name = child_name.partition('@')[0]
       if not child_name:
         continue
 
       child = children.setdefault(child_name, _ChildScanState())
 
       # New run_id → reset child state (previous run stale).
+      # ONLY update run_id from direct child events, not descendants!
       evt_run_id = event.node_info.run_id
-      if evt_run_id and child.run_id != evt_run_id:
+      if (
+          is_direct_child(event.node_info.path, workflow_path)
+          and evt_run_id
+          and child.run_id != evt_run_id
+      ):
         child.run_id = evt_run_id
         child.output = None
         child.interrupt_ids.clear()

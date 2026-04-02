@@ -15,14 +15,8 @@
 """Dynamic node scheduler for Workflow.
 
 Handles ctx.run_node() calls by tracking dynamic nodes in the
-Workflow's _LoopState. Supports dedup (cached output), resume
+Workflow's _LoopState or a local DynamicNodeState. Supports dedup (cached output), resume
 (lazy event scan + re-run), and fresh execution.
-
-Also provides ``DefaultNodeScheduler``, a lightweight scheduler
-that any BaseNode can use to manage dynamic children via
-``ctx.run_node()``. DefaultNodeScheduler reuses all
-DynamicNodeScheduler logic but owns its own state instead of
-sharing a Workflow's _LoopState.
 """
 
 from __future__ import annotations
@@ -36,6 +30,7 @@ from typing import TYPE_CHECKING
 
 from ._node_state import NodeState
 from ._node_status import NodeStatus
+from .utils._node_path_utils import is_descendant
 from .utils._node_path_utils import join_paths
 from .utils._workflow_hitl_utils import unwrap_response as _unwrap_fr_response
 
@@ -70,8 +65,8 @@ class DynamicNodeState:
   these fields for dedup, resume, and interrupt propagation.
   """
 
-  runs: dict[str, dict[str, DynamicNodeRun]] = field(default_factory=dict)
-  """Dynamic node runs. Outer key is node_path, inner key is run_id."""
+  runs: dict[str, DynamicNodeRun] = field(default_factory=dict)
+  """Dynamic node runs keyed by unique node_path (e.g. /wf@1/node_a@1)."""
 
   # --- Shared (static + dynamic) ---
 
@@ -91,12 +86,7 @@ class DynamicNodeState:
 
   def get_dynamic_tasks(self) -> list[asyncio.Task]:
     """Get all active dynamic node tasks."""
-    return [
-        run.task
-        for node_runs in self.runs.values()
-        for run in node_runs.values()
-        if run.task
-    ]
+    return [run.task for run in self.runs.values() if run.task]
 
 
 class DynamicNodeScheduler:
@@ -145,37 +135,31 @@ class DynamicNodeScheduler:
     # node_name is always provided by ctx.run_node() (either
     # user-specified or auto-generated via _next_child_name).
     name = node_name or node.name
-    node_path = join_paths(ctx.node_path, name)
+    node_path = join_paths(ctx.node_path, f'{name}@{run_id}')
 
     # Phase 1: Lazy rehydration from session events.
-    if (
-        node_path not in self._state.runs
-        or run_id not in self._state.runs[node_path]
-    ):
-      self._rehydrate_from_events(ctx, node_path, target_run_id=run_id)
+    if node_path not in self._state.runs:
+      self._rehydrate_from_events(ctx, node_path)
 
-    # Phase 2: Dedup — return cached or handle waiting.
-    active_run_id = run_id
-    runs_by_run_id = self._state.runs.setdefault(node_path, {})
-
-    if active_run_id not in runs_by_run_id:
+    if node_path not in self._state.runs:
       # Phase 3: Fresh execution.
-      return await self._execute_fresh(
+      return await self._run_node_internal(
           ctx,
           node,
           name,
           node_path,
+          run_id,
           node_input,
           use_as_output,
-          run_id=active_run_id,
+          is_fresh=True,
       )
 
     # Found an existing run for this node and run_id -> rerun or interrupt or auto-complete.
-    run = runs_by_run_id[active_run_id]
+    run = self._state.runs[node_path]
     state = run.state
     if state.status == NodeStatus.COMPLETED:
       # Already completed → return cached output.
-      return self._make_cached_ctx(ctx, node_path, active_run_id)
+      return self._make_cached_ctx(ctx, node_path, run_id)
 
     if state.status == NodeStatus.WAITING:
       # Unresolved interrupts remain → propagate to parent.
@@ -184,7 +168,7 @@ class DynamicNodeScheduler:
         return self._make_cached_ctx(
             ctx,
             node_path,
-            active_run_id,
+            run_id,
             interrupt_ids=set(state.interrupts),
         )
 
@@ -194,17 +178,18 @@ class DynamicNodeScheduler:
         output = dict(state.resume_inputs)
         state.status = NodeStatus.COMPLETED
         run.output = output
-        return self._make_cached_ctx(ctx, node_path, active_run_id)
+        return self._make_cached_ctx(ctx, node_path, run_id)
 
       # All resolved, rerun → re-execute with resume_inputs.
-      return await self._resume_node(
+      return await self._run_node_internal(
           ctx,
           node,
           name,
           node_path,
-          active_run_id,
+          run_id,
           node_input,
           use_as_output,
+          is_fresh=False,
       )
 
     # Running in this invocation — await existing task.
@@ -213,23 +198,22 @@ class DynamicNodeScheduler:
 
   # --- Lazy scan ---
 
-  def _rehydrate_from_events(
-      self, ctx: Context, node_path: str, target_run_id: str
-  ) -> None:
-    """Scan session events for a dynamic node's prior state for a target run_id."""
+  def _rehydrate_from_events(self, ctx: Context, node_path: str) -> None:
+    """Scan session events for a dynamic node's prior state."""
     from ._workflow_class import _ChildScanState
 
     ic = ctx._invocation_context
     invocation_id = ic.invocation_id
 
-    # The single state object for the target run_id.
-    target_state = _ChildScanState(run_id=target_run_id)
+    extracted_run_id = node_path.split('@')[-1]
+    target_state = _ChildScanState(run_id=extracted_run_id)
     # Interrupt IDs belonging to target_run_id.
     interrupt_ids_for_target: set[str] = set()
 
     for event in ic.session.events:
-      if event.invocation_id != invocation_id:
-        continue
+      # Read all events in session to find interrupts from past turns
+      # if event.invocation_id != invocation_id:
+      #   continue
 
       # FR events resolve interrupts.
       if event.author == 'user' and event.content and event.content.parts:
@@ -244,50 +228,33 @@ class DynamicNodeScheduler:
 
       # Match events under this dynamic node's path.
       event_node_path = event.node_info.path or ''
-      if not event_node_path.startswith(node_path):
+      is_direct_match = event_node_path == node_path
+      is_descendant_match = is_descendant(node_path, event_node_path)
+
+      if not is_direct_match and not is_descendant_match:
         continue
 
-      event_run_id = event.node_info.run_id
-
-      # Direct match or delegated output for target_run_id.
-      is_run_id_match = event_run_id == target_run_id
-      delegated_to_target = False
+      is_delegated = False
       if event.output is not None and event.node_info.output_for:
-        for (
-            output_for_node_path,
-            output_for_run_id,
-        ) in event.node_info.output_for:
-          if (
-              output_for_node_path == node_path
-              and output_for_run_id == target_run_id
-          ):
-            delegated_to_target = True
-            break
+        is_delegated = node_path in event.node_info.output_for
 
-      is_descendant = (
-          event_node_path != node_path and event_node_path.startswith(node_path)
-      )
       has_interrupts = bool(event.long_running_tool_ids)
 
       if (
-          not is_run_id_match
-          and not delegated_to_target
-          and not (is_descendant and has_interrupts)
+          not is_direct_match
+          and not is_delegated
+          and not (is_descendant_match and has_interrupts)
       ):
         continue
 
       # Output: direct path or output_for delegation.
       if event.output is not None:
-        if (
-            event_node_path == node_path and is_run_id_match
-        ) or delegated_to_target:
+        if is_direct_match or is_delegated:
           target_state.output = event.output
 
       # Interrupts from any descendant.
-      # TODO: This logic doesn't work for sub-nodes under parallel worker,
-      # where they all have identical node_path.
       if event.long_running_tool_ids:
-        if (event_node_path == node_path and is_run_id_match) or is_descendant:
+        if is_direct_match or is_descendant_match:
           for interrupt_id in event.long_running_tool_ids:
             target_state.interrupt_ids.add(interrupt_id)
             interrupt_ids_for_target.add(interrupt_id)
@@ -300,27 +267,26 @@ class DynamicNodeScheduler:
       state = NodeState(
           status=NodeStatus.WAITING,
           interrupts=list(unresolved),
-          run_id=target_run_id,
+          run_id=target_state.run_id,
       )
     elif target_state.interrupt_ids:
       # Node had interrupts, all resolved → ready to re-run.
       state = NodeState(
           status=NodeStatus.WAITING,
           interrupts=[],
-          run_id=target_run_id,
+          run_id=target_state.run_id,
           resume_inputs=target_state.resolved_responses,
       )
     elif target_state.output is not None:
       # Node completed with output.
       state = NodeState(
           status=NodeStatus.COMPLETED,
-          run_id=target_run_id,
+          run_id=target_state.run_id,
       )
       output = target_state.output
 
     if state:
-      runs_for_path = self._state.runs.setdefault(node_path, {})
-      runs_for_path[target_run_id] = DynamicNodeRun(state=state, output=output)
+      self._state.runs[node_path] = DynamicNodeRun(state=state, output=output)
 
   # --- Context construction ---
 
@@ -341,7 +307,7 @@ class DynamicNodeScheduler:
         event_author=ctx.event_author,
         schedule_dynamic_node_internal=(ctx._schedule_dynamic_node_internal),
     )
-    run = self._state.runs[node_path][run_id]
+    run = self._state.runs[node_path]
     if run.output is not None:
       child_ctx._output_value = run.output
       child_ctx._output_emitted = True
@@ -351,48 +317,7 @@ class DynamicNodeScheduler:
 
   # --- Execution ---
 
-  async def _execute_fresh(
-      self,
-      ctx: Context,
-      node: BaseNode,
-      name: str,
-      node_path: str,
-      node_input: Any,
-      use_as_output: bool,
-      *,
-      run_id: str,
-  ) -> Context:
-    """Run a dynamic node for the first time."""
-    from ._node_runner_class import NodeRunner
-
-    state = NodeState(
-        status=NodeStatus.RUNNING,
-        input=node_input,
-        run_id=run_id,
-        source_node_name=node.name,
-        parent_run_id=ctx.run_id,
-    )
-
-    runner = NodeRunner(
-        node=node.model_copy(update={'name': name}),
-        parent_ctx=ctx,
-        run_id=run_id,
-        additional_output_for_ancestor=(
-            ctx.node_path if use_as_output else None
-        ),
-    )
-
-    run = DynamicNodeRun(state=state)
-    run_by_id = self._state.runs.setdefault(node_path, {})
-    run_by_id[run_id] = run
-
-    run.task = asyncio.create_task(runner.run(node_input=node_input))
-
-    child_ctx = await run.task
-    self._record_result(run, child_ctx)
-    return child_ctx
-
-  async def _resume_node(
+  async def _run_node_internal(
       self,
       ctx: Context,
       node: BaseNode,
@@ -401,11 +326,26 @@ class DynamicNodeScheduler:
       run_id: str,
       node_input: Any,
       use_as_output: bool,
+      is_fresh: bool,
   ) -> Context:
-    """Re-run a dynamic node with resume_inputs."""
-    run = self._state.runs[node_path][run_id]
-    from ._node_runner_class import NodeRunner
+    """Unified runner for both fresh and resume executions."""
+    if is_fresh:
+      state = NodeState(
+          status=NodeStatus.RUNNING,
+          input=node_input,
+          run_id=run_id,
+          source_node_name=node.name,
+          parent_run_id=ctx.run_id,
+      )
+      run = DynamicNodeRun(state=state)
+      self._state.runs[node_path] = run
+      resume_inputs = None
+    else:
+      run = self._state.runs[node_path]
+      run.state.status = NodeStatus.RUNNING
+      resume_inputs = dict(run.state.resume_inputs) if run.state.resume_inputs else None
 
+    from ._node_runner_class import NodeRunner
     runner = NodeRunner(
         node=node.model_copy(update={'name': name}),
         parent_ctx=ctx,
@@ -414,15 +354,10 @@ class DynamicNodeScheduler:
             ctx.node_path if use_as_output else None
         ),
     )
-    run.state.status = NodeStatus.RUNNING
     run.task = asyncio.create_task(
-        runner.run(
-            node_input=node_input,
-            resume_inputs=dict(run.state.resume_inputs),
-        )
+        runner.run(node_input=node_input, resume_inputs=resume_inputs)
     )
     child_ctx = await run.task
-
     self._record_result(run, child_ctx)
     return child_ctx
 
@@ -442,26 +377,3 @@ class DynamicNodeScheduler:
       run.output = child_ctx.output
 
 
-# ---------------------------------------------------------------------------
-# DefaultNodeScheduler — default scheduler for standalone nodes
-# ---------------------------------------------------------------------------
-
-
-class DefaultNodeScheduler(DynamicNodeScheduler):
-  """Default scheduler for nodes without a Workflow.
-
-  Enables ``ctx.run_node()`` to work correctly on re-run
-  (``rerun_on_resume=True``) by tracking dynamic children: caching
-  completed outputs, forwarding resume_inputs for interrupted
-  children, and propagating unresolved interrupts.
-
-  Reuses all DynamicNodeScheduler logic but owns its own
-  ``DynamicNodeState`` instead of sharing a Workflow's ``_LoopState``.
-
-  State starts empty — on resume, ``_rehydrate_from_events()``
-  lazily reconstructs child states from session events, so no
-  external state injection is needed.
-  """
-
-  def __init__(self) -> None:
-    super().__init__(DynamicNodeState())

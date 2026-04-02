@@ -65,7 +65,7 @@ async def test_two_level_nesting_deduplicates(
 
   assert len(out_events) == 1
   assert out_events[0].output == 'leaf_data'
-  assert out_events[0].node_info.path == 'outer/inner/leaf'
+  assert out_events[0].node_info.path == 'outer@1/inner@1/leaf@1'
 
 
 async def test_nested_with_output_schema_validates_at_read_time(
@@ -152,6 +152,6 @@ async def test_non_terminal_output_not_exposed_as_workflow_output(
   events = await runner.run_async(testing_utils.get_user_content('hi'))
   out_events = _output_events(events)
 
-  consume_events = [e for e in out_events if e.node_info.name == 'consume']
+  consume_events = [e for e in out_events if e.node_info.name and e.node_info.name.split('@')[0] == 'consume']
   assert len(consume_events) == 1
   assert consume_events[0].output == 'got: final'
