@@ -24,8 +24,10 @@ from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
+from typing import Mapping
 from typing import Optional
 from typing import Sequence
+from typing import TypedDict
 from typing import Union
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
@@ -37,15 +39,68 @@ from a2a.types import AgentSkill
 from a2a.types import TransportProtocol as A2ATransport
 from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
+from google.adk.telemetry.tracing import GCP_MCP_SERVER_DESTINATION_ID
+from google.adk.tools.base_tool import BaseTool
+from google.adk.tools.mcp_tool.mcp_session_manager import SseConnectionParams
+from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams
 from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 import google.auth
 import google.auth.transport.requests
 import httpx
+from mcp import StdioServerParameters
+from typing_extensions import override
 
 logger = logging.getLogger("google_adk." + __name__)
 
 AGENT_REGISTRY_BASE_URL = "https://agentregistry.googleapis.com/v1alpha"
+
+
+# An MCPToolset for a single registered MCP server. Adds the special
+# gcp.mcp.server.destination.id custom_metadata key on each returned tool. This special key is
+# added to execute_tool spans in google.adk.telemetry.tracing
+class AgentRegistrySingleMcpToolset(McpToolset):
+
+  def __init__(
+      self,
+      *,
+      destination_resource_id: str | None,
+      connection_params: (
+          StdioServerParameters
+          | StdioConnectionParams
+          | SseConnectionParams
+          | StreamableHTTPConnectionParams
+      ),
+      tool_name_prefix: str | None = None,
+      header_provider: (
+          Callable[[ReadonlyContext], Dict[str, str]] | None
+      ) = None,
+  ):
+    super().__init__(
+        connection_params=connection_params,
+        tool_name_prefix=tool_name_prefix,
+        header_provider=header_provider,
+    )
+    self.destination_resource_id = destination_resource_id
+
+  @override
+  async def get_tools(
+      self, readonly_context: ReadonlyContext | None = None
+  ) -> List[BaseTool]:
+    tools = await super().get_tools(readonly_context)
+
+    # Noop if there is no destination_resource_id
+    if self.destination_resource_id is None:
+      return tools
+
+    for tool in tools:
+      if not tool.custom_metadata:
+        tool.custom_metadata = {}
+
+      tool.custom_metadata[GCP_MCP_SERVER_DESTINATION_ID] = (
+          self.destination_resource_id
+      )
+    return tools
 
 
 class _ProtocolType(str, Enum):
@@ -54,6 +109,26 @@ class _ProtocolType(str, Enum):
   TYPE_UNSPECIFIED = "TYPE_UNSPECIFIED"
   A2A_AGENT = "A2A_AGENT"
   CUSTOM = "CUSTOM"
+
+
+class Interface(TypedDict, total=False):
+  """Details for a single connection interface."""
+
+  url: str
+  protocolBinding: str
+
+
+class Endpoint(TypedDict, total=False):
+  """Full metadata for a registered Endpoint."""
+
+  name: str
+  endpointId: str
+  displayName: str
+  description: str
+  interfaces: List[Interface]
+  createTime: str
+  updateTime: str
+  attributes: Dict[str, Any]
 
 
 class AgentRegistry:
@@ -141,7 +216,7 @@ class AgentRegistry:
 
   def _get_connection_uri(
       self,
-      resource_details: Dict[str, Any],
+      resource_details: Mapping[str, Any],
       protocol_type: Optional[_ProtocolType] = None,
       protocol_binding: Optional[A2ATransport] = None,
   ) -> Optional[str]:
@@ -196,6 +271,9 @@ class AgentRegistry:
     """Constructs an McpToolset instance from a registered MCP Server."""
     server_details = self.get_mcp_server(mcp_server_name)
     name = self._clean_name(server_details.get("displayName", mcp_server_name))
+    mcp_server_id = server_details.get("mcpServerId")
+    if not isinstance(mcp_server_id, str):
+      mcp_server_id = None
 
     endpoint_uri = self._get_connection_uri(
         server_details, protocol_binding=A2ATransport.jsonrpc
@@ -210,11 +288,62 @@ class AgentRegistry:
     connection_params = StreamableHTTPConnectionParams(
         url=endpoint_uri, headers=self._get_auth_headers()
     )
-    return McpToolset(
+    return AgentRegistrySingleMcpToolset(
+        destination_resource_id=mcp_server_id,
         connection_params=connection_params,
         tool_name_prefix=name,
         header_provider=self._header_provider,
     )
+
+  # --- Endpoint Methods ---
+
+  def list_endpoints(
+      self,
+      filter_str: Optional[str] = None,
+      page_size: Optional[int] = None,
+      page_token: Optional[str] = None,
+  ) -> Dict[str, Any]:
+    """Fetches a list of Endpoints."""
+    params = {}
+    if filter_str:
+      params["filter"] = filter_str
+    if page_size:
+      params["pageSize"] = str(page_size)
+    if page_token:
+      params["pageToken"] = page_token
+    return self._make_request("endpoints", params=params)
+
+  def get_endpoint(self, name: str) -> Endpoint:
+    """Retrieves details of a specific Endpoint."""
+    return self._make_request(name)  # type: ignore
+
+  def get_model_name(self, endpoint_name: str) -> str:
+    """Retrieves and parses an endpoint into a model resource name.
+
+    Args:
+      endpoint_name: The full resource name of the endpoint.
+
+    Returns:
+      The resolved model resource name string (e.g.
+      projects/.../locations/.../publishers/google/models/...).
+    """
+    endpoint_details = self.get_endpoint(endpoint_name)
+    uri = self._get_connection_uri(endpoint_details)
+    if not uri:
+      raise ValueError(
+          f"Connection URI not found for endpoint: {endpoint_name}"
+      )
+
+    uri = re.sub(r":\w+$", "", uri)
+
+    if uri.startswith("projects/"):
+      return uri
+
+    match = re.search(r"(projects/.+)", uri)
+    if match:
+      return match.group(1)
+
+    return uri
 
   # --- Agent Methods ---
 
