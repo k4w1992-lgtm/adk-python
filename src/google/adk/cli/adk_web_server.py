@@ -2128,6 +2128,87 @@ class AdkWebServer:
           media_type="text/event-stream",
       )
 
+    @app.get(
+        "/dev/{app_name}/graph",
+        response_model_exclude_none=True,
+        tags=[TAG_DEBUG],
+    )
+    async def get_app_graph_dot(
+        app_name: str, dark_mode: bool = False
+    ) -> GetEventGraphResult | dict:
+      """Returns the base agent graph in DOT format without any highlights.
+
+      This endpoint allows the frontend to fetch the graph structure once
+      and compute highlights client-side for better performance.
+
+      Args:
+        app_name: The name of the agent/app
+        dark_mode: Whether to use dark theme background color
+      """
+      agent_or_app = self.agent_loader.load_agent(app_name)
+      root_agent = self._get_root_agent(agent_or_app)
+
+      # Get graph with NO highlights (empty list) and specified theme
+      dot_graph = await agent_graph.get_agent_graph(
+          root_agent, [], dark_mode=dark_mode
+      )
+
+      if dot_graph and isinstance(dot_graph, graphviz.Digraph):
+        return GetEventGraphResult(dot_src=dot_graph.source)
+      else:
+        return {}
+
+    # TODO: This endpoint can be removed once we update adk web to stop consuming it
+    @app.get(
+        "/apps/{app_name}/users/{user_id}/sessions/{session_id}/events/{event_id}/graph",
+        response_model_exclude_none=True,
+        tags=[TAG_DEBUG],
+    )
+    async def get_event_graph(
+        app_name: str, user_id: str, session_id: str, event_id: str
+    ):
+      session = await self.session_service.get_session(
+          app_name=app_name, user_id=user_id, session_id=session_id
+      )
+      session_events = session.events if session else []
+      event = next((x for x in session_events if x.id == event_id), None)
+      if not event:
+        return {}
+
+      function_calls = event.get_function_calls()
+      function_responses = event.get_function_responses()
+      agent_or_app = self.agent_loader.load_agent(app_name)
+      root_agent = self._get_root_agent(agent_or_app)
+      dot_graph = None
+      if function_calls:
+        function_call_highlights = []
+        for function_call in function_calls:
+          from_name = event.author
+          to_name = function_call.name
+          function_call_highlights.append((from_name, to_name))
+          dot_graph = await agent_graph.get_agent_graph(
+              root_agent, function_call_highlights
+          )
+      elif function_responses:
+        function_responses_highlights = []
+        for function_response in function_responses:
+          from_name = function_response.name
+          to_name = event.author
+          function_responses_highlights.append((from_name, to_name))
+          dot_graph = await agent_graph.get_agent_graph(
+              root_agent, function_responses_highlights
+          )
+      else:
+        from_name = event.author
+        to_name = ""
+        dot_graph = await agent_graph.get_agent_graph(
+            root_agent, [(from_name, to_name)]
+        )
+      if dot_graph and isinstance(dot_graph, graphviz.Digraph):
+        return GetEventGraphResult(dot_src=dot_graph.source)
+      else:
+        return {}
+
     @app.websocket("/run_live")
     async def run_agent_live(
         websocket: WebSocket,
