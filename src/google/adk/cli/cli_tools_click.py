@@ -1859,7 +1859,8 @@ def cli_api_server(
     default=False,
     help=(
         "Optional. Deploy ADK Web UI if set. (default: deploy ADK API server"
-        " only)"
+        " only). WARNING: The web UI is for development and testing only — do"
+        " not use in production."
     ),
 )
 @click.option(
@@ -2375,7 +2376,8 @@ def cli_deploy_agent_engine(
     default=False,
     help=(
         "Optional. Deploy ADK Web UI if set. (default: deploy ADK API server"
-        " only)"
+        " only). WARNING: The web UI is for development and testing only — do"
+        " not use in production."
     ),
 )
 @click.option(
