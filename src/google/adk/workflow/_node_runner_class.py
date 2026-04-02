@@ -29,6 +29,7 @@ import sys
 from types import SimpleNamespace
 from typing import Any
 from typing import TYPE_CHECKING
+from ..telemetry import node_tracing
 
 if TYPE_CHECKING:
   from ..agents.context import Context
@@ -121,10 +122,13 @@ class NodeRunner:
       ctx = self._create_child_context(resume_inputs, retry_count=retry_count)
       logger.info("node %s started.", ctx.node_path)
       try:
-        await self._execute_node(ctx, node_input)
-        await self._flush_output_and_deltas(ctx)
-        logger.info("node %s end.", ctx.node_path)
-        return ctx
+        # Start the span within try-except block to record exceptions on the span
+        async with node_tracing.start_as_current_node_span(self._parent_ctx, self._node) as telemetry_context:
+          ctx._otel_context = telemetry_context.otel_context
+          await self._execute_node(ctx, node_input)
+          await self._flush_output_and_deltas(ctx)
+          logger.info("node %s end.", ctx.node_path)
+          return ctx
       except Exception as e:
         from ._errors import DynamicNodeFailError
 

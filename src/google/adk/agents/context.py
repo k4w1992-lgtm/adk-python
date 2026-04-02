@@ -26,6 +26,8 @@ from typing_extensions import override
 
 from .readonly_context import ReadonlyContext
 
+from opentelemetry import context as context_api
+
 if TYPE_CHECKING:
   from google.genai import types
   from pydantic import BaseModel
@@ -167,6 +169,7 @@ class Context(ReadonlyContext):
       output_for_ancestors: list[str] | None = None,
       event_author: str = '',
       state_schema: type[BaseModel] | None = None,
+      otel_context: context_api.Context | None = None,
   ) -> None:
     """Initializes the Context.
 
@@ -226,6 +229,7 @@ class Context(ReadonlyContext):
     self._route_value: RouteValue | list[RouteValue] | None = None
     self._interrupt_ids: set[str] = set()
     self._event_author = event_author
+    self._otel_context = otel_context or context_api.get_current()
     self._output_for_ancestors: list[str] = output_for_ancestors or []
     """Ancestor node paths whose output this node's output also represents.
 
@@ -404,6 +408,14 @@ class Context(ReadonlyContext):
   def transfer_targets(self) -> list[Any]:
     """Returns the list of valid transfer targets for the current node."""
     return self._transfer_targets
+
+  @property
+  def otel_context(self) -> context_api.Context:
+    """Returns OpenTelemetry context.
+
+    The OpenTelemetry context holds the current OTel span and baggage.
+    """
+    return self._otel_context
 
   def get_invocation_context(self) -> InvocationContext:
     """Returns a copy of the invocation context with the proxy session."""
