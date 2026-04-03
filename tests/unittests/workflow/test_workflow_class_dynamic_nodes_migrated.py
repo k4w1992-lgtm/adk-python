@@ -106,7 +106,7 @@ async def test_dynamic_node_with_custom_name(
   node_a = FunctionNode(func=func_a)
 
   async def func_b(ctx: Context) -> str:
-    output_a = await ctx.run_node(node_a, name='custom_node_a')
+    output_a = await ctx.run_node(node_a)
     return f'B calls {output_a}'
 
   node_b = FunctionNode(func=func_b, rerun_on_resume=True)
@@ -132,7 +132,7 @@ async def test_dynamic_node_with_custom_name(
   assert simplified_events == [
       (
           'test_agent_dynamic_custom_name',
-          {'node_name': 'custom_node_a', 'output': 'A'},
+          {'node_name': 'func_a', 'output': 'A'},
       ),
       (
           'test_agent_dynamic_custom_name',

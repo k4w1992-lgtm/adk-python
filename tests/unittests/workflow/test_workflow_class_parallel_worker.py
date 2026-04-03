@@ -26,6 +26,7 @@ from google.adk.workflow import START
 from google.adk.workflow._node import node
 from google.adk.workflow._parallel_worker import _ParallelWorker as ParallelWorker
 from google.adk.workflow._workflow_class import Workflow
+from google.adk.workflow._errors import DynamicNodeFailError
 from google.adk.workflow.utils._workflow_hitl_utils import get_request_input_interrupt_ids
 from google.adk.workflow.utils._workflow_hitl_utils import has_request_input_function_call
 from google.genai import types
@@ -124,28 +125,36 @@ async def test_parallel_worker_simple(request: pytest.FixtureRequest):
   runner = testing_utils.InMemoryRunner(app=app)
 
   events = await runner.run_async(testing_utils.get_user_content('start'))
-  simplified_events = simplify_events_with_node(events)
+  simplified_events = simplify_events_with_node(events, use_node_path=True, include_run_id=True)
 
   assert simplified_events == [
       (
-          'test_agent',
+          'test_agent@1/NodeA@1',
           {
               'node_name': 'NodeA',
               'output': [
                   {'val': 'item1', 'delay': 0},
                   {'val': 'item2', 'delay': 0.1},
               ],
+              'run_id': None,
           },
       ),
-      # Children outputs
-      ('test_agent', {'node_name': 'Worker__0', 'output': 'item1_processed'}),
-      ('test_agent', {'node_name': 'Worker__1', 'output': 'item2_processed'}),
-      # Parent output
+      # Children outputs exactly reflecting sequential dynamic run iterations
       (
-          'test_agent',
+          'test_agent@1/Worker@1/Worker@1',
+          {'node_name': 'Worker', 'output': 'item1_processed', 'run_id': None},
+      ),
+      (
+          'test_agent@1/Worker@1/Worker@2',
+          {'node_name': 'Worker', 'output': 'item2_processed', 'run_id': None},
+      ),
+      # Parent output aggregator
+      (
+          'test_agent@1/Worker@1',
           {
               'node_name': 'Worker',
               'output': ['item1_processed', 'item2_processed'],
+              'run_id': None,
           },
       ),
   ]
@@ -173,22 +182,24 @@ async def test_parallel_worker_empty_input(request: pytest.FixtureRequest):
   runner = testing_utils.InMemoryRunner(app=app)
 
   events = await runner.run_async(testing_utils.get_user_content('start'))
-  simplified_events = simplify_events_with_node(events)
+  simplified_events = simplify_events_with_node(events, use_node_path=True, include_run_id=True)
 
   assert simplified_events == [
       (
-          'test_empty_agent',
+          'test_empty_agent@1/NodeA@1',
           {
               'node_name': 'NodeA',
               'output': [],
+              'run_id': None,
           },
       ),
-      # Parent output
+      # Parent output aggregator natively executes
       (
-          'test_empty_agent',
+          'test_empty_agent@1/Worker@1',
           {
               'node_name': 'Worker',
               'output': [],
+              'run_id': None,
           },
       ),
   ]
@@ -218,27 +229,29 @@ async def test_parallel_worker_single_item_input(
   runner = testing_utils.InMemoryRunner(app=app)
 
   events = await runner.run_async(testing_utils.get_user_content('start'))
-  simplified_events = simplify_events_with_node(events)
+  simplified_events = simplify_events_with_node(events, use_node_path=True, include_run_id=True)
 
   assert simplified_events == [
       (
-          'test_single_item_agent',
+          'test_single_item_agent@1/NodeA@1',
           {
               'node_name': 'NodeA',
               'output': {'val': 'item1', 'delay': 0},
+              'run_id': None,
           },
       ),
-      # Children outputs
+      # Children outputs reflecting single standalone run element
       (
-          'test_single_item_agent',
-          {'node_name': 'Worker__0', 'output': 'item1_processed'},
+          'test_single_item_agent@1/Worker@1/Worker@1',
+          {'node_name': 'Worker', 'output': 'item1_processed', 'run_id': None},
       ),
-      # Parent output
+      # Parent output aggregator natively executing
       (
-          'test_single_item_agent',
+          'test_single_item_agent@1/Worker@1',
           {
               'node_name': 'Worker',
               'output': ['item1_processed'],
+              'run_id': None,
           },
       ),
   ]
@@ -275,34 +288,36 @@ async def test_parallel_worker_with_function(request: pytest.FixtureRequest):
   runner = testing_utils.InMemoryRunner(app=app)
 
   events = await runner.run_async(testing_utils.get_user_content('start'))
-  simplified_events = simplify_events_with_node(events)
+  simplified_events = simplify_events_with_node(events, use_node_path=True, include_run_id=True)
 
   assert simplified_events == [
       (
-          'test_agent',
+          'test_agent@1/NodeA@1',
           {
               'node_name': 'NodeA',
               'output': [
                   {'val': 'item1', 'delay': 0},
                   {'val': 'item2', 'delay': 0.1},
               ],
+              'run_id': None,
           },
       ),
-      # Children outputs
+      # Children outputs perfectly mapped sequentially
       (
-          'test_agent',
-          {'node_name': '_worker_func__0', 'output': 'item1_processed'},
+          'test_agent@1/_worker_func@1/_worker_func@1',
+          {'node_name': '_worker_func', 'output': 'item1_processed', 'run_id': None},
       ),
       (
-          'test_agent',
-          {'node_name': '_worker_func__1', 'output': 'item2_processed'},
+          'test_agent@1/_worker_func@1/_worker_func@2',
+          {'node_name': '_worker_func', 'output': 'item2_processed', 'run_id': None},
       ),
-      # Parent output
+      # Parent output aggregator natively executing
       (
-          'test_agent',
+          'test_agent@1/_worker_func@1',
           {
               'node_name': '_worker_func',
               'output': ['item1_processed', 'item2_processed'],
+              'run_id': None,
           },
       ),
   ]
@@ -360,13 +375,17 @@ async def test_parallel_worker_with_failure(request: pytest.FixtureRequest):
 
   events = []
 
-  with pytest.raises(ValueError, match='task-2 failed'):
-    async for event in runner.runner.run_async(
-        user_id=runner.session.user_id,
-        session_id=runner.session.id,
-        new_message=testing_utils.get_user_content('start'),
-    ):
-      events.append(event)
+  async for event in runner.runner.run_async(
+      user_id=runner.session.user_id,
+      session_id=runner.session.id,
+      new_message=testing_utils.get_user_content('start'),
+  ):
+    events.append(event)
+  # Assert that the error was captured in an event.
+  assert any(
+      event.error_code == 'ValueError' and event.error_message == 'task-2 failed'
+      for event in events
+  )
 
   # task-1 finishes before the failure.
   # task-2 fails.
@@ -386,11 +405,10 @@ async def test_parallel_worker_with_failure(request: pytest.FixtureRequest):
               'output': ['task-1', 'task-2', 'task-3'],
           },
       ),
-      # Children outputs: Only task-1 finishes before the failure.
       (
           'test_agent_fail',
           {
-              'node_name': '_worker_failable_func__0',
+              'node_name': '_worker_failable_func',
               'output': 'task-1_processed',
           },
       ),
@@ -414,7 +432,7 @@ class _HitlWorkerNode(BaseNode):
     return self.name
 
   @override
-  async def run(
+  async def _run_impl(
       self, *, ctx: Context, node_input: Any
   ) -> AsyncGenerator[Any, None]:
     val = node_input['val']
@@ -490,7 +508,7 @@ async def test_parallel_worker_hitl(request: pytest.FixtureRequest):
       # item1 finishes and emits output
       (
           'parallel_worker_hitl_agent',
-          {'node_name': 'Worker__0', 'output': 'item1_processed'},
+          {'node_name': 'Worker', 'output': 'item1_processed'},
       ),
       (
           'parallel_worker_hitl_agent',
@@ -519,7 +537,7 @@ async def test_parallel_worker_hitl(request: pytest.FixtureRequest):
   assert simplified_events2 == [
       (
           'parallel_worker_hitl_agent',
-          {'node_name': 'Worker__1', 'output': 'item2_resumed'},
+          {'node_name': 'Worker', 'output': 'item2_resumed'},
       ),
       (
           'parallel_worker_hitl_agent',
@@ -614,8 +632,8 @@ async def test_parallel_worker_out_of_order(request: pytest.FixtureRequest):
 
   assert simplified_events == [
       ('out_of_order_agent', {'node_name': 'NodeA', 'output': [item1, item2]}),
-      ('out_of_order_agent', {'node_name': 'Worker__1', 'output': 'item2_res'}),
-      ('out_of_order_agent', {'node_name': 'Worker__0', 'output': 'item1_res'}),
+      ('out_of_order_agent', {'node_name': 'Worker', 'output': 'item2_res'}),
+      ('out_of_order_agent', {'node_name': 'Worker', 'output': 'item1_res'}),
       (
           'out_of_order_agent',
           {'node_name': 'Worker', 'output': ['item1_res', 'item2_res']},
@@ -666,11 +684,11 @@ async def test_parallel_worker_nested_agent(request: pytest.FixtureRequest):
       ),
       # Children outputs (nested workflow finalize events are deduplicated)
       (
-          'nested_agent__0',
+          'nested_agent',
           {'node_name': 'worker_func', 'output': 'item1_processed'},
       ),
       (
-          'nested_agent__1',
+          'nested_agent',
           {'node_name': 'worker_func', 'output': 'item2_processed'},
       ),
       # Parent output
@@ -735,11 +753,11 @@ async def test_workflow_agent_with_parallel_worker_flag(
       ),
       # Children outputs (nested workflow finalize events are deduplicated)
       (
-          'nested_agent__0',
+          'nested_agent',
           {'node_name': 'worker_func', 'output': 'item1_processed'},
       ),
       (
-          'nested_agent__1',
+          'nested_agent',
           {'node_name': 'worker_func', 'output': 'item2_processed'},
       ),
       # Parent output
@@ -829,47 +847,52 @@ async def test_parallel_worker_max_concurrency(request: pytest.FixtureRequest):
 
   await run_task
 
-  simplified_events = simplify_events_with_node(events)
+  simplified_events = simplify_events_with_node(events, use_node_path=True, include_run_id=True)
 
   assert simplified_events == [
       (
-          'max_concurrency_agent',
-          {'node_name': 'NodeA', 'output': items},
+          'max_concurrency_agent@1/NodeA@1',
+          {'node_name': 'NodeA', 'output': items, 'run_id': None},
       ),
-      # item2 finishes first
+      # item2 finishes first, natively it held dynamic positional index @2
       (
-          'max_concurrency_agent',
+          'max_concurrency_agent@1/_concurrency_worker_func@1/_concurrency_worker_func@2',
           {
-              'node_name': '_concurrency_worker_func__1',
+              'node_name': '_concurrency_worker_func',
               'output': 'item2_processed',
+              'run_id': None,
           },
       ),
-      # then item3 finishes
+      # then item3 finishes (scheduled after item2 finished -> index @3)
       (
-          'max_concurrency_agent',
+          'max_concurrency_agent@1/_concurrency_worker_func@1/_concurrency_worker_func@3',
           {
-              'node_name': '_concurrency_worker_func__2',
+              'node_name': '_concurrency_worker_func',
               'output': 'item3_processed',
+              'run_id': None,
           },
       ),
-      # then item1 and item4 finish.
-      # order is deterministic due to creation order.
+      # then item1 finishes (held back but started first -> index @1)
       (
-          'max_concurrency_agent',
+          'max_concurrency_agent@1/_concurrency_worker_func@1/_concurrency_worker_func@1',
           {
-              'node_name': '_concurrency_worker_func__0',
+              'node_name': '_concurrency_worker_func',
               'output': 'item1_processed',
+              'run_id': None,
           },
       ),
+      # then item4 finishes (scheduled after item3 finished -> index @4)
       (
-          'max_concurrency_agent',
+          'max_concurrency_agent@1/_concurrency_worker_func@1/_concurrency_worker_func@4',
           {
-              'node_name': '_concurrency_worker_func__3',
+              'node_name': '_concurrency_worker_func',
               'output': 'item4_processed',
+              'run_id': None,
           },
       ),
+      # aggregator completes
       (
-          'max_concurrency_agent',
+          'max_concurrency_agent@1/_concurrency_worker_func@1',
           {
               'node_name': '_concurrency_worker_func',
               'output': [
@@ -878,6 +901,7 @@ async def test_parallel_worker_max_concurrency(request: pytest.FixtureRequest):
                   'item3_processed',
                   'item4_processed',
               ],
+              'run_id': None,
           },
       ),
   ]

@@ -14,9 +14,7 @@
 
 from google.adk.agents.llm_agent import Agent
 from google.adk.agents.loop_agent import LoopAgent
-from google.adk.agents.loop_agent import LoopAgentState
 from google.adk.agents.sequential_agent import SequentialAgent
-from google.adk.agents.sequential_agent import SequentialAgentState
 from google.adk.apps.app import App
 from google.adk.apps.app import ResumabilityConfig
 from google.adk.tools.exit_loop_tool import exit_loop

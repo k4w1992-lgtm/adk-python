@@ -42,6 +42,7 @@ from pydantic import Field
 from typing_extensions import override
 
 from .testing_utils import END_OF_AGENT
+from .testing_utils import _split_name_and_run_id
 from .testing_utils import simplify_content
 
 
@@ -206,6 +207,10 @@ def simplify_event_with_node(
     node_name = node_name_map.get(event.node_name, event.node_name)
     if '@' in node_name and not node_name_map:
       node_name = node_name.split('@')[0]
+    # Strip auto-generated dynamic execution run IDs (e.g. '_df777d0eea46e20')
+    # or explicit counter numeric indices (e.g. '__0') to allow assertions
+    # to match unadorned base agent definition names uniformly.
+    node_name, _ = _split_name_and_run_id(node_name)
     simplified_event = {'node_name': node_name}
 
     # Also simplify event.output if it contains Content.
@@ -225,7 +230,12 @@ def simplify_event_with_node(
     if include_state_delta and event.actions.state_delta:
       simplified_event['state_delta'] = event.actions.state_delta
     if include_run_id and hasattr(event, 'node_info'):
-      simplified_event['run_id'] = event.node_info.run_id
+      run_id_str = event.node_info.run_id
+      if not run_id_str:
+        # Extract from the node_name or path for manual standalone test runs
+        raw_name = event.node_name
+        _, run_id_str = _split_name_and_run_id(raw_name)
+      simplified_event['run_id'] = run_id_str
 
     return simplified_event
   elif event.content:
@@ -267,8 +277,20 @@ def simplify_events_with_node(
       # Map the author to the source node name if it exists.
       if use_node_path and hasattr(event, 'node_info'):
         author = event.node_info.path
+        if not include_run_id:
+          # Strip run IDs from all parts of the path
+          parts = author.split('/')
+          new_parts = []
+          for p in parts:
+            p_base, _ = _split_name_and_run_id(p)
+            new_parts.append(p_base)
+          author = '/'.join(new_parts)
       else:
         author = node_name_map.get(event.author, event.author)
+        # Strip auto-generated dynamic execution run IDs or counter numeric indices
+        # from dynamic child/standalone parallel execution authors so assertions
+        # match base node definition names consistently.
+        author, _ = _split_name_and_run_id(author)
       results.append((author, simplified_event))
   return results
 

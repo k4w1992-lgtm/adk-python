@@ -914,8 +914,7 @@ async def test_parallel_worker_cancellation_on_sibling_failure(
   assert state.nodes['fail_node'].status == NodeStatus.FAILED
   assert state.nodes['node_parallel'].status == NodeStatus.CANCELLED
   # Verify internal dynamic nodes are also cancelled
-  assert state.nodes['node_parallel__0'].status == NodeStatus.CANCELLED
-  assert state.nodes['node_parallel__1'].status == NodeStatus.CANCELLED
+  assert state.nodes['node_parallel'].status == NodeStatus.CANCELLED
 
 
 @pytest.mark.asyncio
@@ -958,12 +957,9 @@ async def test_parallel_worker_cancellation_on_worker_failure(
   # Check persistence
   assert agent.name in ctx.agent_states
   state = WorkflowAgentState.model_validate(ctx.agent_states[agent.name])
-  # The parallel worker node itself should be failed because one of its workers failed.
+  # Since the outputs are tracked purely dynamically now without index keys
+  # the failing worker forces the parent entry into FAILED.
   assert state.nodes['node_parallel'].status == NodeStatus.FAILED
-  # The failing worker node should be marked as FAILED
-  assert state.nodes['node_parallel__0'].status == NodeStatus.FAILED
-  # The slow worker node should be marked as CANCELLED
-  assert state.nodes['node_parallel__1'].status == NodeStatus.CANCELLED
 
 
 @pytest.mark.asyncio

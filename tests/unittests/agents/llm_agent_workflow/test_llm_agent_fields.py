@@ -35,6 +35,7 @@ from google.adk.tools.google_search_tool import google_search
 from google.adk.tools.google_search_tool import GoogleSearchTool
 from google.adk.tools.vertex_ai_search_tool import VertexAiSearchTool
 from google.adk.workflow import Workflow
+from google.adk.workflow._workflow_class import Workflow as WorkflowV2
 from google.adk.workflow._dynamic_node_registry import dynamic_node_registry
 from google.adk.workflow._node import node
 from google.genai import types
@@ -582,7 +583,7 @@ class TestParallelWorker:
         parallel_worker=True,
     )
 
-    outer_agent = Workflow(
+    outer_agent = WorkflowV2(
         name='outer_agent',
         edges=[
             ('START', producer_func),
@@ -597,34 +598,49 @@ class TestParallelWorker:
     runner = testing_utils.InMemoryRunner(app=app)
     events = await runner.run_async(testing_utils.get_user_content('start'))
 
-    simplified_events = workflow_testing_utils.simplify_events_with_node(events)
+    simplified_events = workflow_testing_utils.simplify_events_with_node(
+        events, use_node_path=True, include_run_id=True
+    )
 
     assert simplified_events == [
         (
-            'outer_agent',
+            'outer_agent@1/producer_func@1',
             {
                 'node_name': 'producer_func',
                 'output': ['item1', 'item2'],
+                'run_id': None,
             },
         ),
-        # LLM output events from each worker's call_llm node.
-        ('llm_agent__0', {'node_name': 'call_llm', 'output': 'processed'}),
-        ('llm_agent__1', {'node_name': 'call_llm', 'output': 'processed'}),
-        # Wrapper output events for each worker.
         (
-            'outer_agent',
-            {'node_name': 'llm_agent__0', 'output': 'processed'},
+            'outer_agent@1/llm_agent@1/llm_agent@1/call_llm@1',
+            'processed',
         ),
         (
-            'outer_agent',
-            {'node_name': 'llm_agent__1', 'output': 'processed'},
+            'outer_agent@1/llm_agent@1/llm_agent@2/call_llm@1',
+            'processed',
         ),
-        # Parent output
         (
-            'outer_agent',
+            'outer_agent@1/llm_agent@1/llm_agent@1',
+            {
+                'node_name': 'llm_agent',
+                'output': 'processed',
+                'run_id': None,
+            },
+        ),
+        (
+            'outer_agent@1/llm_agent@1/llm_agent@2',
+            {
+                'node_name': 'llm_agent',
+                'output': 'processed',
+                'run_id': None,
+            },
+        ),
+        (
+            'outer_agent@1/llm_agent@1',
             {
                 'node_name': 'llm_agent',
                 'output': ['processed', 'processed'],
+                'run_id': None,
             },
         ),
     ]
@@ -653,7 +669,7 @@ class TestParallelWorker:
         parallel_worker=True,
     )
 
-    outer_agent = Workflow(
+    outer_agent = WorkflowV2(
         name='outer_agent',
         edges=[
             ('START', producer_func),
@@ -668,34 +684,49 @@ class TestParallelWorker:
     runner = testing_utils.InMemoryRunner(app=app)
     events = await runner.run_async(testing_utils.get_user_content('start'))
 
-    simplified_events = workflow_testing_utils.simplify_events_with_node(events)
+    simplified_events = workflow_testing_utils.simplify_events_with_node(
+        events, use_node_path=True, include_run_id=True
+    )
 
     assert simplified_events == [
         (
-            'outer_agent',
+            'outer_agent@1/producer_func@1',
             {
                 'node_name': 'producer_func',
                 'output': ['item1', 'item2'],
+                'run_id': None,
             },
         ),
-        # LLM output events from each worker's call_llm node.
-        ('llm_agent__0', {'node_name': 'call_llm', 'output': 'processed'}),
-        ('llm_agent__1', {'node_name': 'call_llm', 'output': 'processed'}),
-        # Wrapper output events for each worker.
         (
-            'outer_agent',
-            {'node_name': 'llm_agent__0', 'output': 'processed'},
+            'outer_agent@1/llm_agent@1/llm_agent@1/call_llm@1',
+            'processed',
         ),
         (
-            'outer_agent',
-            {'node_name': 'llm_agent__1', 'output': 'processed'},
+            'outer_agent@1/llm_agent@1/llm_agent@2/call_llm@1',
+            'processed',
         ),
-        # Parent output
         (
-            'outer_agent',
+            'outer_agent@1/llm_agent@1/llm_agent@1',
+            {
+                'node_name': 'llm_agent',
+                'output': 'processed',
+                'run_id': None,
+            },
+        ),
+        (
+            'outer_agent@1/llm_agent@1/llm_agent@2',
+            {
+                'node_name': 'llm_agent',
+                'output': 'processed',
+                'run_id': None,
+            },
+        ),
+        (
+            'outer_agent@1/llm_agent@1',
             {
                 'node_name': 'llm_agent',
                 'output': ['processed', 'processed'],
+                'run_id': None,
             },
         ),
     ]

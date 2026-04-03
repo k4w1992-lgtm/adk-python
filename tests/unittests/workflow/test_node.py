@@ -22,6 +22,7 @@ from google.adk.tools.base_tool import BaseTool
 from google.adk.workflow import FunctionNode
 from google.adk.workflow import START
 from google.adk.workflow import Workflow
+from google.adk.workflow._workflow_class import Workflow as WorkflowV2
 from google.adk.workflow._agent_node import AgentNode
 from google.adk.workflow._base_node import BaseNode
 from google.adk.workflow._llm_agent_wrapper import _LlmAgentWrapper
@@ -35,6 +36,7 @@ import pytest
 
 from .workflow_testing_utils import create_parent_invocation_context
 from .workflow_testing_utils import simplify_events_with_node
+from . import testing_utils
 
 ANY = mock.ANY
 
@@ -95,47 +97,67 @@ async def test_node_parallel_worker_execution(request: pytest.FixtureRequest):
   async def my_func(node_input):
     return node_input * 2
 
-  agent = Workflow(
+  async def producer_func() -> list[int]:
+    return [1, 2, 3]
+
+  agent = WorkflowV2(
       name="test_agent",
       edges=[
-          (START, my_func),
+          (START, producer_func),
+          (producer_func, my_func),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  token = workflow_node_input.set([1, 2, 3])
-  try:
-    events = [e async for e in agent.run_async(ctx)]
-  finally:
-    workflow_node_input.reset(token)
+  from google.adk.apps.app import App
+  test_app = App(
+      name=request.function.__name__,
+      root_agent=agent,
+  )
+  runner = testing_utils.InMemoryRunner(app=test_app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
 
-  # ParallelWorker returns a list of results.
-  assert simplify_events_with_node(events) == [
+  simplified_events = simplify_events_with_node(
+      events, use_node_path=True, include_run_id=True
+  )
+
+  assert simplified_events == [
       (
-          "test_agent",
+          'test_agent@1/producer_func@1',
           {
-              "node_name": "my_func__0",
-              "output": 2,
+              'node_name': 'producer_func',
+              'output': [1, 2, 3],
+              'run_id': None,
           },
       ),
       (
-          "test_agent",
+          'test_agent@1/my_func@1/my_func@1',
           {
-              "node_name": "my_func__1",
-              "output": 4,
+              'node_name': 'my_func',
+              'output': 2,
+              'run_id': None,
           },
       ),
       (
-          "test_agent",
+          'test_agent@1/my_func@1/my_func@2',
           {
-              "node_name": "my_func__2",
-              "output": 6,
+              'node_name': 'my_func',
+              'output': 4,
+              'run_id': None,
           },
       ),
       (
-          "test_agent",
+          'test_agent@1/my_func@1/my_func@3',
           {
-              "node_name": "my_func",
-              "output": [2, 4, 6],
+              'node_name': 'my_func',
+              'output': 6,
+              'run_id': None,
+          },
+      ),
+      (
+          'test_agent@1/my_func@1',
+          {
+              'node_name': 'my_func',
+              'output': [2, 4, 6],
+              'run_id': None,
           },
       ),
   ]

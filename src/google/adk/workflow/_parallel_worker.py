@@ -96,7 +96,6 @@ class _ParallelWorker(BaseNode):
             ctx.run_node(
                 self._node,
                 node_input=item,
-                name=f'{self.name}__{input_index}',
             )
         )
         # Store index on task so we can place result correctly when done

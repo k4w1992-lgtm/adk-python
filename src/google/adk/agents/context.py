@@ -415,21 +415,6 @@ class Context(ReadonlyContext):
     )
     return ctx_with_proxy
 
-  def _next_child_name(self, base_name: str) -> str:
-    """Generate a deterministic child tracking name.
-
-    Currently returns ``base_name`` as-is. Callers that schedule
-    multiple children with the same base name must provide an
-    explicit ``name`` to ``ctx.run_node()`` to disambiguate.
-
-    TODO: Support a user-provided suffix for disambiguation
-    (e.g., ``ctx.run_node(node, suffix='step_1')``).
-
-    Args:
-      base_name: The original node definition name.
-    """
-    return base_name
-
   def get_next_child_run_id(
       self, node_name: str, *, is_static_name: bool = False
   ) -> str:
@@ -456,7 +441,6 @@ class Context(ReadonlyContext):
       node: NodeLike,
       node_input: Any = None,
       *,
-      name: str | None = None,
       use_as_output: bool = False,
       run_id: str | None = None,
   ) -> Any:
@@ -477,10 +461,6 @@ class Context(ReadonlyContext):
         callable that can be built into a node.
       node_input: The input data to be passed to the dynamically executed node.
         Defaults to None.
-      name: An optional, unique name for this dynamic node run. If not
-        provided, a name will be generated based on the node's type and a unique
-        identifier. This name is used for tracking and can be helpful for
-        resuming workflows.
       use_as_output: If True, the dynamic node's output is used as the
         calling node's output. The calling node's own output event is
         suppressed to avoid duplication.
@@ -519,28 +499,24 @@ class Context(ReadonlyContext):
           )
         self._output_delegated = True
 
-      # Generate deterministic tracking name.
-      # TODO: replace `name` with suffix.
-      node_name = name or self._next_child_name(built_node.name)
-
       if run_id:
         if run_id.isdigit():
           raise ValueError(
-              f'Explicit run_id "{run_id}" for node "{node_name}" must contain'
+              f'Explicit run_id "{run_id}" for node "{built_node.name}" must contain'
               ' non-numeric characters to prevent collision with auto-generated'
               ' IDs.'
           )
       else:
-        self._child_run_counters[node_name] = (
-            self._child_run_counters.get(node_name, 0) + 1
+        self._child_run_counters[built_node.name] = (
+            self._child_run_counters.get(built_node.name, 0) + 1
         )
-        run_id = str(self._child_run_counters[node_name])
+        run_id = str(self._child_run_counters[built_node.name])
 
       child_ctx = await self._schedule_dynamic_node_internal(
           self,
           built_node,
           node_input,
-          node_name=node_name,
+          node_name=built_node.name,
           use_as_output=use_as_output,
           run_id=run_id,
       )
@@ -548,7 +524,7 @@ class Context(ReadonlyContext):
         from ..workflow._errors import DynamicNodeFailError
 
         raise DynamicNodeFailError(
-            f'Dynamic node {node_name} failed',
+            f'Dynamic node {built_node.name} failed',
             error=child_ctx.error,
             error_node_path=child_ctx.error_node_path,
         )
@@ -563,14 +539,13 @@ class Context(ReadonlyContext):
     # LoopAgent, ParallelAgent, SequentialAgent).
     if self.schedule_dynamic_node:
       run_id = self.get_next_child_run_id(
-          name or built_node.name, is_static_name=name is not None
+          built_node.name, is_static_name=False
       )
       return await self.schedule_dynamic_node(
           self,
           built_node,
           run_id,
           node_input,
-          node_name=name,
           use_as_output=use_as_output,
       )
 
@@ -587,7 +562,6 @@ class Context(ReadonlyContext):
       node: NodeLike,
       node_input: Any = None,
       *,
-      name: str | None = None,
       run_id: str | None = None,
   ) -> Context:
     """Internal: run a node and return its child Context.
@@ -600,12 +574,11 @@ class Context(ReadonlyContext):
 
     built_node = build_node(node)
     if self._schedule_dynamic_node_internal:
-      node_name = name or self._next_child_name(built_node.name)
       return await self._schedule_dynamic_node_internal(
           self,
-          built_node,
+          node,
           node_input,
-          node_name=node_name,
+          node_name=node.name,
           run_id=run_id or '1',
       )
 

@@ -40,6 +40,7 @@ from google.adk.tools.tool_context import ToolContext
 from google.adk.workflow import FunctionNode
 from google.adk.workflow import START
 from google.adk.workflow import Workflow
+from google.adk.workflow._workflow_class import Workflow as WorkflowV2
 from google.adk.workflow._dynamic_node_registry import dynamic_node_registry
 from google.adk.workflow._node import node
 from google.genai import types
@@ -276,7 +277,7 @@ class TestParallelWorker:
         parallel_worker=True,
     )
 
-    outer_agent = Workflow(
+    outer_agent = WorkflowV2(
         name='outer_agent',
         edges=[
             (START, producer_func),
@@ -284,39 +285,48 @@ class TestParallelWorker:
         ],
     )
 
-    runner = testing_utils.InMemoryRunner(outer_agent)
-    events = runner.run('start')
+    from google.adk.apps.app import App
+    test_app = App(
+        name=request.function.__name__,
+        root_agent=outer_agent,
+    )
+    runner = testing_utils.InMemoryRunner(app=test_app)
+    events = await runner.run_async(testing_utils.get_user_content('start'))
 
-    simplified_events = workflow_testing_utils.simplify_events_with_node(events)
+    simplified_events = workflow_testing_utils.simplify_events_with_node(
+        events, use_node_path=True, include_run_id=True
+    )
 
     assert simplified_events == [
         (
-            'outer_agent',
+            'outer_agent@1/producer_func@1',
             {
                 'node_name': 'producer_func',
                 'output': ['item1', 'item2'],
+                'run_id': None,
             },
         ),
         # Children outputs
         (
-            'llm_agent__0',
+            'outer_agent@1/llm_agent@1/llm_agent@1',
             'processed',
         ),
         (
-            'llm_agent__1',
+            'outer_agent@1/llm_agent@1/llm_agent@2',
             'processed',
         ),
         # Parent output
         # Since the outputs are text & no output_schema was specified,
         # the LLM Agent node output data is None.
         (
-            'outer_agent',
+            'outer_agent@1/llm_agent@1',
             {
                 'node_name': 'llm_agent',
                 'output': [
                     None,
                     None,
                 ],
+                'run_id': None,
             },
         ),
     ]
@@ -347,7 +357,7 @@ class TestParallelWorker:
         parallel_worker=True,
     )
 
-    outer_agent = Workflow(
+    outer_agent = WorkflowV2(
         name='outer_agent',
         edges=[
             (START, producer_func),
@@ -369,11 +379,11 @@ class TestParallelWorker:
         ),
         # Children outputs
         (
-            'llm_agent__0',
+            'outer_agent',
             'processed',
         ),
         (
-            'llm_agent__1',
+            'outer_agent',
             'processed',
         ),
         # Parent output
