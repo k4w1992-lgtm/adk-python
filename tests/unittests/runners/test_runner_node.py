@@ -20,6 +20,7 @@ persist events to session, handle resume (HITL), and yield events correctly.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 from typing import AsyncGenerator
 
@@ -564,7 +565,17 @@ async def test_run_node_use_as_output_attributes_child_output_to_parent():
 
 @pytest.mark.asyncio
 async def test_run_node_child_resume_via_default_scheduler():
-  """Completed children are cached on resume; interrupted child re-runs."""
+  """Completed children are cached on resume; interrupted child re-runs.
+
+  Setup: ParentNode calls ChildA and ChildB in sequence.
+    ChildA completes on first run. ChildB yields an interrupt on first run.
+  Act:
+    - Turn 1: Run parent. ChildA completes, ChildB interrupts.
+    - Turn 2: Resume with response for ChildB's interrupt.
+  Assert:
+    - Turn 1: ChildB's interrupt is propagated.
+    - Turn 2: Parent completes with combined output using cached ChildA result.
+  """
 
   class _ChildA(BaseNode):
 
@@ -609,7 +620,17 @@ async def test_run_node_child_resume_via_default_scheduler():
 
 @pytest.mark.asyncio
 async def test_run_node_default_scheduler_caches_by_call_count():
-  """Only interrupted children re-run; completed children are skipped."""
+  """Only interrupted children re-run; completed children are skipped.
+
+  Setup: Parent calls ChildA, ChildB, and ChildC in sequence.
+    A and B complete on first run. C yields an interrupt on first run.
+  Act:
+    - Turn 1: Run parent. A & B complete, C interrupts.
+    - Turn 2: Resume with response for C's interrupt.
+  Assert:
+    - Turn 1: C's interrupt is propagated.
+    - Turn 2: Parent completes. Call counts verify A and B were not re-run on resume.
+  """
 
   call_counts = {'a': 0, 'b': 0, 'c': 0}
 
@@ -790,3 +811,199 @@ async def test_run_node_use_as_output_nested_delegation():
   assert any('inner' in p for p in paths)
   for p in output_for:
     assert '@' in p
+
+
+@pytest.mark.asyncio
+async def test_run_node_auto_increments_run_id():
+  """ctx.run_node() auto-increments run_id for the same node name."""
+
+  class _ChildNode(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      yield f'run:{ctx.run_id}'
+
+  class _ParentNode(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      r1 = await ctx.run_node(_ChildNode(name='child'))
+      r2 = await ctx.run_node(_ChildNode(name='child'))
+      yield f'{r1},{r2}'
+
+  events, _, _ = await _run_node(_ParentNode(name='parent'), message='go')
+
+  outputs = [e.output for e in events if e.output is not None]
+  assert 'run:1,run:2' in outputs
+
+
+@pytest.mark.asyncio
+async def test_run_node_parallel_interrupts():
+  """Parallel ctx.run_node() calls that both interrupt and then resume.
+
+  Setup: ParentNode calls two instances of InterruptChild in parallel.
+    Both children yield interrupts on the first turn with unique IDs.
+  Act:
+    - Turn 1: Run parent. Both children interrupt.
+    - Turn 2: Resume with responses for both children in a single message.
+  Assert:
+    - Turn 1: Two unique interrupts are yielded.
+    - Turn 2: Both children resume, find their inputs, and complete. Parent
+      produces combined output.
+  """
+
+  class _InterruptChild(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      target_id = f'fc-{ctx.run_id}'
+      if ctx.resume_inputs and target_id in ctx.resume_inputs:
+        yield f"resumed:{ctx.resume_inputs[target_id]['v']}"
+        return
+      yield _make_interrupt_event(fc_name='ask', fc_id=target_id)
+
+  class _ParentNode(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      t1 = ctx.run_node(_InterruptChild(name='child'))
+      t2 = ctx.run_node(_InterruptChild(name='child'))
+      r1, r2 = await asyncio.gather(t1, t2)
+      yield f'{r1},{r2}'
+
+  events1, ss, session = await _run_node(
+      _ParentNode(name='parent'), message='go'
+  )
+
+  interrupts = [e for e in events1 if e.long_running_tool_ids]
+  assert len(interrupts) == 2
+
+  fc_ids = []
+  for e in interrupts:
+    fc_ids.extend(e.long_running_tool_ids)
+  assert len(set(fc_ids)) == 2  # Should be unique
+
+  resume_msg = types.Content(
+      parts=[
+          types.Part(
+              function_response=types.FunctionResponse(
+                  name='ask', id=fc_ids[0], response={'v': 10}
+              )
+          ),
+          types.Part(
+              function_response=types.FunctionResponse(
+                  name='ask', id=fc_ids[1], response={'v': 20}
+              )
+          ),
+      ],
+      role='user',
+  )
+
+  events2 = []
+  runner = Runner(
+      app_name='test', node=_ParentNode(name='parent'), session_service=ss
+  )
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=resume_msg
+  ):
+    events2.append(event)
+
+  outputs = [e.output for e in events2 if e.output is not None]
+  assert (
+      'resumed:10,resumed:20' in outputs or 'resumed:20,resumed:10' in outputs
+  )
+
+
+@pytest.mark.asyncio
+async def test_run_node_parallel_deterministic_ids():
+  """Parallel ctx.run_node() calls within the same process receive deterministic IDs.
+
+  Setup: ParentNode calls two instances of ChildNode in parallel.
+  Act: Run parent.
+  Assert: Outputs confirm both children received distinct, auto-incremented run_ids (1 and 2).
+  """
+
+  class _ChildNode(BaseNode):
+    rerun_on_resume: bool = True
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      yield f"run:{ctx.run_id}"
+
+  class _ParentNode(BaseNode):
+    rerun_on_resume: bool = True
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      t1 = ctx.run_node(_ChildNode(name="child"))
+      t2 = ctx.run_node(_ChildNode(name="child"))
+      r1, r2 = await asyncio.gather(t1, t2)
+      yield f"{r1},{r2}"
+
+  events, _, _ = await _run_node(_ParentNode(name="parent"), message="go")
+  outputs = [e.output for e in events if e.output is not None]
+  assert "run:1,run:2" in outputs or "run:2,run:1" in outputs
+
+
+@pytest.mark.asyncio
+async def test_run_node_custom_numeric_id_raises_value_error():
+  """Passing a completely numeric explicit run_id is immediately rejected.
+
+  Setup: ParentNode calls ChildNode with a custom numeric run_id="5".
+  Act: Run parent.
+  Assert: ValueError is raised with a message about collision prevention.
+  """
+
+  class _ChildNode(BaseNode):
+    rerun_on_resume: bool = True
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      yield f"run:{ctx.run_id}"
+
+  class _ParentNode(BaseNode):
+    rerun_on_resume: bool = True
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      await ctx.run_node(_ChildNode(name="child"), run_id="5")
+      yield "should not reach"
+
+  with pytest.raises(ValueError, match="must contain non-numeric characters"):
+    await _run_node(_ParentNode(name="parent"), message="go")
+
+
+@pytest.mark.asyncio
+async def test_run_node_custom_non_numeric_id_accepted():
+  """Passing an explicit run_id containing non-numeric characters is safely accepted.
+
+  Setup: ParentNode calls ChildNode with a custom run_id="user-123".
+  Act: Run parent.
+  Assert: Output reflects the custom run_id without errors.
+  """
+
+  class _ChildNode(BaseNode):
+    rerun_on_resume: bool = True
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      yield f"run:{ctx.run_id}"
+
+  class _ParentNode(BaseNode):
+    rerun_on_resume: bool = True
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      r1 = await ctx.run_node(_ChildNode(name="child"), run_id="user-123")
+      yield r1
+
+  events, _, _ = await _run_node(_ParentNode(name="parent"), message="go")
+  outputs = [e.output for e in events if e.output is not None]
+  assert "run:user-123" in outputs

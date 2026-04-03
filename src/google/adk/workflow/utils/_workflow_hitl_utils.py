@@ -21,9 +21,8 @@ import json
 from typing import Any
 from typing import TYPE_CHECKING
 
-from pydantic import ValidationError
-
 from google.genai import types
+from pydantic import ValidationError
 
 from ...auth.auth_credential import AuthCredentialTypes as _AuthCredentialTypes
 from ...auth.auth_handler import AuthHandler
@@ -266,8 +265,8 @@ async def process_auth_resume(
     response_config = AuthConfig.model_validate(response_data)
   except (ValidationError, TypeError):
     response_config = auth_config.model_copy(deep=True)
-    response_config.exchanged_auth_credential = (
-        _build_credential_from_value(auth_config, response_data)
+    response_config.exchanged_auth_credential = _build_credential_from_value(
+        auth_config, response_data
     )
 
   response_config.credential_key = auth_config.credential_key

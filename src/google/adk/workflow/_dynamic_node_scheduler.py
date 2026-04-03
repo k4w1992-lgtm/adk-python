@@ -340,9 +340,12 @@ class DynamicNodeScheduler:
     else:
       run = self._state.runs[node_path]
       run.state.status = NodeStatus.RUNNING
-      resume_inputs = dict(run.state.resume_inputs) if run.state.resume_inputs else None
+      resume_inputs = (
+          dict(run.state.resume_inputs) if run.state.resume_inputs else None
+      )
 
     from ._node_runner_class import NodeRunner
+
     runner = NodeRunner(
         node=node.model_copy(update={'name': name}),
         parent_ctx=ctx,
@@ -372,5 +375,3 @@ class DynamicNodeScheduler:
     else:
       state.status = NodeStatus.COMPLETED
       run.output = child_ctx.output
-
-

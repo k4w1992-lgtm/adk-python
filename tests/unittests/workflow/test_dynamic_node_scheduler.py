@@ -25,9 +25,9 @@ from google.adk.agents.context import Context
 from google.adk.events.event import Event
 from google.adk.events.event import NodeInfo
 from google.adk.workflow._base_node import BaseNode
-from google.adk.workflow._dynamic_node_scheduler import DynamicNodeState
 from google.adk.workflow._dynamic_node_scheduler import DynamicNodeRun
 from google.adk.workflow._dynamic_node_scheduler import DynamicNodeScheduler
+from google.adk.workflow._dynamic_node_scheduler import DynamicNodeState
 from google.adk.workflow._node_state import NodeState
 from google.adk.workflow._node_status import NodeStatus
 from google.adk.workflow._workflow_class import _LoopState

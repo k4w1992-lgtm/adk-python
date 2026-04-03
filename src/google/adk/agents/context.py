@@ -215,6 +215,7 @@ class Context(ReadonlyContext):
     self.schedule_dynamic_node = schedule_dynamic_node
     self._schedule_dynamic_node_internal = schedule_dynamic_node_internal
     self._node_rerun_on_resume = node_rerun_on_resume
+    self._child_run_counters: dict[str, int] = {}
     self._child_run_counter = 0
     self._local_events = local_events if local_events is not None else []
     self._transfer_targets = transfer_targets or []
@@ -501,13 +502,27 @@ class Context(ReadonlyContext):
       # Generate deterministic tracking name.
       # TODO: replace `name` with suffix.
       node_name = name or self._next_child_name(built_node.name)
+
+      if run_id:
+        if run_id.isdigit():
+          raise ValueError(
+              f'Explicit run_id "{run_id}" for node "{node_name}" must contain'
+              ' non-numeric characters to prevent collision with auto-generated'
+              ' IDs.'
+          )
+      else:
+        self._child_run_counters[node_name] = (
+            self._child_run_counters.get(node_name, 0) + 1
+        )
+        run_id = str(self._child_run_counters[node_name])
+
       child_ctx = await self._schedule_dynamic_node_internal(
           self,
           built_node,
           node_input,
           node_name=node_name,
           use_as_output=use_as_output,
-          run_id=run_id or '1',
+          run_id=run_id,
       )
       if child_ctx.interrupt_ids:
         # Propagate child's interrupt_ids to this node's ctx
