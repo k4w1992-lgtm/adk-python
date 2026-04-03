@@ -318,10 +318,12 @@ class Workflow(BaseNode):
   ) -> None:
     """Create or reset NodeState for a node about to be scheduled."""
     node_state = loop_state.nodes.setdefault(node_name, NodeState())
-    # Resumed nodes (have resume_inputs) keep their run_id to
-    # continue the same logical run. Re-triggers (loop edges)
-    # clear run_id so a fresh sequential id is assigned.
-    if not node_state.resume_inputs:
+    # We clear run_id to assign a fresh sequential ID except when:
+    # 1. Resuming from an interrupt (has resume_inputs).
+    # 2. Waiting for output without interrupts (e.g., JoinNode waiting for
+    #    multiple parallel triggers), where we must share the same run_id.
+    # TODO: Revisit this if loop_state.nodes switches to keyed by node_path.
+    if not node_state.resume_inputs and node_state.status != NodeStatus.WAITING:
       node_state.run_id = None
     node_state.input = trigger.input
     node_state.triggered_by = trigger.triggered_by
