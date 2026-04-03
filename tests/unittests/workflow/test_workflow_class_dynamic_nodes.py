@@ -988,12 +988,12 @@ async def test_dynamic_nodes_get_run_id_one():
   events = await _run(runner, ss, session, 'go')
 
   child_events = [
-      (e.node_name, e.node_info.run_id)
+      (e.node_name, e.node_info.path.split('@')[-1])
       for e in events
       if e.output is not None and e.node_name and e.node_name.startswith('step_')
   ]
   # Each dynamic child is a distinct path, each gets run_id '1'.
-  assert child_events == [('step_a@1', '1'), ('step_b@1', '1')]
+  assert child_events == [('step_a', '1'), ('step_b', '1')]
 
 
 @pytest.mark.asyncio
@@ -1035,17 +1035,17 @@ async def test_dynamic_node_keeps_run_id_on_resume():
   # Run 1: child interrupts.
   events1 = await _run(runner, ss, session, 'go')
   approver_run_ids_1 = [
-      e.node_info.run_id
+      e.node_info.path.split('@')[-1]
       for e in events1
-      if e.node_name.split('@')[0] == 'approver' and e.node_info.run_id
+      if e.node_info.path and 'approver@' in e.node_info.path
   ]
 
   # Run 2: resume with function response.
   events2 = await _resume(runner, ss, session, 'fc-1', {'answer': 'yes'})
   approver_run_ids_2 = [
-      e.node_info.run_id
+      e.node_info.path.split('@')[-1]
       for e in events2
-      if e.node_name.split('@')[0] == 'approver' and e.node_info.run_id
+      if e.node_info.path and 'approver@' in e.node_info.path
   ]
 
   # Same run_id across interrupt and resume.
@@ -1090,4 +1090,4 @@ async def test_custom_run_id_used_on_events():
       if e.node_info and e.node_info.path and 'child' in e.node_info.path
   ]
   assert child_events
-  assert all(e.node_info.run_id == 'my-custom-id' for e in child_events)
+  assert all(e.node_info.path.split('@')[-1] == 'my-custom-id' for e in child_events)

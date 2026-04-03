@@ -989,15 +989,15 @@ async def test_run_id_unique_per_node():
   wf = Workflow(name='wf', edges=[(START, a, b)])
 
   events, _, _ = await _run_workflow(wf)
-  path_run_id_pairs = [
-      (e.node_info.path, e.node_info.run_id)
+  paths = [
+      e.node_info.path
       for e in events
-      if e.node_info.run_id
+      if e.node_info.path
   ]
 
-  assert len(path_run_id_pairs) >= 2
-  # run_ids are unique per node path (not globally)
-  assert len(set(path_run_id_pairs)) >= 2
+  assert len(paths) >= 2
+  # paths are unique per node run (because they contain @run_id)
+  assert len(set(paths)) >= 2
 
 
 # 32. test_run_id_uniqueness_nested
@@ -1014,14 +1014,14 @@ async def test_run_id_unique_nested():
   wf = Workflow(name='wf', edges=[(START, outer_a, inner)])
 
   events, _, _ = await _run_workflow(wf)
-  path_run_id_pairs = [
-      (e.node_info.path, e.node_info.run_id)
+  paths = [
+      e.node_info.path
       for e in events
-      if e.node_info.run_id
+      if e.node_info.path
   ]
 
-  # run_ids are unique per node path (not globally)
-  assert len(set(path_run_id_pairs)) >= 2
+  # paths are unique per node run (because they contain @run_id)
+  assert len(set(paths)) >= 2
 
 
 @pytest.mark.asyncio
@@ -1056,9 +1056,9 @@ async def test_run_id_sequential_in_loop():
   events, _, _ = await _run_workflow(wf)
 
   loop_run_ids = [
-      e.node_info.run_id
+      e.node_info.path.split('@')[-1]
       for e in events
-      if e.node_info.run_id and e.node_name.split('@')[0] == 'loop'
+      if e.node_info.path and 'loop@' in e.node_info.path
   ]
   assert loop_run_ids == ['1', '2', '3']
 

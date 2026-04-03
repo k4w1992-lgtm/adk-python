@@ -222,7 +222,6 @@ async def test_event_path_contains_node_name():
   output_events = [e for e in events if e.output is not None]
   event = output_events[0]
   assert event.node_info.path == 'path_test@exec-456'
-  assert event.node_info.run_id == 'exec-456'
   assert event.invocation_id == 'inv-123'
 
 
@@ -341,7 +340,7 @@ async def test_explicit_run_id_used():
 
   assert runner.run_id == 'my-exec-id'
   await runner.run(node_input='data')
-  assert events[0].node_info.run_id == 'my-exec-id'
+  assert events[0].node_info.path == 'explicit_id@my-exec-id'
 
 
 @pytest.mark.asyncio

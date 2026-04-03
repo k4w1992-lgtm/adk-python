@@ -283,7 +283,6 @@ class NodeRunner:
     event.author = ctx.event_author or self._node.name
     event.invocation_id = ctx._invocation_context.invocation_id
     event.node_info.path = ctx.node_path
-    event.node_info.run_id = self._run_id
     if event.output is not None:
       event.node_info.output_for = [
           ctx.node_path

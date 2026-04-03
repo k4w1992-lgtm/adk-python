@@ -515,6 +515,23 @@ async def _node_runner(
     )
 
 
+def _enrich_event(
+    event: Event,
+    ctx: InvocationContext,
+    author: str | None,
+    node_path: str,
+    run_id: str | None,
+) -> None:
+  """Local enrich for V1 runner that forces run_id assignment."""
+  if not event.invocation_id:
+    event.invocation_id = ctx.invocation_id
+  if not event.author and author:
+    event.author = author
+  event.node_info.path = node_path
+  if run_id:
+    event.node_info.run_id = run_id
+
+
 async def process_next_item(
     ctx: InvocationContext,
     run_id: str,
@@ -571,13 +588,12 @@ async def process_next_item(
     return
 
   # 4. Enrich Event with Metadata
-  enrich_event(
+  _enrich_event(
       item,
       ctx,
       author=get_node_name_from_path(parent_node_path),
       node_path=join_paths(parent_node_path, node.name),
       run_id=run_id,
-      branch=True,
   )
 
   # 5. Yield the processed event.

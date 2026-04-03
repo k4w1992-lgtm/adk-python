@@ -25,6 +25,7 @@ from pydantic import alias_generators
 from pydantic import BaseModel
 from pydantic import ConfigDict
 from pydantic import Field
+from pydantic import model_validator
 from pydantic import PrivateAttr
 
 from ..models.llm_response import LlmResponse
@@ -74,10 +75,29 @@ class NodeInfo(BaseModel):
   carries the output value.
   """
 
+  @model_validator(mode='after')
+  def _derive_ids_from_path(self) -> 'NodeInfo':
+    """Derives run_id from path if standard name@run_id format is used."""
+    if '@' in self.path:
+      segments = self.path.split('/')
+      if segments:
+        last_segment = segments[-1]
+        if '@' in last_segment:
+          self.run_id = last_segment.rsplit('@', 1)[-1]
+
+        if len(segments) > 1:
+          parent_segment = segments[-2]
+          if '@' in parent_segment:
+            self.parent_run_id = parent_segment.rsplit('@', 1)[-1]
+    return self
+
   @property
   def name(self) -> str:
-    """The name of the node that generated the event."""
-    return self.path.split('/')[-1] if self.path else ''
+    """The clean name of the node (without @run_id)."""
+    if not self.path:
+      return ''
+    last_segment = self.path.rsplit('/', 1)[-1]
+    return last_segment.rsplit('@', 1)[0]
 
 
 class Event(LlmResponse):
