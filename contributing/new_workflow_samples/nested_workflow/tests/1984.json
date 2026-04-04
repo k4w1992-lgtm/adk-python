@@ -1,0 +1,209 @@
+{
+  "id": "b7848178-784d-4fe3-a11f-568b3419acb7",
+  "appName": "nested_workflow",
+  "userId": "user",
+  "state": {
+    "__session_metadata__": {
+      "displayName": "1984"
+    }
+  },
+  "events": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "1984"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "user",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-1"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "output": "1984",
+      "nodeInfo": {
+        "path": "root_agent@1/process_input@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "root_agent@1/process_input@1"
+        ]
+      },
+      "id": "e-3"
+    },
+    {
+      "modelVersion": "gemini-2.5-flash",
+      "content": {
+        "parts": [
+          {
+            "text": "LeBron James"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "find_name",
+      "nodeInfo": {
+        "path": "root_agent@1/find_famous_person@1/find_name@1/call_llm@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "messageAsOutput": true
+      },
+      "branch": "node:root_agent@1/find_famous_person@1/find_name@1.find_name",
+      "id": "e-6"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "find_famous_person",
+      "output": "LeBron James",
+      "nodeInfo": {
+        "path": "root_agent@1/find_famous_person@1/find_name@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "root_agent@1/find_famous_person@1/find_name@1"
+        ]
+      },
+      "id": "e-7"
+    },
+    {
+      "modelVersion": "gemini-2.5-flash",
+      "content": {
+        "parts": [
+          {
+            "text": "LeBron James is an iconic American professional basketball player, widely considered one of the greatest of all time. A four-time NBA champion, four-time MVP, and four-time Finals MVP, he has shattered numerous scoring records and led multiple franchises to unprecedented success. Beyond his unparalleled dominance on the court, James is also a prominent entrepreneur, philanthropist, and advocate for social change, solidifying his status as a global icon."
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "generate_bio",
+      "nodeInfo": {
+        "path": "root_agent@1/find_famous_person@1/generate_bio@1/call_llm@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "messageAsOutput": true
+      },
+      "branch": "node:root_agent@1/find_famous_person@1/generate_bio@1.generate_bio",
+      "id": "e-10"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "find_famous_person",
+      "output": "LeBron James is an iconic American professional basketball player, widely considered one of the greatest of all time. A four-time NBA champion, four-time MVP, and four-time Finals MVP, he has shattered numerous scoring records and led multiple franchises to unprecedented success. Beyond his unparalleled dominance on the court, James is also a prominent entrepreneur, philanthropist, and advocate for social change, solidifying his status as a global icon.",
+      "nodeInfo": {
+        "path": "root_agent@1/find_famous_person@1/generate_bio@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "root_agent@1/find_famous_person@1/generate_bio@1",
+          "root_agent@1/find_famous_person@1"
+        ]
+      },
+      "id": "e-11"
+    },
+    {
+      "modelVersion": "gemini-2.5-flash",
+      "content": {
+        "parts": [
+          {
+            "text": "The Bhopal disaster occurred on December 2-3, 1984, when a Union Carbide pesticide plant in India leaked methyl isocyanate gas, becoming the world's worst industrial catastrophe. This tragic event resulted in thousands of immediate deaths and hundreds of thousands of injuries, profoundly influencing environmental regulations, corporate accountability, and industrial safety standards globally."
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "find_historical_event",
+      "nodeInfo": {
+        "path": "root_agent@1/find_historical_event@1/call_llm@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "messageAsOutput": true
+      },
+      "branch": "node:root_agent@1/find_historical_event@1.find_historical_event",
+      "id": "e-14"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "output": "The Bhopal disaster occurred on December 2-3, 1984, when a Union Carbide pesticide plant in India leaked methyl isocyanate gas, becoming the world's worst industrial catastrophe. This tragic event resulted in thousands of immediate deaths and hundreds of thousands of injuries, profoundly influencing environmental regulations, corporate accountability, and industrial safety standards globally.",
+      "nodeInfo": {
+        "path": "root_agent@1/find_historical_event@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "root_agent@1/find_historical_event@1"
+        ]
+      },
+      "id": "e-15"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "actions": {
+        "stateDelta": {
+          "root_agent@1/join_for_aggregation@1_join_state": {
+            "find_famous_person": "LeBron James is an iconic American professional basketball player, widely considered one of the greatest of all time. A four-time NBA champion, four-time MVP, and four-time Finals MVP, he has shattered numerous scoring records and led multiple franchises to unprecedented success. Beyond his unparalleled dominance on the court, James is also a prominent entrepreneur, philanthropist, and advocate for social change, solidifying his status as a global icon."
+          }
+        }
+      },
+      "nodeInfo": {
+        "path": "root_agent@1/join_for_aggregation@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-16"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "actions": {
+        "stateDelta": {
+          "root_agent@1/join_for_aggregation@1_join_state": null
+        }
+      },
+      "output": {
+        "find_famous_person": "LeBron James is an iconic American professional basketball player, widely considered one of the greatest of all time. A four-time NBA champion, four-time MVP, and four-time Finals MVP, he has shattered numerous scoring records and led multiple franchises to unprecedented success. Beyond his unparalleled dominance on the court, James is also a prominent entrepreneur, philanthropist, and advocate for social change, solidifying his status as a global icon.",
+        "find_historical_event": "The Bhopal disaster occurred on December 2-3, 1984, when a Union Carbide pesticide plant in India leaked methyl isocyanate gas, becoming the world's worst industrial catastrophe. This tragic event resulted in thousands of immediate deaths and hundreds of thousands of injuries, profoundly influencing environmental regulations, corporate accountability, and industrial safety standards globally."
+      },
+      "nodeInfo": {
+        "path": "root_agent@1/join_for_aggregation@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "root_agent@1/join_for_aggregation@1"
+        ]
+      },
+      "id": "e-17"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "--- Famous Person Bio ---\n\nLeBron James is an iconic American professional basketball player, widely considered one of the greatest of all time. A four-time NBA champion, four-time MVP, and four-time Finals MVP, he has shattered numerous scoring records and led multiple franchises to unprecedented success. Beyond his unparalleled dominance on the court, James is also a prominent entrepreneur, philanthropist, and advocate for social change, solidifying his status as a global icon.\n\n--- Historical Event ---\n\nThe Bhopal disaster occurred on December 2-3, 1984, when a Union Carbide pesticide plant in India leaked methyl isocyanate gas, becoming the world's worst industrial catastrophe. This tragic event resulted in thousands of immediate deaths and hundreds of thousands of injuries, profoundly influencing environmental regulations, corporate accountability, and industrial safety standards globally."
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "nodeInfo": {
+        "path": "root_agent@1/aggregate_results@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-18"
+    }
+  ]
+}

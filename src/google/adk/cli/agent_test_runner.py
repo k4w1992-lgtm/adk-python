@@ -209,6 +209,28 @@ def make_sort_key(d):
   return (author, node_path, json.dumps(d, sort_keys=True))
 
 
+def _make_nodes_sequential(obj, visited=None):
+  if visited is None:
+    visited = set()
+
+  if id(obj) in visited:
+    return
+  visited.add(id(obj))
+
+  from google.adk.workflow._parallel_worker import _ParallelWorker
+  from google.adk.workflow._workflow_class import Workflow
+
+  if isinstance(obj, Workflow):
+    obj.max_concurrency = 1
+    if obj.graph and obj.graph.nodes:
+      for node in obj.graph.nodes:
+        _make_nodes_sequential(node, visited)
+  elif isinstance(obj, _ParallelWorker):
+    obj.max_concurrency = 1
+    if hasattr(obj, "_node"):
+      _make_nodes_sequential(obj._node, visited)
+
+
 def _extract_user_content(event: dict) -> Optional[types.Content]:
   """Extracts user content from an event dict and returns a types.Content object."""
   if event.get("author") != "user":
@@ -264,8 +286,19 @@ def test_agent_replay(agent_dir, test_file, monkeypatch):
   sys.path.insert(0, str(agent_dir.parent))
 
   try:
+    import random
+
+    random.seed(42)
+
     loader = AgentLoader(str(agent_dir.parent))
     agent_or_app = loader.load_agent(agent_dir.name)
+
+    root_agent = (
+        agent_or_app.root_agent
+        if isinstance(agent_or_app, App)
+        else agent_or_app
+    )
+    _make_nodes_sequential(root_agent)
 
     with open(test_file, "r") as f:
       session_data = json.load(f)
@@ -286,14 +319,53 @@ def test_agent_replay(agent_dir, test_file, monkeypatch):
 
     expected_events = events_data[1:]
 
-    mock_responses = []
+    import re
+
+    parallel_pattern = re.compile(r"^(.+)__(\d+)$")
+
+    all_responses = []
     for ev in expected_events:
       if "modelVersion" in ev and "content" in ev:
         content = ev["content"]
         if content.get("role") == "model":
           parts = content.get("parts", [])
           if parts and "text" in parts[0]:
-            mock_responses.append(parts[0]["text"])
+            all_responses.append(
+                {"author": ev.get("author", ""), "text": parts[0]["text"]}
+            )
+
+    mock_responses = []
+    current_parallel_base = None
+    current_parallel_items = []
+
+    for resp in all_responses:
+      match = parallel_pattern.match(resp["author"])
+      if match:
+        base_name, index = match.groups()
+        index = int(index)
+
+        if current_parallel_base and current_parallel_base != base_name:
+          # Flush previous parallel group
+          current_parallel_items.sort(key=lambda x: x[0])
+          mock_responses.extend([x[1] for x in current_parallel_items])
+          current_parallel_items = []
+
+        current_parallel_base = base_name
+        current_parallel_items.append((index, resp["text"]))
+      else:
+        if current_parallel_base:
+          # Flush previous parallel group
+          current_parallel_items.sort(key=lambda x: x[0])
+          mock_responses.extend([x[1] for x in current_parallel_items])
+          current_parallel_items = []
+          current_parallel_base = None
+
+        mock_responses.append(resp["text"])
+
+    # Flush last group
+    if current_parallel_base:
+      current_parallel_items.sort(key=lambda x: x[0])
+      mock_responses.extend([x[1] for x in current_parallel_items])
 
     if mock_responses:
       mock_model = MockModel.create(responses=mock_responses)
@@ -371,8 +443,19 @@ def rebuild_tests(folder: str):
     sys.path.insert(0, str(agent_dir.parent))
 
     try:
+      import random
+
+      random.seed(42)
+
       loader = AgentLoader(str(agent_dir.parent))
       agent_or_app = loader.load_agent(agent_dir.name)
+
+      root_agent = (
+          agent_or_app.root_agent
+          if isinstance(agent_or_app, App)
+          else agent_or_app
+      )
+      _make_nodes_sequential(root_agent)
 
       with open(test_file, "r") as f:
         session_data = json.load(f)
@@ -455,6 +538,18 @@ def rebuild_tests(folder: str):
           )
           for e in new_events
       ]
+
+      # Clean up empty actions items and actions itself if empty
+      for ev in new_events_dicts:
+        if "actions" in ev:
+          actions = ev["actions"]
+          ev["actions"] = {
+              k: v
+              for k, v in actions.items()
+              if not (isinstance(v, dict) and not v)
+          }
+          if not ev["actions"]:
+            del ev["actions"]
 
       # Update session data
       session_data["events"] = new_events_dicts

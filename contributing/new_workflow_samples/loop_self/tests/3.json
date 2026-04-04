@@ -1,0 +1,205 @@
+{
+  "id": "1f627a81-1341-43b7-b971-c8809ff8f6d1",
+  "appName": "loop_self",
+  "userId": "user",
+  "state": {
+    "__session_metadata__": {
+      "displayName": "3"
+    },
+    "target_number": 3
+  },
+  "events": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "3"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "user",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-1"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "actions": {
+        "stateDelta": {
+          "target_number": 3
+        }
+      },
+      "nodeInfo": {
+        "path": "root_agent@1/validate_input@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-3"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Guessing 10..."
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "nodeInfo": {
+        "path": "root_agent@1/guess_number@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-4"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "actions": {
+        "route": "guessed_wrong"
+      },
+      "nodeInfo": {
+        "path": "root_agent@1/guess_number@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-5"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Guessing 1..."
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "nodeInfo": {
+        "path": "root_agent@1/guess_number@2",
+        "runId": "2",
+        "parentRunId": "1"
+      },
+      "id": "e-6"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "actions": {
+        "route": "guessed_wrong"
+      },
+      "nodeInfo": {
+        "path": "root_agent@1/guess_number@2",
+        "runId": "2",
+        "parentRunId": "1"
+      },
+      "id": "e-7"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Guessing 0..."
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "nodeInfo": {
+        "path": "root_agent@1/guess_number@3",
+        "runId": "3",
+        "parentRunId": "1"
+      },
+      "id": "e-8"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "actions": {
+        "route": "guessed_wrong"
+      },
+      "nodeInfo": {
+        "path": "root_agent@1/guess_number@3",
+        "runId": "3",
+        "parentRunId": "1"
+      },
+      "id": "e-9"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Guessing 4..."
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "nodeInfo": {
+        "path": "root_agent@1/guess_number@4",
+        "runId": "4",
+        "parentRunId": "1"
+      },
+      "id": "e-10"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "actions": {
+        "route": "guessed_wrong"
+      },
+      "nodeInfo": {
+        "path": "root_agent@1/guess_number@4",
+        "runId": "4",
+        "parentRunId": "1"
+      },
+      "id": "e-11"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Guessing 3..."
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "nodeInfo": {
+        "path": "root_agent@1/guess_number@5",
+        "runId": "5",
+        "parentRunId": "1"
+      },
+      "id": "e-12"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Correct!"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "nodeInfo": {
+        "path": "root_agent@1/guess_number@5",
+        "runId": "5",
+        "parentRunId": "1"
+      },
+      "id": "e-13"
+    }
+  ]
+}

@@ -1,0 +1,125 @@
+{
+  "id": "5cf6403e-fd4e-4fef-ad66-8ae78d26ba29",
+  "appName": "multi_triggers",
+  "userId": "user",
+  "state": {
+    "__session_metadata__": {
+      "displayName": "go"
+    }
+  },
+  "events": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "go"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "user",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-1"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "output": "GO",
+      "nodeInfo": {
+        "path": "root_agent@1/make_uppercase@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "root_agent@1/make_uppercase@1"
+        ]
+      },
+      "id": "e-3"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "output": 2,
+      "nodeInfo": {
+        "path": "root_agent@1/count_characters@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "root_agent@1/count_characters@1"
+        ]
+      },
+      "id": "e-4"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "output": "og",
+      "nodeInfo": {
+        "path": "root_agent@1/reverse_string@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "root_agent@1/reverse_string@1"
+        ]
+      },
+      "id": "e-5"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Triggered for input: GO"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "nodeInfo": {
+        "path": "root_agent@1/send_message@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-6"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Triggered for input: 2"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "nodeInfo": {
+        "path": "root_agent@1/send_message@2",
+        "runId": "2",
+        "parentRunId": "1"
+      },
+      "id": "e-7"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Triggered for input: og"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "nodeInfo": {
+        "path": "root_agent@1/send_message@3",
+        "runId": "3",
+        "parentRunId": "1"
+      },
+      "id": "e-8"
+    }
+  ]
+}
