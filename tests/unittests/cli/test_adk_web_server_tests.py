@@ -56,16 +56,9 @@ def test_create_test(test_client, tmp_path):
 
   payload = {"session_data": {"events": []}}
 
-  with patch(
-      "google.adk.cli.adk_web_server.asyncio.to_thread"
-  ) as mock_to_thread:
-    mock_to_thread.return_value = None
-    response = test_client.post(
-        "/dev/test_app/tests/my_test.json", json=payload
-    )
-    assert response.status_code == 200
-    assert response.json() == {"status": "success", "file": "my_test.json"}
-    mock_to_thread.assert_called_once()
+  response = test_client.post("/dev/test_app/tests/my_test.json", json=payload)
+  assert response.status_code == 200
+  assert response.json() == {"status": "success", "file": "my_test.json"}
 
   # Verify file exists
   assert (agent_dir / "tests" / "my_test.json").exists()

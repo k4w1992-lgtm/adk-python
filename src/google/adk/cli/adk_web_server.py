@@ -1061,10 +1061,6 @@ class AdkWebServer:
       with open(test_file_path, "w") as f:
         json.dump(req.session_data, f, indent=2)
 
-      from .agent_test_runner import rebuild_tests
-
-      await asyncio.to_thread(rebuild_tests, test_file_path)
-
       return {"status": "success", "file": test_name}
 
     @app.delete("/dev/{app_name}/tests/{test_name}")
