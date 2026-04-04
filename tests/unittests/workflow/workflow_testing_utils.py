@@ -375,3 +375,38 @@ def find_function_call_event(
           if name is None or part.function_call.name == name:
             return e
   return None
+
+
+class CustomRetryableError(Exception):
+  """A custom error meant to be retried."""
+
+
+class CustomNonRetryableError(Exception):
+  """A custom error not meant to be retried."""
+
+
+class _FlakyNode(BaseNode):
+  model_config = ConfigDict(arbitrary_types_allowed=True)
+
+  message: str = Field(default='')
+  succeed_on_iteration: int = Field(default=0)
+  tracker: dict[str, Any] = Field(default_factory=dict)
+  exception_to_raise: Exception = Field(...)
+
+  @override
+  async def run(
+      self,
+      *,
+      ctx: Context,
+      node_input: Any,
+  ) -> AsyncGenerator[Any, None]:
+    iteration_count = self.tracker.get('iteration_count', 0) + 1
+    self.tracker['iteration_count'] = iteration_count
+    self.tracker.setdefault('retry_counts', []).append(ctx.retry_count)
+
+    if iteration_count < self.succeed_on_iteration:
+      raise self.exception_to_raise
+
+    yield Event(
+        output=self.message,
+    )
