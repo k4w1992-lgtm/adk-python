@@ -373,11 +373,6 @@ async def test_nested_dynamic_node_hitl(request: pytest.FixtureRequest):
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    reason=(
-        'New Workflow has no agent_state events for dynamic node name mapping'
-    )
-)
 async def test_dynamic_node_parallel_execution(request: pytest.FixtureRequest):
   """Three parallel ctx.run_node calls via asyncio.gather return ordered results."""
 

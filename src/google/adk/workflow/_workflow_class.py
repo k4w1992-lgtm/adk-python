@@ -287,7 +287,7 @@ class Workflow(BaseNode):
       if trigger is None:
         continue
 
-      self._prepare_node_state(loop_state, node_name, trigger)
+      self._prepare_node_state_for_starting(loop_state, node_name, trigger)
       self._start_node_task(loop_state, ctx, node_name, trigger)
 
   def _at_concurrency_limit(self, loop_state: _LoopState) -> bool:
@@ -315,18 +315,38 @@ class Workflow(BaseNode):
     node_state.run_counter += 1
     return str(node_state.run_counter)
 
-  def _prepare_node_state(
+  @classmethod
+  def _create_node_state_for_new_run(cls, old_state: NodeState) -> NodeState:
+    """Create a fresh NodeState for a new run, preserving the run counter."""
+    return NodeState(run_counter=old_state.run_counter)
+
+  def _prepare_node_state_for_starting(
       self, loop_state: _LoopState, node_name: str, trigger: Trigger
   ) -> None:
-    """Create or reset NodeState for a node about to be scheduled."""
-    node_state = loop_state.nodes.setdefault(node_name, NodeState())
-    # We clear run_id to assign a fresh sequential ID except when:
-    # 1. Resuming from an interrupt (has resume_inputs).
-    # 2. Waiting for output without interrupts (e.g., JoinNode waiting for
-    #    multiple parallel triggers), where we must share the same run_id.
-    # TODO: Revisit this if loop_state.nodes switches to keyed by node_path.
-    if not node_state.resume_inputs and node_state.status != NodeStatus.WAITING:
-      node_state.run_id = None
+    """Prepare NodeState for starting a node.
+
+    This method determines whether to reuse or recreate the node's state:
+    *   Creates a brand new `NodeState` if none exists.
+    *   Creates a fresh `NodeState` (preserving `run_counter`) if this is a new execution
+        (not resuming and not waiting) to avoid state carryover.
+    *   Reuses the existing `NodeState` if resuming from interrupt or waiting for inputs.
+
+    Outcome: The node's state is updated with the trigger's input and source,
+    and its status is set to `RUNNING`.
+    """
+    if node_name not in loop_state.nodes:
+      node_state = NodeState()
+      loop_state.nodes[node_name] = node_state
+    else:
+      node_state = loop_state.nodes[node_name]
+      if (
+          not node_state.resume_inputs
+          and node_state.status != NodeStatus.WAITING
+      ):
+        # Create a new NodeState for a fresh execution to avoid carryover bugs.
+        node_state = self._create_node_state_for_new_run(node_state)
+        loop_state.nodes[node_name] = node_state
+
     node_state.input = trigger.input
     node_state.triggered_by = trigger.triggered_by
     node_state.status = NodeStatus.RUNNING
@@ -396,6 +416,7 @@ class Workflow(BaseNode):
       return
 
     node_state.status = NodeStatus.COMPLETED
+    node_state.resume_inputs.clear()
     if child_ctx.output is not None:
       loop_state.node_outputs[node_name] = child_ctx.output
 
