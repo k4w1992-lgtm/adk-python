@@ -1,0 +1,162 @@
+{
+  "id": "0e5ab646-61d6-49cd-b058-24fde0afebae",
+  "appName": "sequence",
+  "userId": "user",
+  "state": {
+    "__session_metadata__": {
+      "displayName": "go"
+    }
+  },
+  "events": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "go"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "e-750cc5b4-ba56-4cd9-aa4c-d254f93afc28",
+      "author": "user",
+      "actions": {
+        "stateDelta": {},
+        "artifactDelta": {},
+        "requestedAuthConfigs": {},
+        "requestedToolConfirmations": {}
+      },
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "7ff0ef98-5233-4cbd-ae11-f94951fcf6d2",
+      "timestamp": 1775279877.853446
+    },
+    {
+      "modelVersion": "gemini-2.5-flash",
+      "content": {
+        "parts": [
+          {
+            "text": "Apple"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "usageMetadata": {
+        "candidatesTokenCount": 1,
+        "promptTokenCount": 38,
+        "promptTokensDetails": [
+          {
+            "modality": "TEXT",
+            "tokenCount": 38
+          }
+        ],
+        "thoughtsTokenCount": 27,
+        "totalTokenCount": 66
+      },
+      "invocationId": "e-750cc5b4-ba56-4cd9-aa4c-d254f93afc28",
+      "author": "generate_fruit_agent",
+      "actions": {
+        "stateDelta": {},
+        "artifactDelta": {},
+        "requestedAuthConfigs": {},
+        "requestedToolConfirmations": {}
+      },
+      "nodeInfo": {
+        "path": "root_agent@1/generate_fruit_agent@1/call_llm@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "messageAsOutput": true
+      },
+      "branch": "node:root_agent@1/generate_fruit_agent@1.generate_fruit_agent",
+      "id": "1cc7aa18-6384-49dc-ba33-b44a8a84107b",
+      "timestamp": 1775279878.729745
+    },
+    {
+      "invocationId": "e-750cc5b4-ba56-4cd9-aa4c-d254f93afc28",
+      "author": "root_agent",
+      "actions": {
+        "stateDelta": {},
+        "artifactDelta": {},
+        "requestedAuthConfigs": {},
+        "requestedToolConfirmations": {}
+      },
+      "output": "Apple",
+      "nodeInfo": {
+        "path": "root_agent@1/generate_fruit_agent@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "root_agent@1/generate_fruit_agent@1"
+        ]
+      },
+      "id": "6a5e8cfd-79b0-44bc-93c3-f68dac46433a",
+      "timestamp": 1775279878.7361522
+    },
+    {
+      "modelVersion": "gemini-2.5-flash",
+      "content": {
+        "parts": [
+          {
+            "text": "Apples are a good source of dietary fiber, which aids digestion and can help maintain healthy cholesterol levels."
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "usageMetadata": {
+        "candidatesTokenCount": 21,
+        "promptTokenCount": 30,
+        "promptTokensDetails": [
+          {
+            "modality": "TEXT",
+            "tokenCount": 30
+          }
+        ],
+        "thoughtsTokenCount": 18,
+        "totalTokenCount": 69
+      },
+      "invocationId": "e-750cc5b4-ba56-4cd9-aa4c-d254f93afc28",
+      "author": "generate_benefit_agent",
+      "actions": {
+        "stateDelta": {},
+        "artifactDelta": {},
+        "requestedAuthConfigs": {},
+        "requestedToolConfirmations": {}
+      },
+      "nodeInfo": {
+        "path": "root_agent@1/generate_benefit_agent@1/call_llm@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "messageAsOutput": true
+      },
+      "branch": "node:root_agent@1/generate_benefit_agent@1.generate_benefit_agent",
+      "id": "6e1f71db-6710-406c-ba0f-60e4ce2cde0e",
+      "timestamp": 1775279879.651727
+    },
+    {
+      "invocationId": "e-750cc5b4-ba56-4cd9-aa4c-d254f93afc28",
+      "author": "root_agent",
+      "actions": {
+        "stateDelta": {},
+        "artifactDelta": {},
+        "requestedAuthConfigs": {},
+        "requestedToolConfirmations": {}
+      },
+      "output": "Apples are a good source of dietary fiber, which aids digestion and can help maintain healthy cholesterol levels.",
+      "nodeInfo": {
+        "path": "root_agent@1/generate_benefit_agent@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "root_agent@1/generate_benefit_agent@1",
+          "root_agent@1"
+        ]
+      },
+      "id": "97de30cf-761c-44d6-911f-38e2ae0da82f",
+      "timestamp": 1775279879.6574268
+    }
+  ],
+  "lastUpdateTime": 1775279879.6574268
+}

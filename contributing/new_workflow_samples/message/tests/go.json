@@ -1,0 +1,218 @@
+{
+  "id": "9cfc0ef6-11d6-4260-84cf-be22731ab69e",
+  "appName": "message",
+  "userId": "user",
+  "state": {
+    "__session_metadata__": {
+      "displayName": "go"
+    }
+  },
+  "events": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "go"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "e-75046075-4eb6-474c-b903-070659d0e27c",
+      "author": "user",
+      "actions": {
+        "stateDelta": {},
+        "artifactDelta": {},
+        "requestedAuthConfigs": {},
+        "requestedToolConfirmations": {}
+      },
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e0627e78-a5c7-4216-abd1-e6b5497bcb53",
+      "timestamp": 1775276550.610419
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "#1 This is a simple string message."
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "e-75046075-4eb6-474c-b903-070659d0e27c",
+      "author": "message",
+      "actions": {
+        "stateDelta": {},
+        "artifactDelta": {},
+        "requestedAuthConfigs": {},
+        "requestedToolConfirmations": {}
+      },
+      "nodeInfo": {
+        "path": "message@1/send_string@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "0e35fa22-d600-4fab-b3ce-b6ccd543259c",
+      "timestamp": 1775276550.6127648
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "#2 Here is a multi-modal message with an inline image (red square):"
+          },
+          {
+            "inlineData": {
+              "data": "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8_9hAAAAXElEQVR4nO2TSQ7AIAwD7fz_z-ZQtapwmrJc8QklmjBIgZJgIZMiAIl9KYbhjx4fgwosbNxgMrF0-4uhgHnYDM6AzQHJeg5HYtyHFfgy2AztN_5tZWfrBtVzkl4DzfQkEPd-cEkAAAAASUVORK5CYII=",
+              "mimeType": "image/png"
+            }
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "e-75046075-4eb6-474c-b903-070659d0e27c",
+      "author": "message",
+      "actions": {
+        "stateDelta": {},
+        "artifactDelta": {},
+        "requestedAuthConfigs": {},
+        "requestedToolConfirmations": {}
+      },
+      "nodeInfo": {
+        "path": "message@1/send_multimodal@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "4648fbc1-ad45-4c31-88da-c709758acb60",
+      "timestamp": 1775276550.6148381
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "#3 Multiple messages"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "e-75046075-4eb6-474c-b903-070659d0e27c",
+      "author": "message",
+      "actions": {
+        "stateDelta": {},
+        "artifactDelta": {},
+        "requestedAuthConfigs": {},
+        "requestedToolConfirmations": {}
+      },
+      "nodeInfo": {
+        "path": "message@1/multiple_messages@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "72fdb244-dcc9-4cce-95df-bf8bdfd92667",
+      "timestamp": 1775276550.6175191
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Processing step 1..."
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "e-75046075-4eb6-474c-b903-070659d0e27c",
+      "author": "message",
+      "actions": {
+        "stateDelta": {},
+        "artifactDelta": {},
+        "requestedAuthConfigs": {},
+        "requestedToolConfirmations": {}
+      },
+      "nodeInfo": {
+        "path": "message@1/multiple_messages@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "ab4c1910-4214-432f-b90d-8d412a1ad85d",
+      "timestamp": 1775276551.621021
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Processing step 2..."
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "e-75046075-4eb6-474c-b903-070659d0e27c",
+      "author": "message",
+      "actions": {
+        "stateDelta": {},
+        "artifactDelta": {},
+        "requestedAuthConfigs": {},
+        "requestedToolConfirmations": {}
+      },
+      "nodeInfo": {
+        "path": "message@1/multiple_messages@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "37f27963-5c75-4356-8dbf-8ed147a78346",
+      "timestamp": 1775276552.6279411
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Done processing."
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "e-75046075-4eb6-474c-b903-070659d0e27c",
+      "author": "message",
+      "actions": {
+        "stateDelta": {},
+        "artifactDelta": {},
+        "requestedAuthConfigs": {},
+        "requestedToolConfirmations": {}
+      },
+      "nodeInfo": {
+        "path": "message@1/multiple_messages@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "2bb5c21e-0ffa-49b8-b6dc-6af4df2f1867",
+      "timestamp": 1775276553.634864
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "#4 Starting to stream..."
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "e-75046075-4eb6-474c-b903-070659d0e27c",
+      "author": "message",
+      "actions": {
+        "stateDelta": {},
+        "artifactDelta": {},
+        "requestedAuthConfigs": {},
+        "requestedToolConfirmations": {}
+      },
+      "nodeInfo": {
+        "path": "message@1/stream_sentence@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "686fff9c-059e-489b-9c71-95e73609cd57",
+      "timestamp": 1775276553.64043
+    }
+  ],
+  "lastUpdateTime": 1775276553.64043
+}
