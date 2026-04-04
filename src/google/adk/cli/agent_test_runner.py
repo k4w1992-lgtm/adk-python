@@ -53,7 +53,10 @@ def get_test_files(target_folder: str | None = None):
         or (agent_dir / "__init__.py").exists()
         or (agent_dir / "root_agent.yaml").exists()
     ):
-      yield agent_dir, test_file
+      if test_file.stem.endswith("_xfail"):
+        yield pytest.param(agent_dir, test_file, marks=pytest.mark.xfail)
+      else:
+        yield agent_dir, test_file
 
 
 class MockModel(BaseLlm):
@@ -63,15 +66,8 @@ class MockModel(BaseLlm):
   response_index: int = -1
 
   @classmethod
-  def create(cls, responses: list[str]):
-    llm_responses = [
-        LlmResponse(
-            content=types.Content(
-                role="model", parts=[types.Part.from_text(text=item)]
-            )
-        )
-        for item in responses
-    ]
+  def create(cls, contents: list[types.Content]):
+    llm_responses = [LlmResponse(content=content) for content in contents]
     return cls(responses=llm_responses)
 
   @classmethod
@@ -191,6 +187,17 @@ def normalize_events(events, is_json=False):
             },
             exclude_none=True,
         )
+
+    if "actions" in d:
+      actions = d["actions"]
+      if isinstance(actions, dict):
+        # Remove empty dicts inside actions
+        for k in list(actions.keys()):
+          if actions[k] == {}:
+            del actions[k]
+        # If actions itself is now empty, remove it!
+        if not actions:
+          del d["actions"]
 
     actions = d.get("actions", {})
     state_delta = actions.get("stateDelta", {}) if actions else {}
@@ -326,13 +333,15 @@ def test_agent_replay(agent_dir, test_file, monkeypatch):
     all_responses = []
     for ev in expected_events:
       if "modelVersion" in ev and "content" in ev:
-        content = ev["content"]
-        if content.get("role") == "model":
-          parts = content.get("parts", [])
-          if parts and "text" in parts[0]:
+        content_dict = ev["content"]
+        if content_dict.get("role") == "model":
+          try:
+            content_obj = types.Content.model_validate(content_dict)
             all_responses.append(
-                {"author": ev.get("author", ""), "text": parts[0]["text"]}
+                {"author": ev.get("author", ""), "content": content_obj}
             )
+          except Exception:
+            pass
 
     mock_responses = []
     current_parallel_base = None
@@ -351,7 +360,7 @@ def test_agent_replay(agent_dir, test_file, monkeypatch):
           current_parallel_items = []
 
         current_parallel_base = base_name
-        current_parallel_items.append((index, resp["text"]))
+        current_parallel_items.append((index, resp["content"]))
       else:
         if current_parallel_base:
           # Flush previous parallel group
@@ -360,7 +369,7 @@ def test_agent_replay(agent_dir, test_file, monkeypatch):
           current_parallel_items = []
           current_parallel_base = None
 
-        mock_responses.append(resp["text"])
+        mock_responses.append(resp["content"])
 
     # Flush last group
     if current_parallel_base:
@@ -368,7 +377,7 @@ def test_agent_replay(agent_dir, test_file, monkeypatch):
       mock_responses.extend([x[1] for x in current_parallel_items])
 
     if mock_responses:
-      mock_model = MockModel.create(responses=mock_responses)
+      mock_model = MockModel.create(contents=mock_responses)
 
       async def mock_gen_async(instance, llm_request, stream=False):
         async for resp in mock_model.generate_content_async(
@@ -382,6 +391,14 @@ def test_agent_replay(agent_dir, test_file, monkeypatch):
       monkeypatch.setattr(BaseLlm, "generate_content_async", mock_gen_async)
       monkeypatch.setattr(Gemini, "generate_content_async", mock_gen_async)
 
+    # Make RequestInput IDs deterministic during replay as well
+    fc_counter = 0
+
+    def get_next_fc_id():
+      nonlocal fc_counter
+      fc_counter += 1
+      return f"fc-{fc_counter}"
+
     runner = (
         InMemoryRunner(app=agent_or_app)
         if isinstance(agent_or_app, App)
@@ -390,6 +407,23 @@ def test_agent_replay(agent_dir, test_file, monkeypatch):
 
     actual_events = []
     first_run_events = runner.run(user_message)
+
+    # Post-process events to inject deterministic function IDs
+    for e in first_run_events:
+      for fc in e.get_function_calls():
+        orig_id = fc.id
+        new_id = get_next_fc_id()
+        fc.id = new_id
+        if e.long_running_tool_ids:
+          e.long_running_tool_ids = {
+              new_id if tid == orig_id else tid
+              for tid in e.long_running_tool_ids
+          }
+        if fc.args:
+          for k, v in fc.args.items():
+            if v == orig_id:
+              fc.args[k] = new_id
+
     actual_events.extend(first_run_events)
 
     for event in events_data[1:]:
@@ -403,6 +437,23 @@ def test_agent_replay(agent_dir, test_file, monkeypatch):
               )
           )
           next_run_events = runner.run(content)
+
+          # Post-process events to inject deterministic function IDs
+          for e in next_run_events:
+            for fc in e.get_function_calls():
+              orig_id = fc.id
+              new_id = get_next_fc_id()
+              fc.id = new_id
+              if e.long_running_tool_ids:
+                e.long_running_tool_ids = {
+                    new_id if tid == orig_id else tid
+                    for tid in e.long_running_tool_ids
+                }
+              if fc.args:
+                for k, v in fc.args.items():
+                  if v == orig_id:
+                    fc.args[k] = new_id
+
           actual_events.extend(next_run_events)
 
     actual_events = [
@@ -499,6 +550,39 @@ def rebuild_tests(folder: str):
         ev_counter += 1
         return res
 
+      fc_counter = 0
+      orig_to_new_id = {}
+
+      # Extract all function call IDs and response IDs from old events
+      old_fc_ids = []
+      old_fr_ids = []
+      for ev in events_data:
+        try:
+          e_obj = AdkEvent.model_validate(ev)
+          for fc in e_obj.get_function_calls():
+            old_fc_ids.append(fc.id)
+
+          if ev.get("author") == "user" and "content" in ev:
+            content = ev["content"]
+            for part in content.get("parts", []):
+              if "functionResponse" in part:
+                old_fr_ids.append(part["functionResponse"]["id"])
+        except Exception:
+          pass
+
+      def get_next_fc_id():
+        nonlocal fc_counter
+        fc_counter += 1
+        new_id = f"fc-{fc_counter}"
+        print(f"DEBUG: get_next_fc_id generated {new_id}")
+        if fc_counter <= len(old_fc_ids):
+          orig_id = old_fc_ids[fc_counter - 1]
+          orig_to_new_id[orig_id] = new_id
+        if fc_counter <= len(old_fr_ids):
+          orig_fr_id = old_fr_ids[fc_counter - 1]
+          orig_to_new_id[orig_fr_id] = new_id
+        return new_id
+
       with (
           mock.patch(
               "google.adk.runners.new_invocation_context_id",
@@ -509,6 +593,17 @@ def rebuild_tests(folder: str):
           ),
       ):
         for msg in user_messages:
+          # Update function response IDs if mapped
+          if msg.parts:
+            for part in msg.parts:
+              if (
+                  part.function_response
+                  and part.function_response.id in orig_to_new_id
+              ):
+                part.function_response.id = orig_to_new_id[
+                    part.function_response.id
+                ]
+
           # Create user event
           user_ev = AdkEvent(
               author="user",
@@ -516,6 +611,30 @@ def rebuild_tests(folder: str):
           )
 
           run_events = runner.run(msg)
+
+          # Post-process events to inject deterministic function IDs
+          for e in run_events:
+            for fc in e.get_function_calls():
+              orig_id = fc.id
+              new_id = get_next_fc_id()
+              fc.id = new_id
+              if e.long_running_tool_ids:
+                e.long_running_tool_ids = {
+                    new_id if tid == orig_id else tid
+                    for tid in e.long_running_tool_ids
+                }
+              if fc.args:
+                for k, v in fc.args.items():
+                  if v == orig_id:
+                    fc.args[k] = new_id
+
+          # Manually persist events to session service to ensure history is available in next turn
+          import asyncio
+
+          for e in run_events:
+            asyncio.run(
+                runner.runner.session_service.append_event(runner.session, e)
+            )
 
           # Set invocation_id from runner's output if available
           if run_events:
@@ -565,3 +684,12 @@ def rebuild_tests(folder: str):
       print(f"Error rebuilding {test_file}: {e}")
     finally:
       sys.path = sys_path_saved
+
+
+if __name__ == "__main__":
+  import sys
+
+  if len(sys.argv) > 1:
+    rebuild_tests(sys.argv[1])
+  else:
+    print("Usage: python agent_test_runner.py <folder>")

@@ -1,0 +1,281 @@
+{
+  "id": "cbd1b977-915d-4000-a8f8-f1c747fd3d0e",
+  "appName": "request_input",
+  "userId": "user",
+  "state": {
+    "__session_metadata__": {
+      "displayName": "phone broke"
+    },
+    "complaint": "phone broke",
+    "feedback": "shorter",
+    "draft": "Subject: Regarding Your Phone Issue\n\nDear [Customer Name],\n\nI'm sorry to hear your phone has broken. I understand how inconvenient this must be.\n\nTo help us investigate and find the best solution for you, please reply with details about your phone (model, purchase date) and what happened. If you have an order number, please include that too.\n\nWe're ready to assist you further once we have this information.\n\nSincerely,\n[Your Name/Company Support Team]"
+  },
+  "events": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "phone broke"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "user",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-1"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "request_input",
+      "actions": {
+        "stateDelta": {
+          "complaint": "phone broke",
+          "feedback": ""
+        }
+      },
+      "nodeInfo": {
+        "path": "request_input@1/process_input@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-3"
+    },
+    {
+      "modelVersion": "gemini-2.5-flash",
+      "content": {
+        "parts": [
+          {
+            "text": "Subject: Regarding Your Phone Issue\n\nDear [Customer Name],\n\nThank you for reaching out to us. I'm very sorry to hear that your phone has broken, and I understand how frustrating and inconvenient this must be for you.\n\nTo help us understand the situation and determine the best way to assist you, could you please provide us with a few more details? It would be very helpful if you could tell us:\n\n*   **What is the make and model of your phone?**\n*   **When and where was the phone purchased?** (An approximate date is fine if you don't have the exact one.)\n*   **Could you describe what happened when the phone broke?** (e.g., dropped it, stopped working suddenly, screen cracked, won't turn on, etc.)\n*   **What is the current state of the phone?** (e.g., does it still turn on, is the screen completely black, etc.)\n\nOnce we have this information, we will be able to review your warranty status and guide you through the available options, such as troubleshooting, repair, or replacement.\n\nPlease reply to this email with the requested details, or if you prefer to speak with someone directly, you can call us at [Your Phone Number] during our business hours.\n\nWe look forward to helping you resolve this as quickly as possible.\n\nSincerely,\n\n[Your Name/Customer Service Team]\n[Your Company Name]"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "draft_email",
+      "nodeInfo": {
+        "path": "request_input@1/draft_email@1/call_llm@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "messageAsOutput": true
+      },
+      "branch": "node:request_input@1/draft_email@1.draft_email",
+      "id": "e-5"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "request_input",
+      "actions": {
+        "stateDelta": {
+          "draft": "Subject: Regarding Your Phone Issue\n\nDear [Customer Name],\n\nThank you for reaching out to us. I'm very sorry to hear that your phone has broken, and I understand how frustrating and inconvenient this must be for you.\n\nTo help us understand the situation and determine the best way to assist you, could you please provide us with a few more details? It would be very helpful if you could tell us:\n\n*   **What is the make and model of your phone?**\n*   **When and where was the phone purchased?** (An approximate date is fine if you don't have the exact one.)\n*   **Could you describe what happened when the phone broke?** (e.g., dropped it, stopped working suddenly, screen cracked, won't turn on, etc.)\n*   **What is the current state of the phone?** (e.g., does it still turn on, is the screen completely black, etc.)\n\nOnce we have this information, we will be able to review your warranty status and guide you through the available options, such as troubleshooting, repair, or replacement.\n\nPlease reply to this email with the requested details, or if you prefer to speak with someone directly, you can call us at [Your Phone Number] during our business hours.\n\nWe look forward to helping you resolve this as quickly as possible.\n\nSincerely,\n\n[Your Name/Customer Service Team]\n[Your Company Name]"
+        }
+      },
+      "output": "Subject: Regarding Your Phone Issue\n\nDear [Customer Name],\n\nThank you for reaching out to us. I'm very sorry to hear that your phone has broken, and I understand how frustrating and inconvenient this must be for you.\n\nTo help us understand the situation and determine the best way to assist you, could you please provide us with a few more details? It would be very helpful if you could tell us:\n\n*   **What is the make and model of your phone?**\n*   **When and where was the phone purchased?** (An approximate date is fine if you don't have the exact one.)\n*   **Could you describe what happened when the phone broke?** (e.g., dropped it, stopped working suddenly, screen cracked, won't turn on, etc.)\n*   **What is the current state of the phone?** (e.g., does it still turn on, is the screen completely black, etc.)\n\nOnce we have this information, we will be able to review your warranty status and guide you through the available options, such as troubleshooting, repair, or replacement.\n\nPlease reply to this email with the requested details, or if you prefer to speak with someone directly, you can call us at [Your Phone Number] during our business hours.\n\nWe look forward to helping you resolve this as quickly as possible.\n\nSincerely,\n\n[Your Name/Customer Service Team]\n[Your Company Name]",
+      "nodeInfo": {
+        "path": "request_input@1/draft_email@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "request_input@1/draft_email@1"
+        ]
+      },
+      "id": "e-6"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionCall": {
+              "id": "fc-1",
+              "args": {
+                "interrupt_id": "fc-1",
+                "payload": null,
+                "message": "Please review the following draft email and provide 'approve', 'reject', or feedback to revise.\n\n---\nSubject: Regarding Your Phone Issue\n\nDear [Customer Name],\n\nThank you for reaching out to us. I'm very sorry to hear that your phone has broken, and I understand how frustrating and inconvenient this must be for you.\n\nTo help us understand the situation and determine the best way to assist you, could you please provide us with a few more details? It would be very helpful if you could tell us:\n\n*   **What is the make and model of your phone?**\n*   **When and where was the phone purchased?** (An approximate date is fine if you don't have the exact one.)\n*   **Could you describe what happened when the phone broke?** (e.g., dropped it, stopped working suddenly, screen cracked, won't turn on, etc.)\n*   **What is the current state of the phone?** (e.g., does it still turn on, is the screen completely black, etc.)\n\nOnce we have this information, we will be able to review your warranty status and guide you through the available options, such as troubleshooting, repair, or replacement.\n\nPlease reply to this email with the requested details, or if you prefer to speak with someone directly, you can call us at [Your Phone Number] during our business hours.\n\nWe look forward to helping you resolve this as quickly as possible.\n\nSincerely,\n\n[Your Name/Customer Service Team]\n[Your Company Name]\n---",
+                "response_schema": null
+              },
+              "name": "adk_request_input"
+            }
+          }
+        ]
+      },
+      "invocationId": "i-1",
+      "author": "request_input",
+      "nodeInfo": {
+        "path": "request_input@1/request_human_review@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "longRunningToolIds": [
+        "fc-1"
+      ],
+      "id": "e-7"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionResponse": {
+              "id": "fc-1",
+              "name": "adk_request_input",
+              "response": {
+                "result": "shorter"
+              }
+            }
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "user",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-8"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "request_input",
+      "actions": {
+        "stateDelta": {
+          "feedback": "shorter"
+        },
+        "route": "revise"
+      },
+      "nodeInfo": {
+        "path": "request_input@1/handle_human_review@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-10"
+    },
+    {
+      "modelVersion": "gemini-2.5-flash",
+      "content": {
+        "parts": [
+          {
+            "text": "Okay, I have incorporated the manager's feedback (\"shorter\") and revised the email.\n\nSubject: Regarding Your Phone Issue\n\nDear [Customer Name],\n\nThank you for reaching out. I'm sorry to hear your phone broke \u2013 I understand how frustrating this can be.\n\nTo help us assist you, please provide a few more details:\n\n*   **Make and model of your phone?**\n*   **When and where was it purchased?** (Approximate date is fine.)\n*   **What happened when it broke?** (e.g., dropped, stopped suddenly, screen cracked, won't turn on)\n*   **What is its current state?** (e.g., turns on, screen black)\n\nWith this information, we can check your warranty and discuss the best options for repair or replacement.\n\nPlease reply to this email, or call us directly at [Your Phone Number].\n\nWe're here to help you resolve this quickly.\n\nSincerely,\n\n[Your Name/Customer Service Team]\n[Your Company Name]"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "draft_email",
+      "nodeInfo": {
+        "path": "request_input@1/draft_email@1/call_llm@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "messageAsOutput": true
+      },
+      "branch": "node:request_input@1/draft_email@1.draft_email",
+      "id": "e-12"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "request_input",
+      "actions": {
+        "stateDelta": {
+          "draft": "Okay, I have incorporated the manager's feedback (\"shorter\") and revised the email.\n\nSubject: Regarding Your Phone Issue\n\nDear [Customer Name],\n\nThank you for reaching out. I'm sorry to hear your phone broke \u2013 I understand how frustrating this can be.\n\nTo help us assist you, please provide a few more details:\n\n*   **Make and model of your phone?**\n*   **When and where was it purchased?** (Approximate date is fine.)\n*   **What happened when it broke?** (e.g., dropped, stopped suddenly, screen cracked, won't turn on)\n*   **What is its current state?** (e.g., turns on, screen black)\n\nWith this information, we can check your warranty and discuss the best options for repair or replacement.\n\nPlease reply to this email, or call us directly at [Your Phone Number].\n\nWe're here to help you resolve this quickly.\n\nSincerely,\n\n[Your Name/Customer Service Team]\n[Your Company Name]"
+        }
+      },
+      "output": "Okay, I have incorporated the manager's feedback (\"shorter\") and revised the email.\n\nSubject: Regarding Your Phone Issue\n\nDear [Customer Name],\n\nThank you for reaching out. I'm sorry to hear your phone broke \u2013 I understand how frustrating this can be.\n\nTo help us assist you, please provide a few more details:\n\n*   **Make and model of your phone?**\n*   **When and where was it purchased?** (Approximate date is fine.)\n*   **What happened when it broke?** (e.g., dropped, stopped suddenly, screen cracked, won't turn on)\n*   **What is its current state?** (e.g., turns on, screen black)\n\nWith this information, we can check your warranty and discuss the best options for repair or replacement.\n\nPlease reply to this email, or call us directly at [Your Phone Number].\n\nWe're here to help you resolve this quickly.\n\nSincerely,\n\n[Your Name/Customer Service Team]\n[Your Company Name]",
+      "nodeInfo": {
+        "path": "request_input@1/draft_email@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "request_input@1/draft_email@1"
+        ]
+      },
+      "id": "e-13"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionCall": {
+              "id": "fc-2",
+              "args": {
+                "interrupt_id": "fc-2",
+                "payload": null,
+                "message": "Please review the following draft email and provide 'approve', 'reject', or feedback to revise.\n\n---\nOkay, I have incorporated the manager's feedback (\"shorter\") and revised the email.\n\nSubject: Regarding Your Phone Issue\n\nDear [Customer Name],\n\nThank you for reaching out. I'm sorry to hear your phone broke \u2013 I understand how frustrating this can be.\n\nTo help us assist you, please provide a few more details:\n\n*   **Make and model of your phone?**\n*   **When and where was it purchased?** (Approximate date is fine.)\n*   **What happened when it broke?** (e.g., dropped, stopped suddenly, screen cracked, won't turn on)\n*   **What is its current state?** (e.g., turns on, screen black)\n\nWith this information, we can check your warranty and discuss the best options for repair or replacement.\n\nPlease reply to this email, or call us directly at [Your Phone Number].\n\nWe're here to help you resolve this quickly.\n\nSincerely,\n\n[Your Name/Customer Service Team]\n[Your Company Name]\n---",
+                "response_schema": null
+              },
+              "name": "adk_request_input"
+            }
+          }
+        ]
+      },
+      "invocationId": "i-1",
+      "author": "request_input",
+      "nodeInfo": {
+        "path": "request_input@1/request_human_review@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "longRunningToolIds": [
+        "fc-2"
+      ],
+      "id": "e-14"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionResponse": {
+              "id": "fc-2",
+              "name": "adk_request_input",
+              "response": {
+                "result": "approve"
+              }
+            }
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "user",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-15"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "request_input",
+      "actions": {
+        "route": "approved"
+      },
+      "nodeInfo": {
+        "path": "request_input@1/handle_human_review@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-17"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Draft approved and sent successfully."
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "request_input",
+      "nodeInfo": {
+        "path": "request_input@1/send_email@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-18"
+    }
+  ]
+}

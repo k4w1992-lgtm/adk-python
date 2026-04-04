@@ -19,12 +19,6 @@
       },
       "invocationId": "i-1",
       "author": "user",
-      "actions": {
-        "stateDelta": {},
-        "artifactDelta": {},
-        "requestedAuthConfigs": {},
-        "requestedToolConfirmations": {}
-      },
       "nodeInfo": {
         "path": "",
         "runId": ""
@@ -42,12 +36,6 @@
       },
       "invocationId": "i-1",
       "author": "message",
-      "actions": {
-        "stateDelta": {},
-        "artifactDelta": {},
-        "requestedAuthConfigs": {},
-        "requestedToolConfirmations": {}
-      },
       "nodeInfo": {
         "path": "message@1/send_string@1",
         "runId": "1",
@@ -59,7 +47,7 @@
       "content": {
         "parts": [
           {
-            "text": "#2 Here is a multi-modal message with an inline image (red square):"
+            "text": "#2 Here is a multi-modal message with an inline image (red circle):"
           },
           {
             "inlineData": {
@@ -72,12 +60,6 @@
       },
       "invocationId": "i-1",
       "author": "message",
-      "actions": {
-        "stateDelta": {},
-        "artifactDelta": {},
-        "requestedAuthConfigs": {},
-        "requestedToolConfirmations": {}
-      },
       "nodeInfo": {
         "path": "message@1/send_multimodal@1",
         "runId": "1",
@@ -96,12 +78,6 @@
       },
       "invocationId": "i-1",
       "author": "message",
-      "actions": {
-        "stateDelta": {},
-        "artifactDelta": {},
-        "requestedAuthConfigs": {},
-        "requestedToolConfirmations": {}
-      },
       "nodeInfo": {
         "path": "message@1/multiple_messages@1",
         "runId": "1",
@@ -120,12 +96,6 @@
       },
       "invocationId": "i-1",
       "author": "message",
-      "actions": {
-        "stateDelta": {},
-        "artifactDelta": {},
-        "requestedAuthConfigs": {},
-        "requestedToolConfirmations": {}
-      },
       "nodeInfo": {
         "path": "message@1/multiple_messages@1",
         "runId": "1",
@@ -144,12 +114,6 @@
       },
       "invocationId": "i-1",
       "author": "message",
-      "actions": {
-        "stateDelta": {},
-        "artifactDelta": {},
-        "requestedAuthConfigs": {},
-        "requestedToolConfirmations": {}
-      },
       "nodeInfo": {
         "path": "message@1/multiple_messages@1",
         "runId": "1",
@@ -168,12 +132,6 @@
       },
       "invocationId": "i-1",
       "author": "message",
-      "actions": {
-        "stateDelta": {},
-        "artifactDelta": {},
-        "requestedAuthConfigs": {},
-        "requestedToolConfirmations": {}
-      },
       "nodeInfo": {
         "path": "message@1/multiple_messages@1",
         "runId": "1",
@@ -192,12 +150,6 @@
       },
       "invocationId": "i-1",
       "author": "message",
-      "actions": {
-        "stateDelta": {},
-        "artifactDelta": {},
-        "requestedAuthConfigs": {},
-        "requestedToolConfirmations": {}
-      },
       "nodeInfo": {
         "path": "message@1/stream_sentence@1",
         "runId": "1",
