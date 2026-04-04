@@ -127,14 +127,15 @@ class NodeRunner:
           ctx.error_node_path = e.error_node_path
           return ctx
 
-        if not await self._attempt_retry(e, ctx, retry_count):
-          from ..events.event import Event
+        from ..events.event import Event
 
-          error_event = Event(
-              error_code=type(e).__name__,
-              error_message=str(e),
-          )
-          await self._enqueue_event(error_event, ctx)
+        error_event = Event(
+            error_code=type(e).__name__,
+            error_message=str(e),
+        )
+        await self._enqueue_event(error_event, ctx)
+
+        if not await self._attempt_retry(e, ctx, retry_count):
           ctx.error = e
           ctx.error_node_path = ctx.node_path
           return ctx
@@ -160,17 +161,6 @@ class NodeRunner:
       return False
 
     delay = _get_retry_delay(self._node.retry_config, node_state)
-
-    # Yield a retry event
-    from ..events.event import Event
-
-    event = Event(
-        message=(
-            f"Node {self._node.name} failed with {type(e).__name__}."
-            f" Retrying in {delay:.2f}s (attempt {retry_count + 1})"
-        )
-    )
-    await self._enqueue_event(event, ctx)
 
     await asyncio.sleep(delay)
     return True

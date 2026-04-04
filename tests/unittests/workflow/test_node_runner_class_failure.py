@@ -374,8 +374,9 @@ async def test_node_stops_retrying_after_max_attempts(
       for e in events
       if isinstance(e, Event) and e.error_code == 'CustomRetryableError'
   ]
-  assert len(error_events) == 1
-  assert error_events[0].error_message == 'Persisted failure'
+  assert len(error_events) == 3
+  for err in error_events:
+    assert err.error_message == 'Persisted failure'
 
   results = simplify_events_with_node(events)
   filtered_results = [
@@ -1005,7 +1006,6 @@ async def test_error_event_emitted_on_failure(
   assert error_events[0].error_message == 'Something went wrong'
 
 
-@pytest.mark.xfail(reason='support error event for node later')
 @pytest.mark.asyncio
 async def test_error_event_emitted_on_each_retry(
     request: pytest.FixtureRequest,
@@ -1032,11 +1032,17 @@ async def test_error_event_emitted_on_each_retry(
       ],
   )
 
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, agent, resumable=True
-  )
+  ss = InMemorySessionService()
+  runner = Runner(app_name=agent.name, node=agent, session_service=ss)
+  session = await ss.create_session(app_name=agent.name, user_id='u')
+  msg = types.Content(parts=[types.Part(text='start')], role='user')
+  events = []
 
-  events = [e async for e in agent.run_async(ctx)]
+  # When the workflow is executed
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg
+  ):
+    events.append(event)
 
   # Two failures before success → two error events.
   error_events = [
@@ -1052,7 +1058,13 @@ async def test_error_event_emitted_on_each_retry(
     assert err.error_message == 'Transient error'
 
   # The node should still produce its output after retries.
-  assert simplify_events_with_node(events) == [
+  results = simplify_events_with_node(events)
+  filtered_results = [
+      r
+      for r in results
+      if not (isinstance(r[1], str) and 'Retrying in' in r[1])
+  ]
+  assert filtered_results == [
       (
           'test_error_event_retry',
           {'node_name': 'FlakyNode', 'output': 'Success'},
