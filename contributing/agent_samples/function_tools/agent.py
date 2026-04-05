@@ -19,6 +19,8 @@ import random
 
 from google.adk.agents import Agent
 
+_counter = 0
+
 
 def generate_random_number(max_value: int = 100) -> int:
   """Generates a random integer between 0 and max_value (inclusive).
@@ -29,9 +31,11 @@ def generate_random_number(max_value: int = 100) -> int:
   Returns:
       A random integer between 0 and max_value.
   """
-  # Return a fixed value in tests to ensure determinism.
+  # Return a growing value in tests to ensure determinism while allowing multiple calls.
   if "PYTEST_CURRENT_TEST" in os.environ:
-    return 42
+    global _counter
+    _counter += 1
+    return _counter
   return random.randint(0, max_value)
 
 

@@ -48,7 +48,7 @@
               "id": "fc-1",
               "name": "generate_random_number",
               "response": {
-                "result": 42
+                "result": 1
               }
             }
           }
@@ -67,7 +67,7 @@
       "content": {
         "parts": [
           {
-            "text": "Here is a random number: 42.\n"
+            "text": "Here is a random number: 1. \n"
           }
         ],
         "role": "model"

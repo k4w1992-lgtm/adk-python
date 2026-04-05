@@ -1012,7 +1012,7 @@ class AdkWebServer:
             "pytest",
             os.path.join(os.path.dirname(__file__), "agent_test_runner.py"),
             "-s",
-            "-v",
+            "-vv",
         ]
         if test_name:
           name_to_use = (

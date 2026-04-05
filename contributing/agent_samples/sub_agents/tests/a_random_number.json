@@ -4,7 +4,7 @@
       "content": {
         "parts": [
           {
-            "text": "a random number and check even"
+            "text": "a random number"
           }
         ],
         "role": "user"
@@ -23,8 +23,10 @@
           {
             "functionCall": {
               "id": "fc-1",
-              "args": {},
-              "name": "generate_random_number"
+              "args": {
+                "agent_name": "random_number_agent"
+              },
+              "name": "transfer_to_agent"
             }
           }
         ],
@@ -32,7 +34,7 @@
       },
       "finishReason": "STOP",
       "invocationId": "i-1",
-      "author": "function_tools",
+      "author": "sub_agents",
       "nodeInfo": {
         "path": "",
         "runId": ""
@@ -46,9 +48,9 @@
           {
             "functionResponse": {
               "id": "fc-1",
-              "name": "generate_random_number",
+              "name": "transfer_to_agent",
               "response": {
-                "result": 2
+                "result": null
               }
             }
           }
@@ -56,7 +58,10 @@
         "role": "user"
       },
       "invocationId": "i-1",
-      "author": "function_tools",
+      "author": "sub_agents",
+      "actions": {
+        "transferToAgent": "random_number_agent"
+      },
       "nodeInfo": {
         "path": "",
         "runId": ""
@@ -69,10 +74,8 @@
           {
             "functionCall": {
               "id": "fc-2",
-              "args": {
-                "number": 2
-              },
-              "name": "is_even"
+              "args": {},
+              "name": "generate_random_number"
             }
           }
         ],
@@ -80,13 +83,13 @@
       },
       "finishReason": "STOP",
       "invocationId": "i-1",
-      "author": "function_tools",
+      "author": "random_number_agent",
       "nodeInfo": {
         "path": "",
         "runId": ""
       },
       "longRunningToolIds": [],
-      "id": "e-7"
+      "id": "e-9"
     },
     {
       "content": {
@@ -94,9 +97,9 @@
           {
             "functionResponse": {
               "id": "fc-2",
-              "name": "is_even",
+              "name": "generate_random_number",
               "response": {
-                "result": true
+                "result": 1
               }
             }
           }
@@ -104,30 +107,30 @@
         "role": "user"
       },
       "invocationId": "i-1",
-      "author": "function_tools",
+      "author": "random_number_agent",
       "nodeInfo": {
         "path": "",
         "runId": ""
       },
-      "id": "e-9"
+      "id": "e-12"
     },
     {
       "content": {
         "parts": [
           {
-            "text": "The random number is 2, and it is even."
+            "text": "Here is a random number: 1."
           }
         ],
         "role": "model"
       },
       "finishReason": "STOP",
       "invocationId": "i-1",
-      "author": "function_tools",
+      "author": "random_number_agent",
       "nodeInfo": {
         "path": "",
         "runId": ""
       },
-      "id": "e-11"
+      "id": "e-17"
     }
   ]
 }
