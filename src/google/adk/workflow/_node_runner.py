@@ -22,6 +22,7 @@ needed during workflow execution.
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 from typing import AsyncGenerator
 from typing import Callable
@@ -49,6 +50,8 @@ from .utils._node_path_utils import is_descendant
 from .utils._node_path_utils import is_direct_child
 from .utils._node_path_utils import join_paths
 from .utils._workflow_hitl_utils import create_request_input_event
+
+logger = logging.getLogger('google_adk.' + __name__)
 
 
 def _schedule_node(
@@ -195,9 +198,7 @@ def _schedule_dynamic_node(
       future.set_result(output)
       return future
     elif node_state.status == NodeStatus.FAILED:
-      future.set_exception(
-          Exception(f'Node run ({run_id}) failed.')
-      )
+      future.set_exception(Exception(f'Node run ({run_id}) failed.'))
       return future
     elif node_state.status == NodeStatus.WAITING:
       run_state.dynamic_futures[node_name] = future
@@ -298,6 +299,7 @@ def _create_error_event(
     exception: Exception,
 ) -> Event:
   """Creates an error event for a failed node run."""
+  logger.error('Exception caught in node execution', exc_info=exception)
   return enrich_event(
       Event(
           error_code=type(exception).__name__,
@@ -347,9 +349,7 @@ async def _node_runner(
   # Capture dynamic node metadata once for tagging events.
   _node_state = run_state.agent_state.nodes.get(node_name)
   _source_node_name = _node_state.source_node_name if _node_state else None
-  _parent_run_id = (
-      _node_state.parent_run_id if _node_state else None
-  )
+  _parent_run_id = _node_state.parent_run_id if _node_state else None
 
   # Create a closure for schedule_dynamic_node that captures run_state
   def make_schedule_dynamic_node():
