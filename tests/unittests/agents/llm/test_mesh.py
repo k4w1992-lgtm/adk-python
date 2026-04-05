@@ -619,7 +619,7 @@ class TestFindAgentToRun:
   @pytest.mark.asyncio
   async def test_skips_loop_agent_node(self):
     """LoopAgent nodes are skipped — exit_loop means the loop completed."""
-    from google.adk.agents.loop_agent import LoopAgent
+    from google.adk.agents.llm_agent_workflow.loop_agent import LoopAgent
 
     coord = StubNode(name='parent')
     loop = LoopAgent(name='loop_child', sub_agents=[])

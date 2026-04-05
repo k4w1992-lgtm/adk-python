@@ -18,7 +18,7 @@ from google.adk.agents.base_agent import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.invocation_context import InvocationContext as BaseInvocationContext
 from google.adk.agents.llm_agent_workflow.loop_agent import _DEFAULT_ROUTE
-from google.adk.agents.loop_agent import LoopAgent
+from google.adk.agents.llm_agent_workflow.loop_agent import LoopAgent
 from google.adk.apps.app import ResumabilityConfig
 from google.adk.events.event import Event
 from google.adk.events.event_actions import EventActions

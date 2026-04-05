@@ -617,7 +617,7 @@ class _Mesh(Node):
       # return at the end). This only affects the completion case;
       # interrupt/resume inside a LoopAgent is handled by Strategy 1
       # (function response matching), not Strategy 3.
-      from ..loop_agent import LoopAgent
+      from ..llm_agent_workflow.loop_agent import LoopAgent
 
       if isinstance(node, LoopAgent):
         continue

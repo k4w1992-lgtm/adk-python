@@ -20,8 +20,8 @@ from typing import AsyncGenerator
 from google.adk.agents.base_agent import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.invocation_context import InvocationContext as BaseInvocationContext
-from google.adk.agents.parallel_agent import ParallelAgent
-from google.adk.agents.sequential_agent import SequentialAgent
+from google.adk.agents.llm_agent_workflow.parallel_agent import ParallelAgent
+from google.adk.agents.llm_agent_workflow.sequential_agent import SequentialAgent
 from google.adk.apps.app import ResumabilityConfig
 from google.adk.events.event import Event
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
