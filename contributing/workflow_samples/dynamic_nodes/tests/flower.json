@@ -46,77 +46,48 @@
       "id": "e-3"
     },
     {
-      "modelVersion": "gemini-2.5-flash",
       "content": {
         "parts": [
           {
-            "text": "**A Blooming Delight: Exploring the World of Flowers**"
+            "text": "**Bloom & Bliss: A World of Flowers**"
           }
         ],
         "role": "model"
       },
       "finishReason": "STOP",
       "invocationId": "i-1",
-      "author": "generate_headline",
-      "nodeInfo": {
-        "path": "root_agent@1/orchestrate@1/generate_headline@1/call_llm@1",
-        "runId": "1",
-        "parentRunId": "1",
-        "messageAsOutput": true
-      },
-      "branch": "node:root_agent@1/orchestrate@1/generate_headline@1.generate_headline",
-      "id": "e-5"
-    },
-    {
-      "invocationId": "i-1",
       "author": "root_agent",
-      "output": "**A Blooming Delight: Exploring the World of Flowers**",
       "nodeInfo": {
         "path": "root_agent@1/orchestrate@1/generate_headline@1",
         "runId": "1",
         "parentRunId": "1",
         "outputFor": [
           "root_agent@1/orchestrate@1/generate_headline@1"
-        ]
+        ],
+        "messageAsOutput": true
       },
-      "id": "e-6"
+      "branch": "node:root_agent@1/orchestrate@1/generate_headline@1.generate_headline",
+      "id": "e-4"
     },
     {
-      "modelVersion": "gemini-2.5-flash",
       "content": {
         "parts": [
           {
-            "text": "{\"grade\": \"unrelated\", \"feedback\": \"To make this headline more tech-focused, consider incorporating elements like 'AI in botany,' 'computational floral design,' 'robotics for horticulture,' 'data science in plant biology,' or 'virtual reality botanical gardens.' Alternatively, choose a topic directly related to software engineering or general technology.\"}"
+            "text": "{\"grade\": \"unrelated\", \"feedback\": \"To make this headline more tech-focused, consider adding elements like 'AI-powered floral design,' 'virtual reality garden,' 'e-commerce platform for florists,' or 'sustainable tech in horticulture.'\"}"
           }
         ],
         "role": "model"
       },
       "finishReason": "STOP",
       "invocationId": "i-1",
-      "author": "evaluate_headline",
-      "nodeInfo": {
-        "path": "root_agent@1/orchestrate@1/evaluate_headline@1/call_llm@1",
-        "runId": "1",
-        "parentRunId": "1",
-        "messageAsOutput": true
-      },
-      "branch": "node:root_agent@1/orchestrate@1/evaluate_headline@1.evaluate_headline",
-      "id": "e-9"
-    },
-    {
-      "invocationId": "i-1",
       "author": "root_agent",
       "actions": {
         "stateDelta": {
           "feedback": {
             "grade": "unrelated",
-            "feedback": "To make this headline more tech-focused, consider incorporating elements like 'AI in botany,' 'computational floral design,' 'robotics for horticulture,' 'data science in plant biology,' or 'virtual reality botanical gardens.' Alternatively, choose a topic directly related to software engineering or general technology."
+            "feedback": "To make this headline more tech-focused, consider adding elements like 'AI-powered floral design,' 'virtual reality garden,' 'e-commerce platform for florists,' or 'sustainable tech in horticulture.'"
           }
         }
-      },
-      "output": {
-        "grade": "unrelated",
-        "feedback": "To make this headline more tech-focused, consider incorporating elements like 'AI in botany,' 'computational floral design,' 'robotics for horticulture,' 'data science in plant biology,' or 'virtual reality botanical gardens.' Alternatively, choose a topic directly related to software engineering or general technology."
       },
       "nodeInfo": {
         "path": "root_agent@1/orchestrate@1/evaluate_headline@1",
@@ -124,82 +95,55 @@
         "parentRunId": "1",
         "outputFor": [
           "root_agent@1/orchestrate@1/evaluate_headline@1"
-        ]
+        ],
+        "messageAsOutput": true
       },
-      "id": "e-10"
+      "branch": "node:root_agent@1/orchestrate@1/evaluate_headline@1.evaluate_headline",
+      "id": "e-7"
     },
     {
-      "modelVersion": "gemini-2.5-flash",
       "content": {
         "parts": [
           {
-            "text": "Blooming Bytes: The Rise of AI in Floral Design and Horticulture"
+            "text": "AI Blooms: How Tech is Cultivating the Next Generation of Floral Design"
           }
         ],
         "role": "model"
       },
       "finishReason": "STOP",
       "invocationId": "i-1",
-      "author": "generate_headline",
-      "nodeInfo": {
-        "path": "root_agent@1/orchestrate@1/generate_headline@2/call_llm@1",
-        "runId": "1",
-        "parentRunId": "2",
-        "messageAsOutput": true
-      },
-      "branch": "node:root_agent@1/orchestrate@1/generate_headline@2.generate_headline",
-      "id": "e-12"
-    },
-    {
-      "invocationId": "i-1",
       "author": "root_agent",
-      "output": "Blooming Bytes: The Rise of AI in Floral Design and Horticulture",
       "nodeInfo": {
         "path": "root_agent@1/orchestrate@1/generate_headline@2",
         "runId": "2",
         "parentRunId": "1",
         "outputFor": [
           "root_agent@1/orchestrate@1/generate_headline@2"
-        ]
+        ],
+        "messageAsOutput": true
       },
-      "id": "e-13"
+      "branch": "node:root_agent@1/orchestrate@1/generate_headline@2.generate_headline",
+      "id": "e-9"
     },
     {
-      "modelVersion": "gemini-2.5-flash",
       "content": {
         "parts": [
           {
-            "text": "{\"grade\": \"tech-related\", \"feedback\": \"The headline clearly indicates a connection to technology by mentioning AI. No feedback is needed to make it more tech-focused.\"}"
+            "text": "{\"grade\": \"tech-related\", \"feedback\": \"This headline is strongly tech-related, explicitly mentioning AI and Tech.\"}"
           }
         ],
         "role": "model"
       },
       "finishReason": "STOP",
       "invocationId": "i-1",
-      "author": "evaluate_headline",
-      "nodeInfo": {
-        "path": "root_agent@1/orchestrate@1/evaluate_headline@2/call_llm@1",
-        "runId": "1",
-        "parentRunId": "2",
-        "messageAsOutput": true
-      },
-      "branch": "node:root_agent@1/orchestrate@1/evaluate_headline@2.evaluate_headline",
-      "id": "e-16"
-    },
-    {
-      "invocationId": "i-1",
       "author": "root_agent",
       "actions": {
         "stateDelta": {
           "feedback": {
             "grade": "tech-related",
-            "feedback": "The headline clearly indicates a connection to technology by mentioning AI. No feedback is needed to make it more tech-focused."
+            "feedback": "This headline is strongly tech-related, explicitly mentioning AI and Tech."
           }
         }
-      },
-      "output": {
-        "grade": "tech-related",
-        "feedback": "The headline clearly indicates a connection to technology by mentioning AI. No feedback is needed to make it more tech-focused."
       },
       "nodeInfo": {
         "path": "root_agent@1/orchestrate@1/evaluate_headline@2",
@@ -207,14 +151,16 @@
         "parentRunId": "1",
         "outputFor": [
           "root_agent@1/orchestrate@1/evaluate_headline@2"
-        ]
+        ],
+        "messageAsOutput": true
       },
-      "id": "e-17"
+      "branch": "node:root_agent@1/orchestrate@1/evaluate_headline@2.evaluate_headline",
+      "id": "e-12"
     },
     {
       "invocationId": "i-1",
       "author": "root_agent",
-      "output": "Blooming Bytes: The Rise of AI in Floral Design and Horticulture",
+      "output": "AI Blooms: How Tech is Cultivating the Next Generation of Floral Design",
       "nodeInfo": {
         "path": "root_agent@1/orchestrate@1",
         "runId": "1",
@@ -224,7 +170,7 @@
           "root_agent@1"
         ]
       },
-      "id": "e-18"
+      "id": "e-14"
     }
   ]
 }

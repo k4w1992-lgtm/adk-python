@@ -26,31 +26,17 @@
       "id": "e-1"
     },
     {
-      "modelVersion": "gemini-2.5-flash",
       "content": {
         "parts": [
           {
-            "text": "The provided text is the single word \"go\"."
+            "text": "Please provide the text you would like me to summarize."
           }
         ],
         "role": "model"
       },
       "finishReason": "STOP",
       "invocationId": "i-1",
-      "author": "summarizer",
-      "nodeInfo": {
-        "path": "root_agent@1/orchestrate@1/summarizer@1/call_llm@1",
-        "runId": "1",
-        "parentRunId": "1",
-        "messageAsOutput": true
-      },
-      "branch": "node:root_agent@1/orchestrate@1/summarizer@1.summarizer",
-      "id": "e-5"
-    },
-    {
-      "invocationId": "i-1",
       "author": "root_agent",
-      "output": "The provided text is the single word \"go\".",
       "nodeInfo": {
         "path": "root_agent@1/orchestrate@1/summarizer@1",
         "runId": "1",
@@ -58,14 +44,16 @@
         "outputFor": [
           "root_agent@1/orchestrate@1/summarizer@1",
           "root_agent@1/orchestrate@1"
-        ]
+        ],
+        "messageAsOutput": true
       },
-      "id": "e-6"
+      "branch": "node:root_agent@1/orchestrate@1/summarizer@1.summarizer",
+      "id": "e-4"
     },
     {
       "invocationId": "i-1",
       "author": "root_agent",
-      "output": "final: The provided text is the single word \"go\".",
+      "output": "final: Please provide the text you would like me to summarize.",
       "nodeInfo": {
         "path": "root_agent@1/finalize@1",
         "runId": "1",
@@ -75,7 +63,7 @@
           "root_agent@1"
         ]
       },
-      "id": "e-8"
+      "id": "e-7"
     }
   ]
 }

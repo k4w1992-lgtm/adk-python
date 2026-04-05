@@ -19,12 +19,6 @@
       },
       "invocationId": "i-1",
       "author": "user",
-      "actions": {
-        "stateDelta": {},
-        "artifactDelta": {},
-        "requestedAuthConfigs": {},
-        "requestedToolConfirmations": {}
-      },
       "nodeInfo": {
         "path": "",
         "runId": ""
@@ -34,12 +28,6 @@
     {
       "invocationId": "i-1",
       "author": "root_agent",
-      "actions": {
-        "stateDelta": {},
-        "artifactDelta": {},
-        "requestedAuthConfigs": {},
-        "requestedToolConfirmations": {}
-      },
       "output": "GO",
       "nodeInfo": {
         "path": "root_agent@1/make_uppercase@1",
@@ -54,12 +42,6 @@
     {
       "invocationId": "i-1",
       "author": "root_agent",
-      "actions": {
-        "stateDelta": {},
-        "artifactDelta": {},
-        "requestedAuthConfigs": {},
-        "requestedToolConfirmations": {}
-      },
       "output": 2,
       "nodeInfo": {
         "path": "root_agent@1/count_characters@1",
@@ -74,12 +56,6 @@
     {
       "invocationId": "i-1",
       "author": "root_agent",
-      "actions": {
-        "stateDelta": {},
-        "artifactDelta": {},
-        "requestedAuthConfigs": {},
-        "requestedToolConfirmations": {}
-      },
       "output": "og",
       "nodeInfo": {
         "path": "root_agent@1/reverse_string@1",
@@ -97,12 +73,9 @@
       "actions": {
         "stateDelta": {
           "root_agent@1/join_for_results@1_join_state": {
-            "count_characters": 2
+            "make_uppercase": "GO"
           }
-        },
-        "artifactDelta": {},
-        "requestedAuthConfigs": {},
-        "requestedToolConfirmations": {}
+        }
       },
       "nodeInfo": {
         "path": "root_agent@1/join_for_results@1",
@@ -117,13 +90,10 @@
       "actions": {
         "stateDelta": {
           "root_agent@1/join_for_results@1_join_state": {
-            "count_characters": 2,
-            "reverse_string": "og"
+            "make_uppercase": "GO",
+            "count_characters": 2
           }
-        },
-        "artifactDelta": {},
-        "requestedAuthConfigs": {},
-        "requestedToolConfirmations": {}
+        }
       },
       "nodeInfo": {
         "path": "root_agent@1/join_for_results@1",
@@ -138,15 +108,12 @@
       "actions": {
         "stateDelta": {
           "root_agent@1/join_for_results@1_join_state": null
-        },
-        "artifactDelta": {},
-        "requestedAuthConfigs": {},
-        "requestedToolConfirmations": {}
+        }
       },
       "output": {
+        "make_uppercase": "GO",
         "count_characters": 2,
-        "reverse_string": "og",
-        "make_uppercase": "GO"
+        "reverse_string": "og"
       },
       "nodeInfo": {
         "path": "root_agent@1/join_for_results@1",
@@ -169,12 +136,6 @@
       },
       "invocationId": "i-1",
       "author": "root_agent",
-      "actions": {
-        "stateDelta": {},
-        "artifactDelta": {},
-        "requestedAuthConfigs": {},
-        "requestedToolConfirmations": {}
-      },
       "nodeInfo": {
         "path": "root_agent@1/aggregate@1",
         "runId": "1",

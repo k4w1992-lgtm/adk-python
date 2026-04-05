@@ -45,7 +45,6 @@
       "id": "e-3"
     },
     {
-      "modelVersion": "gemini-2.5-flash",
       "content": {
         "parts": [
           {
@@ -56,18 +55,6 @@
       },
       "finishReason": "STOP",
       "invocationId": "i-1",
-      "author": "classify_input",
-      "nodeInfo": {
-        "path": "root_agent@1/classify_input@1/call_llm@1",
-        "runId": "1",
-        "parentRunId": "1",
-        "messageAsOutput": true
-      },
-      "branch": "node:root_agent@1/classify_input@1.classify_input",
-      "id": "e-5"
-    },
-    {
-      "invocationId": "i-1",
       "author": "root_agent",
       "actions": {
         "stateDelta": {
@@ -76,18 +63,17 @@
           }
         }
       },
-      "output": {
-        "category": "question"
-      },
       "nodeInfo": {
         "path": "root_agent@1/classify_input@1",
         "runId": "1",
         "parentRunId": "1",
         "outputFor": [
           "root_agent@1/classify_input@1"
-        ]
+        ],
+        "messageAsOutput": true
       },
-      "id": "e-6"
+      "branch": "node:root_agent@1/classify_input@1.classify_input",
+      "id": "e-4"
     },
     {
       "invocationId": "i-1",
@@ -100,34 +86,20 @@
         "runId": "1",
         "parentRunId": "1"
       },
-      "id": "e-7"
+      "id": "e-6"
     },
     {
-      "modelVersion": "gemini-2.5-flash",
       "content": {
         "parts": [
           {
-            "text": "I am an agent. My internal name is \"answer_question\"."
+            "text": "I am a large language model, trained by Google."
           }
         ],
         "role": "model"
       },
       "finishReason": "STOP",
       "invocationId": "i-1",
-      "author": "answer_question",
-      "nodeInfo": {
-        "path": "root_agent@1/answer_question@1/call_llm@1",
-        "runId": "1",
-        "parentRunId": "1",
-        "messageAsOutput": true
-      },
-      "branch": "node:root_agent@1/answer_question@1.answer_question",
-      "id": "e-9"
-    },
-    {
-      "invocationId": "i-1",
       "author": "root_agent",
-      "output": "I am an agent. My internal name is \"answer_question\".",
       "nodeInfo": {
         "path": "root_agent@1/answer_question@1",
         "runId": "1",
@@ -135,9 +107,11 @@
         "outputFor": [
           "root_agent@1/answer_question@1",
           "root_agent@1"
-        ]
+        ],
+        "messageAsOutput": true
       },
-      "id": "e-10"
+      "branch": "node:root_agent@1/answer_question@1.answer_question",
+      "id": "e-7"
     }
   ]
 }

@@ -41,67 +41,41 @@
       "id": "e-3"
     },
     {
-      "modelVersion": "gemini-2.5-flash",
       "content": {
         "parts": [
           {
-            "text": "LeBron James"
+            "text": "Mark Zuckerberg"
           }
         ],
         "role": "model"
       },
       "finishReason": "STOP",
       "invocationId": "i-1",
-      "author": "find_name",
-      "nodeInfo": {
-        "path": "root_agent@1/find_famous_person@1/find_name@1/call_llm@1",
-        "runId": "1",
-        "parentRunId": "1",
-        "messageAsOutput": true
-      },
-      "branch": "node:root_agent@1/find_famous_person@1/find_name@1.find_name",
-      "id": "e-5"
-    },
-    {
-      "invocationId": "i-1",
       "author": "find_famous_person",
-      "output": "LeBron James",
       "nodeInfo": {
         "path": "root_agent@1/find_famous_person@1/find_name@1",
         "runId": "1",
         "parentRunId": "1",
         "outputFor": [
           "root_agent@1/find_famous_person@1/find_name@1"
-        ]
+        ],
+        "messageAsOutput": true
       },
-      "id": "e-6"
+      "branch": "node:root_agent@1/find_famous_person@1/find_name@1.find_name",
+      "id": "e-4"
     },
     {
-      "modelVersion": "gemini-2.5-flash",
       "content": {
         "parts": [
           {
-            "text": "LeBron James is an iconic basketball superstar, widely regarded as one of the greatest players in NBA history due to his unparalleled versatility and leadership. He has led multiple teams to championship titles, earning numerous MVP awards and shattering countless records throughout his illustrious career. Beyond the court, James is a successful businessman and philanthropist, making a significant impact through initiatives like the \"I PROMISE\" school and various community endeavors."
+            "text": "Mark Zuckerberg is widely known as the co-founder and CEO of Meta Platforms, the company behind Facebook, which he launched from his Harvard dorm room in 2004. Under his leadership, Facebook rapidly grew into a global social media phenomenon, profoundly reshaping how billions of people connect and communicate worldwide. Today, Zuckerberg continues to steer Meta's vision toward the metaverse, artificial intelligence, and virtual reality, alongside his philanthropic efforts with the Chan Zuckerberg Initiative."
           }
         ],
         "role": "model"
       },
       "finishReason": "STOP",
       "invocationId": "i-1",
-      "author": "generate_bio",
-      "nodeInfo": {
-        "path": "root_agent@1/find_famous_person@1/generate_bio@1/call_llm@1",
-        "runId": "1",
-        "parentRunId": "1",
-        "messageAsOutput": true
-      },
-      "branch": "node:root_agent@1/find_famous_person@1/generate_bio@1.generate_bio",
-      "id": "e-9"
-    },
-    {
-      "invocationId": "i-1",
       "author": "find_famous_person",
-      "output": "LeBron James is an iconic basketball superstar, widely regarded as one of the greatest players in NBA history due to his unparalleled versatility and leadership. He has led multiple teams to championship titles, earning numerous MVP awards and shattering countless records throughout his illustrious career. Beyond the court, James is a successful businessman and philanthropist, making a significant impact through initiatives like the \"I PROMISE\" school and various community endeavors.",
       "nodeInfo": {
         "path": "root_agent@1/find_famous_person@1/generate_bio@1",
         "runId": "1",
@@ -109,45 +83,35 @@
         "outputFor": [
           "root_agent@1/find_famous_person@1/generate_bio@1",
           "root_agent@1/find_famous_person@1"
-        ]
+        ],
+        "messageAsOutput": true
       },
-      "id": "e-10"
+      "branch": "node:root_agent@1/find_famous_person@1/generate_bio@1.generate_bio",
+      "id": "e-7"
     },
     {
-      "modelVersion": "gemini-2.5-flash",
       "content": {
         "parts": [
           {
-            "text": "On December 3, 1984, a catastrophic gas leak at the Union Carbide pesticide plant in Bhopal, India, released highly toxic methyl isocyanate into the atmosphere. This industrial disaster immediately killed thousands and caused long-term health problems for hundreds of thousands more, becoming one of the world's worst industrial accidents and highlighting issues of corporate accountability and environmental safety."
+            "text": "In December 1984, the Bhopal disaster occurred in India when a Union Carbide pesticide plant leaked methyl isocyanate gas, killing thousands instantly and causing long-term health issues for hundreds of thousands more. This catastrophic industrial accident remains one of the world's worst, profoundly influencing environmental regulations and corporate accountability for chemical safety."
           }
         ],
         "role": "model"
       },
       "finishReason": "STOP",
       "invocationId": "i-1",
-      "author": "find_historical_event",
-      "nodeInfo": {
-        "path": "root_agent@1/find_historical_event@1/call_llm@1",
-        "runId": "1",
-        "parentRunId": "1",
-        "messageAsOutput": true
-      },
-      "branch": "node:root_agent@1/find_historical_event@1.find_historical_event",
-      "id": "e-12"
-    },
-    {
-      "invocationId": "i-1",
       "author": "root_agent",
-      "output": "On December 3, 1984, a catastrophic gas leak at the Union Carbide pesticide plant in Bhopal, India, released highly toxic methyl isocyanate into the atmosphere. This industrial disaster immediately killed thousands and caused long-term health problems for hundreds of thousands more, becoming one of the world's worst industrial accidents and highlighting issues of corporate accountability and environmental safety.",
       "nodeInfo": {
         "path": "root_agent@1/find_historical_event@1",
         "runId": "1",
         "parentRunId": "1",
         "outputFor": [
           "root_agent@1/find_historical_event@1"
-        ]
+        ],
+        "messageAsOutput": true
       },
-      "id": "e-13"
+      "branch": "node:root_agent@1/find_historical_event@1.find_historical_event",
+      "id": "e-9"
     },
     {
       "invocationId": "i-1",
@@ -155,7 +119,7 @@
       "actions": {
         "stateDelta": {
           "root_agent@1/join_for_aggregation@1_join_state": {
-            "find_famous_person": "LeBron James is an iconic basketball superstar, widely regarded as one of the greatest players in NBA history due to his unparalleled versatility and leadership. He has led multiple teams to championship titles, earning numerous MVP awards and shattering countless records throughout his illustrious career. Beyond the court, James is a successful businessman and philanthropist, making a significant impact through initiatives like the \"I PROMISE\" school and various community endeavors."
+            "find_famous_person": "Mark Zuckerberg is widely known as the co-founder and CEO of Meta Platforms, the company behind Facebook, which he launched from his Harvard dorm room in 2004. Under his leadership, Facebook rapidly grew into a global social media phenomenon, profoundly reshaping how billions of people connect and communicate worldwide. Today, Zuckerberg continues to steer Meta's vision toward the metaverse, artificial intelligence, and virtual reality, alongside his philanthropic efforts with the Chan Zuckerberg Initiative."
           }
         }
       },
@@ -164,7 +128,7 @@
         "runId": "1",
         "parentRunId": "1"
       },
-      "id": "e-14"
+      "id": "e-11"
     },
     {
       "invocationId": "i-1",
@@ -175,8 +139,8 @@
         }
       },
       "output": {
-        "find_famous_person": "LeBron James is an iconic basketball superstar, widely regarded as one of the greatest players in NBA history due to his unparalleled versatility and leadership. He has led multiple teams to championship titles, earning numerous MVP awards and shattering countless records throughout his illustrious career. Beyond the court, James is a successful businessman and philanthropist, making a significant impact through initiatives like the \"I PROMISE\" school and various community endeavors.",
-        "find_historical_event": "On December 3, 1984, a catastrophic gas leak at the Union Carbide pesticide plant in Bhopal, India, released highly toxic methyl isocyanate into the atmosphere. This industrial disaster immediately killed thousands and caused long-term health problems for hundreds of thousands more, becoming one of the world's worst industrial accidents and highlighting issues of corporate accountability and environmental safety."
+        "find_famous_person": "Mark Zuckerberg is widely known as the co-founder and CEO of Meta Platforms, the company behind Facebook, which he launched from his Harvard dorm room in 2004. Under his leadership, Facebook rapidly grew into a global social media phenomenon, profoundly reshaping how billions of people connect and communicate worldwide. Today, Zuckerberg continues to steer Meta's vision toward the metaverse, artificial intelligence, and virtual reality, alongside his philanthropic efforts with the Chan Zuckerberg Initiative.",
+        "find_historical_event": "In December 1984, the Bhopal disaster occurred in India when a Union Carbide pesticide plant leaked methyl isocyanate gas, killing thousands instantly and causing long-term health issues for hundreds of thousands more. This catastrophic industrial accident remains one of the world's worst, profoundly influencing environmental regulations and corporate accountability for chemical safety."
       },
       "nodeInfo": {
         "path": "root_agent@1/join_for_aggregation@1",
@@ -186,13 +150,13 @@
           "root_agent@1/join_for_aggregation@1"
         ]
       },
-      "id": "e-15"
+      "id": "e-12"
     },
     {
       "content": {
         "parts": [
           {
-            "text": "# Year: 1984\n\n## Famous Person Bio:\n\nLeBron James is an iconic basketball superstar, widely regarded as one of the greatest players in NBA history due to his unparalleled versatility and leadership. He has led multiple teams to championship titles, earning numerous MVP awards and shattering countless records throughout his illustrious career. Beyond the court, James is a successful businessman and philanthropist, making a significant impact through initiatives like the \"I PROMISE\" school and various community endeavors.\n\n## Historical Event:\n\nOn December 3, 1984, a catastrophic gas leak at the Union Carbide pesticide plant in Bhopal, India, released highly toxic methyl isocyanate into the atmosphere. This industrial disaster immediately killed thousands and caused long-term health problems for hundreds of thousands more, becoming one of the world's worst industrial accidents and highlighting issues of corporate accountability and environmental safety."
+            "text": "# Year: 1984\n\n## Famous Person Bio:\n\nMark Zuckerberg is widely known as the co-founder and CEO of Meta Platforms, the company behind Facebook, which he launched from his Harvard dorm room in 2004. Under his leadership, Facebook rapidly grew into a global social media phenomenon, profoundly reshaping how billions of people connect and communicate worldwide. Today, Zuckerberg continues to steer Meta's vision toward the metaverse, artificial intelligence, and virtual reality, alongside his philanthropic efforts with the Chan Zuckerberg Initiative.\n\n## Historical Event:\n\nIn December 1984, the Bhopal disaster occurred in India when a Union Carbide pesticide plant leaked methyl isocyanate gas, killing thousands instantly and causing long-term health issues for hundreds of thousands more. This catastrophic industrial accident remains one of the world's worst, profoundly influencing environmental regulations and corporate accountability for chemical safety."
           }
         ],
         "role": "user"
@@ -204,7 +168,7 @@
         "runId": "1",
         "parentRunId": "1"
       },
-      "id": "e-16"
+      "id": "e-13"
     }
   ]
 }

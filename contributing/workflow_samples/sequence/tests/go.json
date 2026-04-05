@@ -19,12 +19,6 @@
       },
       "invocationId": "i-1",
       "author": "user",
-      "actions": {
-        "stateDelta": {},
-        "artifactDelta": {},
-        "requestedAuthConfigs": {},
-        "requestedToolConfirmations": {}
-      },
       "nodeInfo": {
         "path": "",
         "runId": ""
@@ -32,7 +26,6 @@
       "id": "e-1"
     },
     {
-      "modelVersion": "gemini-2.5-flash",
       "content": {
         "parts": [
           {
@@ -43,80 +36,31 @@
       },
       "finishReason": "STOP",
       "invocationId": "i-1",
-      "author": "generate_fruit_agent",
-      "actions": {
-        "stateDelta": {},
-        "artifactDelta": {},
-        "requestedAuthConfigs": {},
-        "requestedToolConfirmations": {}
-      },
-      "nodeInfo": {
-        "path": "root_agent@1/generate_fruit_agent@1/call_llm@1",
-        "runId": "1",
-        "parentRunId": "1",
-        "messageAsOutput": true
-      },
-      "branch": "node:root_agent@1/generate_fruit_agent@1.generate_fruit_agent",
-      "id": "e-5"
-    },
-    {
-      "invocationId": "i-1",
       "author": "root_agent",
-      "actions": {
-        "stateDelta": {},
-        "artifactDelta": {},
-        "requestedAuthConfigs": {},
-        "requestedToolConfirmations": {}
-      },
-      "output": "Apple",
       "nodeInfo": {
         "path": "root_agent@1/generate_fruit_agent@1",
         "runId": "1",
         "parentRunId": "1",
         "outputFor": [
           "root_agent@1/generate_fruit_agent@1"
-        ]
+        ],
+        "messageAsOutput": true
       },
-      "id": "e-6"
+      "branch": "node:root_agent@1/generate_fruit_agent@1.generate_fruit_agent",
+      "id": "e-4"
     },
     {
-      "modelVersion": "gemini-2.5-flash",
       "content": {
         "parts": [
           {
-            "text": "Apples are a good source of dietary fiber, which can help support digestive health and promote a feeling of fullness."
+            "text": "Apples are rich in dietary fiber, which can help promote healthy digestion, prevent constipation, and contribute to a feeling of fullness, aiding in weight management."
           }
         ],
         "role": "model"
       },
       "finishReason": "STOP",
       "invocationId": "i-1",
-      "author": "generate_benefit_agent",
-      "actions": {
-        "stateDelta": {},
-        "artifactDelta": {},
-        "requestedAuthConfigs": {},
-        "requestedToolConfirmations": {}
-      },
-      "nodeInfo": {
-        "path": "root_agent@1/generate_benefit_agent@1/call_llm@1",
-        "runId": "1",
-        "parentRunId": "1",
-        "messageAsOutput": true
-      },
-      "branch": "node:root_agent@1/generate_benefit_agent@1.generate_benefit_agent",
-      "id": "e-9"
-    },
-    {
-      "invocationId": "i-1",
       "author": "root_agent",
-      "actions": {
-        "stateDelta": {},
-        "artifactDelta": {},
-        "requestedAuthConfigs": {},
-        "requestedToolConfirmations": {}
-      },
-      "output": "Apples are a good source of dietary fiber, which can help support digestive health and promote a feeling of fullness.",
       "nodeInfo": {
         "path": "root_agent@1/generate_benefit_agent@1",
         "runId": "1",
@@ -124,9 +68,11 @@
         "outputFor": [
           "root_agent@1/generate_benefit_agent@1",
           "root_agent@1"
-        ]
+        ],
+        "messageAsOutput": true
       },
-      "id": "e-10"
+      "branch": "node:root_agent@1/generate_benefit_agent@1.generate_benefit_agent",
+      "id": "e-7"
     }
   ]
 }

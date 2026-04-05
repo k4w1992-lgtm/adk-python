@@ -1,0 +1,85 @@
+{
+  "events": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "a random number"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "user",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-1"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionCall": {
+              "id": "fc-1",
+              "args": {},
+              "name": "generate_random_number"
+            }
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "function_tools",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "longRunningToolIds": [],
+      "id": "e-3"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionResponse": {
+              "id": "fc-1",
+              "name": "generate_random_number",
+              "response": {
+                "result": 42
+              }
+            }
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "function_tools",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-5"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Here is a random number: 42.\n"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "function_tools",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-7"
+    }
+  ]
+}

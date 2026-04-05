@@ -1,0 +1,133 @@
+{
+  "events": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "a random number and check even"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "user",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-1"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionCall": {
+              "id": "fc-1",
+              "args": {},
+              "name": "generate_random_number"
+            }
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "function_tools",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "longRunningToolIds": [],
+      "id": "e-3"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionResponse": {
+              "id": "fc-1",
+              "name": "generate_random_number",
+              "response": {
+                "result": 42
+              }
+            }
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "function_tools",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-5"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionCall": {
+              "id": "fc-2",
+              "args": {
+                "number": 42
+              },
+              "name": "is_even"
+            }
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "function_tools",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "longRunningToolIds": [],
+      "id": "e-7"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionResponse": {
+              "id": "fc-2",
+              "name": "is_even",
+              "response": {
+                "result": true
+              }
+            }
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "function_tools",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-9"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "The random number is 42 and it is even."
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "function_tools",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-11"
+    }
+  ]
+}
