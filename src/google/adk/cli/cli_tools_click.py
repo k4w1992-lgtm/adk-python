@@ -664,7 +664,14 @@ def cli_run(
   )
 
 
-@main.command("test", cls=HelpfulCommand)
+@main.command(
+    "test",
+    cls=HelpfulCommand,
+    context_settings={
+        "allow_extra_args": True,
+        "allow_interspersed_args": True,
+    },
+)
 @click.argument(
     "folder",
     type=click.Path(
@@ -677,7 +684,8 @@ def cli_run(
     is_flag=True,
     help="Rebuild test files by running the real agent with user messages.",
 )
-def cli_test(folder: str, rebuild: bool):
+@click.pass_context
+def cli_test(ctx, folder: str, rebuild: bool):
   """Runs pytest on agent test JSON files under the specified folder.
 
   FOLDER: The path to the folder containing agents and tests.
@@ -695,7 +703,33 @@ def cli_test(folder: str, rebuild: bool):
     rebuild_tests(folder)
     sys.exit(0)
 
-  import pytest
+  # Parse arguments to separate pytest args (after --) from regular args
+  pytest_args = []
+  if "--" in ctx.args:
+    separator_index = ctx.args.index("--")
+    pytest_args = ctx.args[separator_index + 1 :]
+    regular_args = ctx.args[:separator_index]
+
+    if regular_args:
+      click.secho(
+          "Error: Unexpected arguments after folder and before '--':"
+          f" {' '.join(regular_args)}. \nOnly arguments after '--' are passed"
+          " to pytest.",
+          fg="red",
+          err=True,
+      )
+      ctx.exit(2)
+  else:
+    if ctx.args:
+      click.secho(
+          f"Error: Unexpected arguments: {' '.join(ctx.args)}. \nUse '--' to"
+          " separate pytest arguments, e.g.: adk test [folder] -- -vv",
+          fg="red",
+          err=True,
+      )
+      ctx.exit(2)
+
+  import subprocess
 
   os.environ["ADK_TEST_FOLDER"] = folder
 
@@ -710,15 +744,17 @@ def cli_test(folder: str, rebuild: bool):
     )
     sys.exit(1)
 
-  import subprocess
-
-  cmd = [".venv/bin/pytest", str(test_runner_path), "-v", "-s"]
   click.echo(f"Running tests in {folder} using runner {test_runner_path}...")
 
-  result = subprocess.run(cmd, capture_output=True, text=True)
-  click.echo(result.stdout)
-  if result.stderr:
-    click.echo(result.stderr, err=True)
+  result = subprocess.run([
+      sys.executable,
+      "-m",
+      "pytest",
+      str(test_runner_path),
+      "-v",
+      "-s",
+      *pytest_args,
+  ])
   sys.exit(result.returncode)
 
 

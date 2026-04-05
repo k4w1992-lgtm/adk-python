@@ -56,7 +56,7 @@ def test_create_test(test_client, tmp_path):
 
   payload = {"session_data": {"events": []}}
 
-  response = test_client.post("/dev/test_app/tests/my_test.json", json=payload)
+  response = test_client.put("/dev/test_app/tests/my_test.json", json=payload)
   assert response.status_code == 200
   assert response.json() == {"status": "success", "file": "my_test.json"}
 
@@ -133,16 +133,21 @@ def test_rebuild_single_test(test_client):
 
 
 def test_run_tests(test_client):
+  from unittest.mock import AsyncMock
+  from unittest.mock import MagicMock
+  from unittest.mock import patch
+
+  mock_process = MagicMock()
+  mock_process.stdout.readline = AsyncMock(
+      side_effect=[b"line1\n", b"line2\n", b""]
+  )
+  mock_process.wait = AsyncMock(return_value=0)
+
   with patch(
-      "google.adk.cli.adk_web_server.asyncio.create_subprocess_exec"
-  ) as mock_subproc:
-    # Mock the process
-    mock_process = MagicMock()
-    mock_process.stdout.readline = AsyncMock(
-        side_effect=[b"line1\n", b"line2\n", b""]
-    )
-    mock_process.wait = AsyncMock(return_value=0)
-    mock_subproc.return_value = mock_process
+      "google.adk.cli.adk_web_server.asyncio.create_subprocess_exec",
+      new_callable=AsyncMock,
+  ) as mock_create_subprocess:
+    mock_create_subprocess.return_value = mock_process
 
     response = test_client.post("/dev/test_app/tests/run", json={})
     assert response.status_code == 200

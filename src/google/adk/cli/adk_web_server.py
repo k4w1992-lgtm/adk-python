@@ -1003,36 +1003,55 @@ class AdkWebServer:
       import subprocess
       import sys
 
-      cmd = [
-          sys.executable,
-          "-m",
-          "pytest",
-          os.path.join(os.path.dirname(__file__), "agent_test_runner.py"),
-          "-s",
-      ]
-      if test_name:
-        if test_name.endswith(".json"):
-          test_name = test_name[:-5]
-        cmd.extend(["-k", test_name])
+      queue = asyncio.Queue()
 
-      env = os.environ.copy()
-      env["ADK_TEST_FOLDER"] = agent_dir
+      async def run_pytest_subprocess():
+        cmd_args = [
+            sys.executable,
+            "-m",
+            "pytest",
+            os.path.join(os.path.dirname(__file__), "agent_test_runner.py"),
+            "-s",
+            "-v",
+        ]
+        if test_name:
+          name_to_use = (
+              test_name[:-5] if test_name.endswith(".json") else test_name
+          )
+          cmd_args.extend(["-k", name_to_use])
+
+        # Ensure environment variable is set
+        env = os.environ.copy()
+        env["ADK_TEST_FOLDER"] = agent_dir
+
+        try:
+          process = await asyncio.create_subprocess_exec(
+              *cmd_args,
+              stdout=subprocess.PIPE,
+              stderr=subprocess.STDOUT,
+              env=env,
+          )
+
+          while True:
+            line = await process.stdout.readline()
+            if not line:
+              break
+            await queue.put(line.decode("utf-8"))
+
+          await process.wait()
+        finally:
+          # Signal completion to generator
+          await queue.put(None)
+
+      # Start pytest in a background task
+      asyncio.create_task(run_pytest_subprocess())
 
       async def generate():
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            env=env,
-        )
-
         while True:
-          line = await process.stdout.readline()
-          if not line:
+          item = await queue.get()
+          if item is None:
             break
-          yield line
-
-        await process.wait()
+          yield item.encode("utf-8")
 
       return StreamingResponse(generate(), media_type="text/plain")
 

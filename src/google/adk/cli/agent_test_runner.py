@@ -188,6 +188,20 @@ def normalize_events(events, is_json=False):
             exclude_none=True,
         )
 
+    if "content" in d and isinstance(d["content"], dict):
+      content = d["content"]
+      if "parts" in content and isinstance(content["parts"], list):
+        for part in content["parts"]:
+          if isinstance(part, dict) and "thoughtSignature" in part:
+            del part["thoughtSignature"]
+
+    if "longRunningToolIds" in d:
+      if (
+          isinstance(d["longRunningToolIds"], list)
+          and not d["longRunningToolIds"]
+      ):
+        del d["longRunningToolIds"]
+
     if "actions" in d:
       actions = d["actions"]
       if isinstance(actions, dict):
@@ -332,7 +346,7 @@ def test_agent_replay(agent_dir, test_file, monkeypatch):
 
     all_responses = []
     for ev in expected_events:
-      if "modelVersion" in ev and "content" in ev:
+      if "content" in ev:
         content_dict = ev["content"]
         if content_dict.get("role") == "model":
           try:
@@ -420,6 +434,9 @@ def test_agent_replay(agent_dir, test_file, monkeypatch):
     mapping_counter = 0
 
     actual_events = []
+    import random
+
+    random.seed(42)
     first_run_events = runner.run(user_message)
 
     # Post-process events to inject deterministic function IDs
@@ -547,8 +564,6 @@ def rebuild_tests(path: str):
     try:
       import random
 
-      random.seed(42)
-
       loader = AgentLoader(str(agent_dir.parent))
       agent_or_app = loader.load_agent(agent_dir.name)
 
@@ -567,12 +582,20 @@ def rebuild_tests(path: str):
         print(f"No events in {test_file}, skipping.")
         continue
 
-      # Extract user messages
+      # Extract user messages (but not function responses!)
       user_messages = []
       for event in events_data:
         content = _extract_user_content(event)
         if content:
-          user_messages.append(content)
+          # Skip if it's a function response
+          is_func_resp = False
+          if content.parts:
+            for part in content.parts:
+              if part.function_response:
+                is_func_resp = True
+                break
+          if not is_func_resp:
+            user_messages.append(content)
 
       if not user_messages:
         print(f"No user messages found in {test_file}, skipping.")
@@ -642,7 +665,17 @@ def rebuild_tests(path: str):
           mock.patch(
               "google.adk.events.event.Event.new_id", side_effect=mock_ev_id
           ),
+          mock.patch(
+              "google.adk.flows.llm_flows.functions.generate_client_function_call_id",
+              side_effect=get_next_fc_id,
+          ),
+          mock.patch(
+              "google.adk.agents.llm._functions.generate_client_function_call_id",
+              side_effect=get_next_fc_id,
+          ),
+          mock.patch.dict(os.environ, {"PYTEST_CURRENT_TEST": "rebuild"}),
       ):
+        random.seed(42)
         for msg in user_messages:
 
           # Update function response IDs if mapped
@@ -683,7 +716,6 @@ def rebuild_tests(path: str):
       new_events = [e for e in new_events if not getattr(e, "partial", False)]
 
       # Post-process all events to inject deterministic function IDs
-      orig_to_new_id = {}
       final_fc_counter = 0
       for e in new_events:
         for fc in e.get_function_calls():
@@ -719,10 +751,19 @@ def rebuild_tests(path: str):
               mode="json",
               by_alias=True,
               exclude_none=True,
-              exclude={"timestamp", "usage_metadata"},
+              exclude={"timestamp", "usage_metadata", "model_version"},
           )
           for e in new_events
       ]
+
+      # Clean up thoughtSignature if present
+      for ev in new_events_dicts:
+        if "content" in ev and isinstance(ev["content"], dict):
+          content = ev["content"]
+          if "parts" in content and isinstance(content["parts"], list):
+            for part in content["parts"]:
+              if isinstance(part, dict) and "thoughtSignature" in part:
+                del part["thoughtSignature"]
 
       # Clean up empty actions items and actions itself if empty
       for ev in new_events_dicts:
