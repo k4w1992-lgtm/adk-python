@@ -1,0 +1,183 @@
+{
+  "events": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Hi, my name is Jane Doe"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "user",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-1"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Hi Jane Doe, what is your phone number?"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "task_in_workflow",
+      "nodeInfo": {
+        "path": "task_in_workflow@1/intake_agent@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-3"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "1112223333"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-2",
+      "author": "user",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-5"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionCall": {
+              "id": "fc-1",
+              "args": {
+                "name": "Jane Doe",
+                "phone_number": "1112223333"
+              },
+              "name": "finish_task"
+            }
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-2",
+      "author": "task_in_workflow",
+      "nodeInfo": {
+        "path": "task_in_workflow@1/intake_agent@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "longRunningToolIds": [],
+      "id": "e-8"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionResponse": {
+              "id": "fc-1",
+              "name": "finish_task",
+              "response": {
+                "result": "Task completed."
+              }
+            }
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-2",
+      "author": "task_in_workflow",
+      "actions": {
+        "finishTask": {
+          "output": {
+            "name": "Jane Doe",
+            "phone_number": "1112223333"
+          }
+        }
+      },
+      "output": {
+        "name": "Jane Doe",
+        "phone_number": "1112223333"
+      },
+      "nodeInfo": {
+        "path": "task_in_workflow@1/intake_agent@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "task_in_workflow@1/intake_agent@1"
+        ]
+      },
+      "id": "e-10"
+    },
+    {
+      "invocationId": "i-2",
+      "author": "task_in_workflow",
+      "actions": {
+        "stateDelta": {
+          "orders": [
+            "CBC (Complete Blood Count)",
+            "Lipid Panel"
+          ]
+        }
+      },
+      "nodeInfo": {
+        "path": "task_in_workflow@1/find_orders@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-12"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "**Fast for 9-12 hours** prior to the blood draw. You may drink water during this time."
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-2",
+      "author": "task_in_workflow",
+      "nodeInfo": {
+        "path": "task_in_workflow@1/generate_instruction@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "task_in_workflow@1/generate_instruction@1"
+        ],
+        "messageAsOutput": true
+      },
+      "branch": "node:task_in_workflow@1/generate_instruction@1.generate_instruction",
+      "id": "e-13"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Good news! We found your orders:\n- CBC (Complete Blood Count)\n- Lipid Panel\n\nPlease follow these instructions:\n\n**Fast for 9-12 hours** prior to the blood draw. You may drink water during this time."
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-2",
+      "author": "task_in_workflow",
+      "nodeInfo": {
+        "path": "task_in_workflow@1/send_message@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-15"
+    }
+  ]
+}

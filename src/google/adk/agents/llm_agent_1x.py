@@ -912,6 +912,11 @@ class LlmAgent(BaseAgent):
           stacklevel=3,
       )
 
+    if self.mode == 'task':
+      from .llm.task._finish_task_tool import FinishTaskTool
+
+      self.tools.append(FinishTaskTool(self))
+
   @classmethod
   @experimental(FeatureName.AGENT_CONFIG)
   def _resolve_tools(

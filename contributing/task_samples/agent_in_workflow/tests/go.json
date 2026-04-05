@@ -1,0 +1,219 @@
+{
+  "events": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "go"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "user",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-1"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Hello! I'm your medical lab intake assistant. To start, could I please get your full name?"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "task_in_workflow",
+      "nodeInfo": {
+        "path": "task_in_workflow@1/intake_agent@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-3"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Jane Doe"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-2",
+      "author": "user",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-5"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Thank you, Jane Doe. Could I please get your phone number now?"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-2",
+      "author": "task_in_workflow",
+      "nodeInfo": {
+        "path": "task_in_workflow@1/intake_agent@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-8"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "1112223333"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-3",
+      "author": "user",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-10"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionCall": {
+              "id": "fc-1",
+              "args": {
+                "name": "Jane Doe",
+                "phone_number": "1112223333"
+              },
+              "name": "finish_task"
+            }
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-3",
+      "author": "task_in_workflow",
+      "nodeInfo": {
+        "path": "task_in_workflow@1/intake_agent@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "longRunningToolIds": [],
+      "id": "e-14"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionResponse": {
+              "id": "fc-1",
+              "name": "finish_task",
+              "response": {
+                "result": "Task completed."
+              }
+            }
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-3",
+      "author": "task_in_workflow",
+      "actions": {
+        "finishTask": {
+          "output": {
+            "name": "Jane Doe",
+            "phone_number": "1112223333"
+          }
+        }
+      },
+      "output": {
+        "name": "Jane Doe",
+        "phone_number": "1112223333"
+      },
+      "nodeInfo": {
+        "path": "task_in_workflow@1/intake_agent@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "task_in_workflow@1/intake_agent@1"
+        ]
+      },
+      "id": "e-16"
+    },
+    {
+      "invocationId": "i-3",
+      "author": "task_in_workflow",
+      "actions": {
+        "stateDelta": {
+          "orders": [
+            "CBC (Complete Blood Count)",
+            "Lipid Panel"
+          ]
+        }
+      },
+      "nodeInfo": {
+        "path": "task_in_workflow@1/find_orders@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-18"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Fasting for 9-12 hours is required for the Lipid Panel. Water is permitted. No specific preparation is needed for the CBC."
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-3",
+      "author": "task_in_workflow",
+      "nodeInfo": {
+        "path": "task_in_workflow@1/generate_instruction@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "task_in_workflow@1/generate_instruction@1"
+        ],
+        "messageAsOutput": true
+      },
+      "branch": "node:task_in_workflow@1/generate_instruction@1.generate_instruction",
+      "id": "e-19"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Good news! We found your orders:\n- CBC (Complete Blood Count)\n- Lipid Panel\n\nPlease follow these instructions:\n\nFasting for 9-12 hours is required for the Lipid Panel. Water is permitted. No specific preparation is needed for the CBC."
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-3",
+      "author": "task_in_workflow",
+      "nodeInfo": {
+        "path": "task_in_workflow@1/send_message@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-21"
+    }
+  ]
+}

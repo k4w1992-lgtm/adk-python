@@ -1,0 +1,147 @@
+{
+  "events": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "I am Jane Doe, my phone number is 555-1234"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "user",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-1"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionCall": {
+              "id": "fc-1",
+              "args": {
+                "name": "Jane Doe",
+                "phone_number": "555-1234"
+              },
+              "name": "finish_task"
+            }
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "task_in_workflow",
+      "nodeInfo": {
+        "path": "task_in_workflow@1/intake_agent@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "longRunningToolIds": [],
+      "id": "e-3"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionResponse": {
+              "id": "fc-1",
+              "name": "finish_task",
+              "response": {
+                "result": "Task completed."
+              }
+            }
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "task_in_workflow",
+      "actions": {
+        "finishTask": {
+          "output": {
+            "name": "Jane Doe",
+            "phone_number": "555-1234"
+          }
+        }
+      },
+      "output": {
+        "name": "Jane Doe",
+        "phone_number": "555-1234"
+      },
+      "nodeInfo": {
+        "path": "task_in_workflow@1/intake_agent@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "task_in_workflow@1/intake_agent@1"
+        ]
+      },
+      "id": "e-5"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "task_in_workflow",
+      "actions": {
+        "stateDelta": {
+          "orders": [
+            "CBC (Complete Blood Count)",
+            "Lipid Panel"
+          ]
+        }
+      },
+      "nodeInfo": {
+        "path": "task_in_workflow@1/find_orders@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-7"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Fast for 9-12 hours prior to collection."
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "task_in_workflow",
+      "nodeInfo": {
+        "path": "task_in_workflow@1/generate_instruction@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "task_in_workflow@1/generate_instruction@1"
+        ],
+        "messageAsOutput": true
+      },
+      "branch": "node:task_in_workflow@1/generate_instruction@1.generate_instruction",
+      "id": "e-8"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Good news! We found your orders:\n- CBC (Complete Blood Count)\n- Lipid Panel\n\nPlease follow these instructions:\n\nFast for 9-12 hours prior to collection."
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "task_in_workflow",
+      "nodeInfo": {
+        "path": "task_in_workflow@1/send_message@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-10"
+    }
+  ]
+}

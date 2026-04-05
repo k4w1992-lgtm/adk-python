@@ -66,15 +66,18 @@ class _V1LlmAgentWrapper(BaseNode):
 
   @model_validator(mode='after')
   def _validate_mode(self) -> _V1LlmAgentWrapper:
+    # As a node in a workflow, agent is by default single_turn.
+    if self.agent.mode is None:
+      self.agent.mode = 'single_turn'
+
     if self.agent.mode not in ('task', 'single_turn'):
-      # As a node in a workflow, agent is by default single_turn.
-      if self.agent.mode is None:
-        self.agent.mode = 'single_turn'
-      else:
-        raise ValueError(
-            f'_V1LlmAgentWrapper only supports task and single_turn mode,'
-            f" but agent '{self.agent.name}' has mode='{self.agent.mode}'."
-        )
+      raise ValueError(
+          f'_V1LlmAgentWrapper only supports task and single_turn mode,'
+          f" but agent '{self.agent.name}' has mode='{self.agent.mode}'."
+      )
+
+    if self.agent.mode == 'task':
+      self.wait_for_output = True
     return self
 
   def _prepare_context(self, ctx: Context) -> Context:
@@ -105,7 +108,7 @@ class _V1LlmAgentWrapper(BaseNode):
       user_event.content.role = 'user'
       ctx.session.events.append(user_event)
 
-  def _process_event(self, ctx: Context, event: Event) -> None:
+  def _process_output(self, ctx: Context, event: Event) -> None:
     if event.get_function_calls() or event.partial or not event.content:
       return
 
@@ -146,9 +149,19 @@ class _V1LlmAgentWrapper(BaseNode):
 
     run_iter = self.agent.run_async(agent_ctx._invocation_context)
 
-    async for event in run_iter:
-      self._process_event(ctx, event)
-      yield event
+    if self.agent.mode == 'single_turn':
+      async for event in run_iter:
+        self._process_output(ctx, event)
+        yield event
+    else:
+      # Task mode: finish_task output is inside event.actions, not
+      # event.output. Intercept it and set as a proper output event.
+      async for event in run_iter:
+        if event.actions.finish_task:
+          event.output = event.actions.finish_task.get('output')
+          yield event
+          break
+        yield event
 
   @override
   def model_copy(
