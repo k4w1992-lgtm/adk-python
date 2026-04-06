@@ -22,37 +22,33 @@ from google.adk.cli.agent_test_runner import test_agent_replay
 from google.genai import types
 import pytest
 
-from . import testing_utils
-
-SAMPLES_DIR = (
-    Path(__file__).parent.parent.parent.parent
-    / "contributing"
-    / "new_workflow_samples"
-)
+CONTRIBUTING_DIR = Path(__file__).parent.parent.parent / "contributing"
 
 
 def get_test_files():
-  """Yields (sample_name, test_file_path)."""
-  if not SAMPLES_DIR.exists():
+  """Yields (sample_dir, test_file_path)."""
+  if not CONTRIBUTING_DIR.exists():
     return
-  for sample_dir in SAMPLES_DIR.iterdir():
-    if sample_dir.is_dir():
-      tests_dir = sample_dir / "tests"
-      if tests_dir.exists() and tests_dir.is_dir():
-        for test_file in tests_dir.glob("*.json"):
-          if test_file.stem.endswith("_xfail"):
-            yield pytest.param(
-                sample_dir.name, test_file, marks=pytest.mark.xfail
-            )
-          else:
-            yield sample_dir.name, test_file
+  for category_dir in CONTRIBUTING_DIR.iterdir():
+    if category_dir.is_dir():
+      for sample_dir in category_dir.iterdir():
+        if sample_dir.is_dir():
+          tests_dir = sample_dir / "tests"
+          if tests_dir.exists() and tests_dir.is_dir():
+            for test_file in tests_dir.glob("*.json"):
+              if test_file.stem.endswith("_xfail"):
+                yield pytest.param(
+                    sample_dir, test_file, marks=pytest.mark.xfail
+                )
+              else:
+                yield sample_dir, test_file
 
 
 @pytest.mark.parametrize(
-    "sample_name, test_file",
+    "sample_dir, test_file",
     list(get_test_files()),
     ids=lambda val: val.name if isinstance(val, Path) else val,
 )
-def test_sample(sample_name, test_file, monkeypatch):
+def test_sample(sample_dir: Path, test_file: Path, monkeypatch):
   """Tests a sample by replaying exported session events."""
-  test_agent_replay(SAMPLES_DIR / sample_name, test_file, monkeypatch)
+  test_agent_replay(sample_dir, test_file, monkeypatch)
