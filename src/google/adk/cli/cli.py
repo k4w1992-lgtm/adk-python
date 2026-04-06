@@ -261,7 +261,7 @@ def _setup_runner_context(
     *,
     agent_parent_dir: str,
     agent_folder_name: str,
-    ephemeral: bool = False,
+    in_memory: bool = False,
     session_service_uri: Optional[str] = None,
     artifact_service_uri: Optional[str] = None,
     memory_service_uri: Optional[str] = None,
@@ -290,7 +290,7 @@ def _setup_runner_context(
   if not is_env_enabled('ADK_DISABLE_LOAD_DOTENV'):
     envs.load_dotenv_for_agent(agent_folder_name, agents_dir)
 
-  if ephemeral:
+  if in_memory:
     session_service_uri = 'memory://'
     artifact_service_uri = 'memory://'
     use_local_storage = False
@@ -385,6 +385,7 @@ async def run_cli(
     session_id: Optional[str] = None,
     state_str: Optional[str] = None,
     timeout: Optional[str] = None,
+    in_memory: bool = False,
     jsonl: bool = False,
     session_service_uri: Optional[str] = None,
     artifact_service_uri: Optional[str] = None,
@@ -421,6 +422,7 @@ async def run_cli(
   ) = _setup_runner_context(
       agent_parent_dir=agent_parent_dir,
       agent_folder_name=agent_folder_name,
+      in_memory=in_memory,
       session_service_uri=session_service_uri,
       artifact_service_uri=artifact_service_uri,
       memory_service_uri=memory_service_uri,
@@ -529,7 +531,7 @@ async def run_once_cli(
     session_id: Optional[str] = None,
     replay: Optional[str] = None,
     timeout: Optional[str] = None,
-    ephemeral: bool = False,
+    in_memory: bool = False,
     jsonl: bool = False,
     session_service_uri: Optional[str] = None,
     artifact_service_uri: Optional[str] = None,
@@ -549,7 +551,7 @@ async def run_once_cli(
   ) = _setup_runner_context(
       agent_parent_dir=agent_parent_dir,
       agent_folder_name=agent_folder_name,
-      ephemeral=ephemeral,
+      in_memory=in_memory,
       session_service_uri=session_service_uri,
       artifact_service_uri=artifact_service_uri,
       memory_service_uri=memory_service_uri,

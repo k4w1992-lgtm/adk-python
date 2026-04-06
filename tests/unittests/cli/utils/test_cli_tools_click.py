@@ -276,7 +276,7 @@ def test_cli_run_options_with_query(
           "hello",
           "--state",
           '{"x": 1}',
-          "--ephemeral",
+          "--in_memory",
           "--jsonl",
       ],
   )
@@ -287,7 +287,7 @@ def test_cli_run_options_with_query(
   called_kwargs = mock_run_once.call_args.kwargs
   assert called_kwargs.get("query") == "hello"
   assert called_kwargs.get("state_str") == '{"x": 1}'
-  assert called_kwargs.get("ephemeral") is True
+  assert called_kwargs.get("in_memory") is True
   assert called_kwargs.get("jsonl") is True
 
 
@@ -433,7 +433,7 @@ def test_cli_run_all_options_with_query(
           str(replay_file),
           "--timeout",
           "30s",
-          "--ephemeral",
+          "--in_memory",
           "--session_service_uri",
           "memory://",
           "--artifact_service_uri",
@@ -452,7 +452,7 @@ def test_cli_run_all_options_with_query(
   assert called_kwargs.get("session_id") == "s123"
   assert called_kwargs.get("replay") == str(replay_file)
   assert called_kwargs.get("timeout") == "30s"
-  assert called_kwargs.get("ephemeral") is True
+  assert called_kwargs.get("in_memory") is True
   assert called_kwargs.get("session_service_uri") == "memory://"
   assert called_kwargs.get("artifact_service_uri") == "memory://"
   assert called_kwargs.get("memory_service_uri") == "memory://"

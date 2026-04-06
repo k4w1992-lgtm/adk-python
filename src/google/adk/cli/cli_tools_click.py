@@ -630,7 +630,7 @@ def adk_services_options(*, default_use_local_storage: bool = True):
     help="Optional. Timeout for a single turn or query (e.g., 30s, 5m).",
 )
 @click.option(
-    "--ephemeral",
+    "--in_memory",
     is_flag=True,
     help="Optional. Do not persist session data (use in-memory storage).",
 )
@@ -655,7 +655,7 @@ def cli_run(
     resume: Optional[str],
     state: Optional[str] = None,
     timeout: Optional[str] = None,
-    ephemeral: bool = False,
+    in_memory: bool = False,
     jsonl: bool = False,
     session_service_uri: Optional[str] = None,
     artifact_service_uri: Optional[str] = None,
@@ -690,7 +690,7 @@ def cli_run(
             session_id=session_id,
             replay=replay,
             timeout=timeout,
-            ephemeral=ephemeral,
+            in_memory=in_memory,
             jsonl=jsonl,
             session_service_uri=session_service_uri,
             artifact_service_uri=artifact_service_uri,
@@ -711,6 +711,7 @@ def cli_run(
             session_id=session_id,
             state_str=state,
             timeout=timeout,
+            in_memory=in_memory,
             jsonl=jsonl,
             session_service_uri=session_service_uri,
             artifact_service_uri=artifact_service_uri,
