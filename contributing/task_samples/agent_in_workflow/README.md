@@ -7,11 +7,10 @@ This sample demonstrates how to use both `task` mode and `single_turn` mode Agen
 The workflow represents a medical lab intake process:
 
 1. **`intake_agent`**: A `task` mode Agent that chats with the user to collect their `name` and `phone_number`. It handles a multi-turn conversation until its `PatientIdentity` output schema is fulfilled.
-1. **`find_orders`**: A regular Python function node that receives the `PatientIdentity`. It mocks a database lookup.
+1. **`check_identity`**: A regular Python function node that receives the `PatientIdentity`. It mocks checking the database.
    - If the name is anything other than "Jane Doe", it yields a `retry` route, sending the user back to the `intake_agent`.
-   - If the name is "Jane Doe", it places the lab orders into the state and yields to the `DEFAULT_ROUTE`.
-1. **`generate_instruction`**: A `single_turn` mode Agent that automatically maps state parameters into its instruction template (`{orders}`) and generates a concise instruction about how to prepare.
-1. **`send_message`**: A function node that reads both the `orders` from the state and the generated instructions from `node_input` to construct and send a final message to the user.
+   - If the name is "Jane Doe", it routes to the `generate_instruction` agent.
+1. **`generate_instruction`**: A `single_turn` mode Agent that uses the `find_orders` tool to look up orders. It requires tool confirmation before execution.
 
 ## Sample Inputs
 
@@ -36,14 +35,11 @@ The workflow represents a medical lab intake process:
               [ intake_agent ] <----.
                       |             |
                       v             |
-               [ find_orders ] --- retry
+               [ check_identity ] --- retry
                       |
                       | (DEFAULT_ROUTE)
                       v
           [ generate_instruction ]
-                      |
-                      v
-              [ send_message ]
 ```
 
 ## How To
@@ -76,9 +72,12 @@ A `single_turn` agent (the default mode if omitted) executes a single LLM call. 
 ```python
 generate_instruction = Agent(
     name="generate_instruction",
-    # mode="single_turn" is default in a workflow environment.
-    instruction="Generate instructions for the following tests:\n{orders}",
+    tools=[FunctionTool(find_orders, require_confirmation=True)],
+    instruction="""
+Use the find_orders tool to get the patient's orders.
+List the orders found, and then generate a concise instruction about how to prepare based on those orders.
+""",
 )
 ```
 
-In a workflow, single-turn agents send their `node_input` to the LLM model as content, and developers can inject state values into the instruction template. In this particular sample, the `generate_instruction` agent does not receive any explicit `node_input` from the prior node, so only the instruction (with the `{orders}` state value interpolated) is sent to the model. The resulting generated text is then forwarded to the next node as `node_input`.
+In this sample, the `generate_instruction` agent uses the `find_orders` tool to retrieve the orders. It also demonstrates **tool confirmation**, requiring the user to approve the tool call before it executes.

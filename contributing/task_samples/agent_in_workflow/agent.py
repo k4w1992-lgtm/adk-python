@@ -15,6 +15,7 @@
 from google.adk import Agent
 from google.adk import Event
 from google.adk import Workflow
+from google.adk.tools.function_tool import FunctionTool
 from google.adk.workflow import DEFAULT_ROUTE
 from pydantic import BaseModel
 from pydantic import Field
@@ -38,11 +39,10 @@ information. Once you have both, finish your task.""",
 )
 
 
-def find_orders(node_input: PatientIdentity):
+def check_identity(node_input: PatientIdentity):
   """Mocks checking the database for the patient.
 
   Routes back to intake_agent if the name is not Jane Doe.
-  Otherwise routes to success.
   """
   if node_input.name.lower() != "jane doe":
     yield Event(
@@ -53,38 +53,33 @@ def find_orders(node_input: PatientIdentity):
         route="retry",
     )
   else:
-    yield Event(state={"orders": ["CBC (Complete Blood Count)", "Lipid Panel"]})
+    yield Event(
+        message=f"""Hello {node_input.name}! Let me look up your orders."""
+    )
+
+
+def find_orders() -> list[str]:
+  """Finds orders for the patient."""
+  return ["CBC (Complete Blood Count)", "Lipid Panel"]
 
 
 generate_instruction = Agent(
     name="generate_instruction",
+    tools=[FunctionTool(find_orders, require_confirmation=True)],
     instruction="""
-Based on the following orders, generate a concise instruction about how to prepare.
-{orders}
+Use the find_orders tool to get the patient's orders.
+List the orders found, and then generate a concise instruction about how to prepare based on those orders.
 """,
 )
-
-
-def send_message(orders: list[str], node_input: str):
-  """Sends a final message with the found orders."""
-  orders_str = "\n- ".join(orders)
-  yield Event(message=f"""\
-Good news! We found your orders:
-- {orders_str}
-
-Please follow these instructions:
-
-{node_input}""")
 
 
 root_agent = Workflow(
     name="task_in_workflow",
     edges=[
-        ("START", intake_agent, find_orders),
+        ("START", intake_agent, check_identity),
         (
-            find_orders,
+            check_identity,
             {"retry": intake_agent, DEFAULT_ROUTE: generate_instruction},
         ),
-        (generate_instruction, send_message),
     ],
 )
