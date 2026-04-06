@@ -53,7 +53,7 @@ class _V1LlmAgentWrapper(BaseNode):
   and ensuring output is correctly flagged for the workflow runner.
   """
 
-  agent: V1LlmAgent = Field(...)
+  agent: Any = Field(...)
   rerun_on_resume: bool = Field(default=True)
 
   @model_validator(mode='before')
@@ -76,6 +76,8 @@ class _V1LlmAgentWrapper(BaseNode):
           f" but agent '{self.agent.name}' has mode='{self.agent.mode}'."
       )
 
+    if self.agent.mode == 'single_turn':
+      self.agent.include_contents = 'none'
     if self.agent.mode in ('task', 'chat'):
       self.wait_for_output = True
     return self
@@ -98,7 +100,6 @@ class _V1LlmAgentWrapper(BaseNode):
     )
 
     ic.session = ic.session.model_copy(deep=False)
-    ic.session.events = []
     return agent_ctx
 
   def _prepare_input(self, ctx: Context, node_input: Any) -> None:
@@ -106,10 +107,16 @@ class _V1LlmAgentWrapper(BaseNode):
       agent_input = _node_input_to_content(node_input)
       user_event = Event(author='user', message=agent_input)
       user_event.content.role = 'user'
+      user_event.branch = ctx._invocation_context.branch
       ctx.session.events.append(user_event)
 
   def _process_output(self, ctx: Context, event: Event) -> None:
-    if event.get_function_calls() or event.partial or not event.content:
+    if (
+        event.get_function_calls()
+        or event.partial
+        or not event.content
+        or event.content.role != 'model'
+    ):
       return
 
     event.node_info.message_as_output = True

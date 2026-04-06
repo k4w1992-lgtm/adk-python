@@ -305,3 +305,30 @@ class AgentToolConfig(BaseToolConfig):
 
   include_plugins: bool = True
   """Whether to include plugins from parent runner context."""
+
+
+class _SingleTurnAgentTool(AgentTool):
+  """A tool that wraps a single-turn agent and runs it via ctx.run_node."""
+
+  @override
+  async def run_async(
+      self,
+      *,
+      args: dict[str, Any],
+      tool_context: ToolContext,
+  ) -> Any:
+    input_schema = _get_input_schema(self.agent)
+    if input_schema:
+      try:
+        node_input = input_schema.model_validate(args)
+      except Exception as e:
+        return f'Error validating input: {e}'
+    else:
+      node_input = args.get('request')
+
+    try:
+      return await tool_context.run_node(
+          self.agent, node_input=node_input, sub_branch=self.agent.name
+      )
+    except Exception as e:
+      return f'Error running sub-agent: {e}'
