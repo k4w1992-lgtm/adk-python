@@ -30,7 +30,7 @@ from google.auth.transport.requests import Request
 from google.cloud import resourcemanager_v3
 import requests
 
-_VERTEX_AI_ENDPOINT = "https://{location}-aiplatform.googleapis.com/v1beta1"
+_VERTEX_AI_ENDPOINT = "https://{location}-staging-aiplatform.googleapis.com/v1beta1"
 
 
 def check_adc() -> bool:
