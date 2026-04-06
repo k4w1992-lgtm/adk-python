@@ -28,6 +28,8 @@ from google.adk.agents.llm.task._task_models import TaskResult
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.events.event import Event
 from google.adk.events.event_actions import EventActions
+from google.adk.features import FeatureName
+from google.adk.features import is_feature_enabled
 from google.adk.workflow import START
 from google.adk.workflow import Workflow
 from google.adk.workflow._llm_agent_wrapper import _LlmAgentWrapper
@@ -36,6 +38,12 @@ from google.genai import types
 from pydantic import BaseModel
 from pydantic import ValidationError
 import pytest
+
+if is_feature_enabled(FeatureName.NEW_WORKFLOW):
+  pytest.skip(
+      'Skipping old workflow tests when new workflow is enabled',
+      allow_module_level=True,
+  )
 
 from .workflow_testing_utils import create_parent_invocation_context
 from .workflow_testing_utils import InputCapturingNode

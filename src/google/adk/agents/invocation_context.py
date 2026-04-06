@@ -36,6 +36,7 @@ from ..plugins.plugin_manager import PluginManager
 from ..sessions.base_session_service import BaseSessionService
 from ..sessions.session import Session
 from ..tools.base_tool import BaseTool
+from ..workflow._base_node import BaseNode
 from .active_streaming_tool import ActiveStreamingTool
 from .base_agent import BaseAgent
 from .base_agent import BaseAgentState
@@ -161,7 +162,7 @@ class InvocationContext(BaseModel):
   Branch is used when multiple sub-agents shouldn't see their peer agents'
   conversation history.
   """
-  agent: Optional[BaseAgent] = None
+  agent: Optional[BaseAgent | BaseNode] = None
   """The current agent of this invocation context.
 
   None when Runner drives a BaseNode (not a BaseAgent).
