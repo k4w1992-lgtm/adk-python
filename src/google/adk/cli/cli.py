@@ -342,22 +342,22 @@ def _print_event(
       human-readable text.
     session_id: Optional session ID to inject into the JSONL output.
   """
-  event_dict = event.model_dump(mode='json', by_alias=True, exclude_none=True)
-  if session_id:
-    event_dict['session_id'] = session_id
-  if event.node_info and event.node_info.path:
-    event_dict['node_path'] = event.node_info.path
-
-  # Filter out empty dictionaries in 'actions' (e.g., empty state delta) to
-  # reduce noise
-  if 'actions' in event_dict and isinstance(event_dict['actions'], dict):
-    event_dict['actions'] = {
-        k: v for k, v in event_dict['actions'].items() if v != {}
-    }
-    if not event_dict['actions']:
-      del event_dict['actions']
-
   if jsonl:
+    event_dict = event.model_dump(mode='json', by_alias=True, exclude_none=True)
+    if session_id:
+      event_dict['session_id'] = session_id
+    if event.node_info and event.node_info.path:
+      event_dict['node_path'] = event.node_info.path
+
+    # Filter out empty dictionaries in 'actions' (e.g., empty state delta) to
+    # reduce noise
+    if 'actions' in event_dict and isinstance(event_dict['actions'], dict):
+      event_dict['actions'] = {
+          k: v for k, v in event_dict['actions'].items() if v != {}
+      }
+      if not event_dict['actions']:
+        del event_dict['actions']
+
     # Optimize key order for human readability in JSONL viewers
     ordered_dict = {}
     for k in ['author', 'session_id', 'node_path', 'id']:
@@ -629,7 +629,7 @@ async def run_once_cli(
 
   exit_code = 0
 
-  async def execute_query(q: str):
+  async def execute_query(query: str):
     nonlocal exit_code
 
     # Auto-resume magic: Check if the last event in the session indicates an
@@ -648,7 +648,7 @@ async def run_once_cli(
       interrupt_id = list(interrupt_event.long_running_tool_ids)[0]
       if not jsonl:
         click.secho(
-            f'Auto-resuming interrupt {interrupt_id} with input: {q}',
+            f'Auto-resuming interrupt {interrupt_id} with input: {query}',
             fg='cyan',
             err=True,
         )
@@ -668,7 +668,16 @@ async def run_once_cli(
       )
 
       if fc and fc.name == 'adk_request_confirmation':
-        confirmed = _is_positive_response(q)
+        # Try to parse as JSON to support passing custom payload or explicit confirmed flag.
+        try:
+          parsed = json.loads(query)
+          if isinstance(parsed, dict):
+            response = parsed
+          else:
+            response = {'confirmed': _is_positive_response(query)}
+        except (json.JSONDecodeError, ValueError):
+          response = {'confirmed': _is_positive_response(query)}
+
         content = types.Content(
             role='user',
             parts=[
@@ -676,7 +685,7 @@ async def run_once_cli(
                     function_response=types.FunctionResponse(
                         id=interrupt_id,
                         name='adk_request_confirmation',
-                        response={'confirmed': confirmed},
+                        response=response,
                     )
                 )
             ],
@@ -690,18 +699,21 @@ async def run_once_cli(
                     function_response=types.FunctionResponse(
                         id=interrupt_id,
                         name='adk_request_input',
-                        response={'result': q},
+                        response={'result': query},
                     )
                 )
             ],
         )
     else:
       # Standard flow: Treat the query as a new text message from the user
-      content = types.Content(role='user', parts=[types.Part(text=q)])
+      content = types.Content(role='user', parts=[types.Part(text=query)])
 
     async with Aclosing(
         runner.run_async(
-            user_id=session.user_id, session_id=session.id, new_message=content
+            user_id=session.user_id,
+            session_id=session.id,
+            invocation_id=interrupt_event.invocation_id if interrupt_event else None,
+            new_message=content,
         )
     ) as agen:
       async for event in agen:
