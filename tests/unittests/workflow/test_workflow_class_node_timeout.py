@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-'''Tests for node timeout behavior.'''
+"""Tests for node timeout behavior."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ import pytest
 
 
 async def _run_workflow(wf, message='start'):
-  '''Run a Workflow through Runner, return collected events.'''
+  """Run a Workflow through Runner, return collected events."""
   ss = InMemorySessionService()
   runner = Runner(app_name='test', node=wf, session_service=ss)
   session = await ss.create_session(app_name='test', user_id='u')
@@ -48,7 +48,7 @@ async def _run_workflow(wf, message='start'):
 
 
 def _output_by_node(events):
-  '''Extract (node_name_from_path, output) for child node events.'''
+  """Extract (node_name_from_path, output) for child node events."""
   results = []
   for e in events:
     if e.output is not None and e.node_info.path and '/' in e.node_info.path:
@@ -66,71 +66,65 @@ def _output_by_node(events):
 
 @pytest.mark.asyncio
 async def test_node_completes_within_timeout():
-  '''A node that finishes before the timeout should succeed normally.'''
-  
+  """A node that finishes before the timeout should succeed normally."""
+
   @node(timeout=5.0)
   async def my_slow_node():
     await asyncio.sleep(0.01)
-    return "done"
+    return 'done'
 
   wf = Workflow(
-      name="test_workflow",
+      name='test_workflow',
       edges=[
           (START, my_slow_node),
       ],
   )
   events, _, _ = await _run_workflow(wf)
   by_node = _output_by_node(events)
-  
+
   assert ('my_slow_node', 'done') in by_node
 
 
 @pytest.mark.asyncio
 async def test_node_exceeds_timeout():
-  '''A node that exceeds its timeout should fail.'''
-  
+  """A node that exceeds its timeout should fail."""
+
   from google.adk.workflow import FunctionNode
-  
+
   async def raw_slow_func():
     await asyncio.sleep(1.0)
-    return "done"
-    
+    return 'done'
+
   my_too_slow_node = FunctionNode(name='my_too_slow_node', func=raw_slow_func, timeout=0.05)
 
   wf = Workflow(
-      name="test_workflow",
+      name='test_workflow',
       edges=[
           (START, my_too_slow_node),
       ],
   )
-  events, _, _ = await _run_workflow(wf)
+  with pytest.raises(NodeTimeoutError) as exc_info:
+    await _run_workflow(wf)
 
-
-  print(f"\n@@@ RAW EVENTS: {events}")
-  
-  # Verify that an error event was yielded
-
-  error_events = [e for e in events if e.error_code is not None]
-  assert len(error_events) >= 1
-  assert any('my_too_slow_node' in e.node_info.path for e in error_events)
+  assert 'my_too_slow_node' in str(exc_info.value)
 
 
 @pytest.mark.asyncio
 async def test_node_no_timeout():
-  '''A node with timeout=None should run without any time limit.'''
-  
+  """A node with timeout=None should run without any time limit."""
+
   @node(timeout=None)
   async def my_no_timeout_node():
     await asyncio.sleep(0.01)
-    return "done"
+    return 'done'
 
   wf = Workflow(
-      name="test_workflow",
+      name='test_workflow',
       edges=[
           (START, my_no_timeout_node),
       ],
   )
   events, _, _ = await _run_workflow(wf)
   by_node = _output_by_node(events)
-  
+
   assert ('my_no_timeout_node', 'done') in by_node
