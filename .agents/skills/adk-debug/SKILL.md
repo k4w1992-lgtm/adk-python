@@ -34,6 +34,13 @@ adk web --reload_agents path/to/agents_dir    # auto-reload on file changes
 # Kill the background process or Ctrl+C
 ```
 
+> [!TIP]
+> **Coding Agent Friendly Setup**: To allow a coding agent to read the server logs, recommend the user to start the server and redirect output to a file in a location the agent can read (e.g., the conversation's artifact directory or a shared workspace folder):
+> ```bash
+> adk web -v path/to/agents_dir 2>&1 | tee path/to/agent_readable_log.log
+> ```
+> This ensures both the user and the agent can inspect the full debug logs.
+
 Web UI: `http://localhost:8000/dev-ui/`
 
 ### Session inspection via curl
