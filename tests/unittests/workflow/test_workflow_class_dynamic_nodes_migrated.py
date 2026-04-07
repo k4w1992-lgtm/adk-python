@@ -26,10 +26,12 @@ from google.adk.events.event import Event
 from google.adk.events.request_input import RequestInput
 from google.adk.workflow import FunctionNode
 from google.adk.workflow import START
+from google.adk.workflow import node
 from google.adk.workflow._workflow_class import Workflow
 from google.adk.workflow.utils._node_path_utils import is_direct_child
 from google.adk.workflow.utils._workflow_hitl_utils import REQUEST_INPUT_FUNCTION_CALL_NAME
 from google.genai import types
+from pydantic import BaseModel
 import pytest
 
 from . import testing_utils
@@ -156,7 +158,6 @@ async def test_dynamic_node_hitl_no_rerun_on_resume(
     yield RequestInput(
         interrupt_id='req1',
         message='request 1',
-        response_schema={'type': 'string'},
     )
 
   node_hitl = FunctionNode(func=node_hitl)
@@ -235,7 +236,6 @@ async def test_dynamic_node_hitl_with_rerun_on_resume(
     yield RequestInput(
         interrupt_id='req1',
         message='request 1',
-        response_schema={'type': 'string'},
     )
 
   node_hitl = FunctionNode(func=node_hitl, rerun_on_resume=True)
@@ -311,7 +311,6 @@ async def test_nested_dynamic_node_hitl(request: pytest.FixtureRequest):
     yield RequestInput(
         interrupt_id='req2',
         message='request 2',
-        response_schema={'type': 'string'},
     )
 
   async def middle_node(ctx: Context) -> str:
@@ -453,7 +452,6 @@ async def test_dynamic_node_parallel_mixed_hitl(request: pytest.FixtureRequest):
     yield RequestInput(
         interrupt_id='req_hitl',
         message='request hitl',
-        response_schema={'type': 'string'},
     )
 
   simple_node = FunctionNode(func=simple_node)
@@ -504,7 +502,6 @@ async def test_dynamic_node_parallel_mixed_hitl(request: pytest.FixtureRequest):
                       'interrupt_id': 'req_hitl',
                       'message': 'request hitl',
                       'payload': None,
-                      'response_schema': {'type': 'string'},
                   },
                   name=REQUEST_INPUT_FUNCTION_CALL_NAME,
               )
@@ -561,7 +558,6 @@ async def test_dynamic_node_parallel_hitl_all_resume(
     yield RequestInput(
         interrupt_id=f'req_{node_input}',
         message=f'request {node_input}',
-        response_schema={'type': 'string'},
     )
 
   node_hitl = FunctionNode(func=node_hitl)
@@ -658,7 +654,6 @@ async def test_dynamic_node_parallel_hitl_partial_resume(
     yield RequestInput(
         interrupt_id=f'req_{node_input}',
         message=f'request {node_input}',
-        response_schema={'type': 'string'},
     )
 
   node_hitl = FunctionNode(func=node_hitl)
@@ -987,3 +982,142 @@ async def test_dynamic_node_fails_if_caller_no_rerun(
 
   with pytest.raises(ValueError, match='A node must have rerun_on_resume=True'):
     await runner.run_async(user_event)
+
+
+@pytest.mark.asyncio
+async def test_dynamic_node_hitl_with_schema_success(
+    request: pytest.FixtureRequest,
+):
+  """Dynamic node interrupts on RequestInput and validates complex schema on resume.
+
+  Setup: Workflow with a dynamic node yielding RequestInput with Pydantic schema.
+  Act: Run workflow to trigger interrupt, then resume with valid matching data.
+  Assert: Workflow completes and output is coerced to the schema structure.
+  """
+
+  class Decision(BaseModel):
+    approved: bool
+    reason: str
+
+  @node
+  async def node_hitl():
+    yield RequestInput(
+        interrupt_id='req1',
+        message='request 1',
+        response_schema=Decision,
+    )
+
+  @node(rerun_on_resume=True)
+  async def simple_caller(ctx: Context):
+    result = await ctx.run_node(node_hitl)
+    return {'child_result': result}
+
+  agent = Workflow(
+      name='test_agent_schema_success',
+      edges=[(START, simple_caller)],
+  )
+
+  test_app = app.App(
+      name=request.function.__name__,
+      root_agent=agent,
+      resumability_config=app.ResumabilityConfig(is_resumable=True),
+  )
+  runner = testing_utils.InMemoryRunner(app=test_app)
+
+  # Given: Workflow is started and yields an interrupt
+  user_event = testing_utils.get_user_content('start')
+  events1 = await runner.run_async(user_event)
+  invocation_id = events1[0].invocation_id
+
+  # When: User responds with valid data matching the schema
+  resume_payload = testing_utils.UserContent(
+      types.Part(
+          function_response=types.FunctionResponse(
+              id='req1',
+              name='user_input',
+              response={'approved': True, 'reason': 'Looks good'},
+          )
+      )
+  )
+  events2 = await runner.run_async(
+      new_message=resume_payload, invocation_id=invocation_id
+  )
+
+  # Then: Workflow resumes and completes with structured data
+  assert simplify_events_with_node(
+      events2, map_dynamic_node_to_the_source=True
+  ) == [
+      (
+          'test_agent_schema_success',
+          {
+              'node_name': 'simple_caller',
+              'output': {
+                  'child_result': {
+                      'req1': {'approved': True, 'reason': 'Looks good'}
+                  },
+              },
+          },
+      ),
+  ]
+
+
+@pytest.mark.asyncio
+async def test_dynamic_node_hitl_with_schema_failure(
+    request: pytest.FixtureRequest,
+):
+  """Dynamic node interrupts on RequestInput and fails validation on invalid resume data.
+
+  Setup: Workflow with a dynamic node yielding RequestInput with Pydantic schema.
+  Act: Run workflow to trigger interrupt, then resume with data missing a required field.
+  Assert: Workflow raises ValueError due to validation failure.
+  """
+
+  class Decision(BaseModel):
+    approved: bool
+    reason: str
+
+  @node
+  async def node_hitl():
+    yield RequestInput(
+        interrupt_id='req1',
+        message='request 1',
+        response_schema=Decision,
+    )
+
+  @node(rerun_on_resume=True)
+  async def simple_caller(ctx: Context):
+    await ctx.run_node(node_hitl)
+
+  agent = Workflow(
+      name='test_agent_schema_failure',
+      edges=[(START, simple_caller)],
+  )
+
+  test_app = app.App(
+      name=request.function.__name__,
+      root_agent=agent,
+      resumability_config=app.ResumabilityConfig(is_resumable=True),
+  )
+  runner = testing_utils.InMemoryRunner(app=test_app)
+
+  # Given: Workflow is started and yields an interrupt
+  user_event = testing_utils.get_user_content('start')
+  events1 = await runner.run_async(user_event)
+  invocation_id = events1[0].invocation_id
+
+  # When: User responds with invalid data (missing required 'reason')
+  resume_payload = testing_utils.UserContent(
+      types.Part(
+          function_response=types.FunctionResponse(
+              id='req1',
+              name='user_input',
+              response={'approved': True},
+          )
+      )
+  )
+
+  # Then: Workflow raises ValueError with validation failure message
+  with pytest.raises(ValueError, match='Validation failed'):
+    await runner.run_async(
+        new_message=resume_payload, invocation_id=invocation_id
+    )

@@ -23,6 +23,7 @@ from google.adk.workflow.utils._workflow_hitl_utils import get_request_input_int
 from google.adk.workflow.utils._workflow_hitl_utils import has_request_input_function_call
 from google.adk.workflow.utils._workflow_hitl_utils import REQUEST_CREDENTIAL_FUNCTION_CALL_NAME
 from google.adk.workflow.utils._workflow_hitl_utils import unwrap_response
+from google.adk.workflow.utils._workflow_hitl_utils import validate_resume_response
 from google.adk.workflow.utils._workflow_hitl_utils import wrap_response
 
 # --- wrap_response ---
@@ -245,3 +246,63 @@ class TestCreateAuthRequestEvent:
     assert fc.name == REQUEST_CREDENTIAL_FUNCTION_CALL_NAME
     assert fc.id == "auth-id-1"
     assert "authConfig" in fc.args
+
+
+# --- validate_resume_response ---
+
+
+class TestValidateResumeResponse:
+
+  def test_none_schema_returns_data(self):
+    assert validate_resume_response("hello", None) == "hello"
+
+  def test_str_to_int_coercion(self):
+    assert validate_resume_response("42", {"type": "integer"}) == 42
+
+  def test_str_to_float_coercion(self):
+    assert validate_resume_response("42.5", {"type": "number"}) == 42.5
+
+  def test_str_to_bool_true(self):
+    assert validate_resume_response("true", {"type": "boolean"}) is True
+    assert validate_resume_response("1", {"type": "boolean"}) is True
+
+  def test_str_to_bool_false(self):
+    assert validate_resume_response("false", {"type": "boolean"}) is False
+    assert validate_resume_response("0", {"type": "boolean"}) is False
+
+  def test_invalid_coercion_raises_value_error(self):
+    import pytest
+
+    with pytest.raises(ValueError):
+      validate_resume_response("abc", {"type": "integer"})
+
+  def test_object_schema_validates_dict_type(self):
+    import pytest
+
+    schema = {"type": "object"}
+    assert validate_resume_response({"name": "Alice"}, schema) == {
+        "name": "Alice"
+    }
+
+    with pytest.raises(ValueError, match="Failed to coerce data to object"):
+      validate_resume_response("not a dict", schema)
+
+  def test_array_schema_validates_list_type(self):
+    import pytest
+
+    schema = {"type": "array"}
+    assert validate_resume_response([1, 2], schema) == [1, 2]
+
+    with pytest.raises(ValueError, match="Failed to coerce data to array"):
+      validate_resume_response("not a list", schema)
+
+  def test_pydantic_type_validation(self):
+    from pydantic import BaseModel
+
+    class User(BaseModel):
+      name: str
+      age: int
+
+    assert validate_resume_response({"name": "Alice", "age": 30}, User) == User(
+        name="Alice", age=30
+    )

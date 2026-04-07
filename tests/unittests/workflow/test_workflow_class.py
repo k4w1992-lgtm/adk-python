@@ -365,6 +365,195 @@ async def test_resume_after_interrupt():
   assert 'C' in outputs
 
 
+@pytest.mark.asyncio
+async def test_resume_with_schema_validation_failure():
+  """Workflow raises ValueError when resume response fails validation."""
+
+  class _InterruptWithSchema(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      fc_id = ctx.state.get('_fc_id')
+      if fc_id and ctx.resume_inputs and fc_id in ctx.resume_inputs:
+        ctx.state['_fc_id'] = None
+        yield ctx.resume_inputs[fc_id]
+        return
+
+      fc_id = f'fc-{uuid.uuid4().hex[:8]}'
+      ctx.state['_fc_id'] = fc_id
+      from google.adk.events.request_input import RequestInput
+
+      yield RequestInput(
+          interrupt_id=fc_id,
+          prompt='Enter an integer',
+          response_schema={'type': 'integer'},
+      )
+
+  a = _InterruptWithSchema(name='NodeA')
+  wf = Workflow(name='wf', edges=[(START, a)])
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  msg1 = types.Content(parts=[types.Part(text='go')], role='user')
+  events1: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg1
+  ):
+    events1.append(event)
+
+  fc_id = None
+  for e in events1:
+    if e.long_running_tool_ids:
+      fc_id = list(e.long_running_tool_ids)[0]
+
+  msg2 = types.Content(
+      parts=[
+          types.Part(
+              function_response=types.FunctionResponse(
+                  name='adk_request_input', id=fc_id, response={'result': 'abc'}
+              )
+          )
+      ],
+      role='user',
+  )
+
+  with pytest.raises(ValueError, match='Validation failed for interrupt'):
+    async for _ in runner.run_async(
+        user_id='u', session_id=session.id, new_message=msg2
+    ):
+      pass
+
+
+@pytest.mark.asyncio
+async def test_resume_with_schema_validation_failure_nested():
+  """Workflow raises ValueError when resume response fails validation in nested workflow."""
+
+  class _InterruptWithSchema(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      fc_id = ctx.state.get('_fc_id')
+      if fc_id and ctx.resume_inputs and fc_id in ctx.resume_inputs:
+        ctx.state['_fc_id'] = None
+        yield ctx.resume_inputs[fc_id]
+        return
+
+      fc_id = f'fc-{uuid.uuid4().hex[:8]}'
+      ctx.state['_fc_id'] = fc_id
+      from google.adk.events.request_input import RequestInput
+
+      yield RequestInput(
+          interrupt_id=fc_id,
+          prompt='Enter an integer',
+          response_schema={'type': 'integer'},
+      )
+
+  inner_wf = Workflow(
+      name='inner_wf', edges=[(START, _InterruptWithSchema(name='NodeA'))]
+  )
+  outer_wf = Workflow(name='outer_wf', edges=[(START, inner_wf)])
+
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=outer_wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  msg1 = types.Content(parts=[types.Part(text='go')], role='user')
+  events1: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg1
+  ):
+    events1.append(event)
+
+  fc_id = None
+  for e in events1:
+    if e.long_running_tool_ids:
+      fc_id = list(e.long_running_tool_ids)[0]
+
+  msg2 = types.Content(
+      parts=[
+          types.Part(
+              function_response=types.FunctionResponse(
+                  name='adk_request_input', id=fc_id, response={'result': 'abc'}
+              )
+          )
+      ],
+      role='user',
+  )
+
+  with pytest.raises(ValueError, match='Validation failed for interrupt'):
+    async for _ in runner.run_async(
+        user_id='u', session_id=session.id, new_message=msg2
+    ):
+      pass
+
+
+@pytest.mark.asyncio
+async def test_resume_with_schema_validation_failure_no_rerun():
+  """Workflow raises ValueError when resume response fails validation even if rerun_on_resume is False."""
+
+  class _InterruptWithSchema(BaseNode):
+    rerun_on_resume: bool = False
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      fc_id = ctx.state.get('_fc_id')
+      if fc_id and ctx.resume_inputs and fc_id in ctx.resume_inputs:
+        ctx.state['_fc_id'] = None
+        yield ctx.resume_inputs[fc_id]
+        return
+
+      fc_id = f'fc-{uuid.uuid4().hex[:8]}'
+      ctx.state['_fc_id'] = fc_id
+      from google.adk.events.request_input import RequestInput
+
+      yield RequestInput(
+          interrupt_id=fc_id,
+          prompt='Enter an integer',
+          response_schema={'type': 'integer'},
+      )
+
+  a = _InterruptWithSchema(name='NodeA')
+  wf = Workflow(name='wf', edges=[(START, a)])
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  msg1 = types.Content(parts=[types.Part(text='go')], role='user')
+  events1: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg1
+  ):
+    events1.append(event)
+
+  fc_id = None
+  for e in events1:
+    if e.long_running_tool_ids:
+      fc_id = list(e.long_running_tool_ids)[0]
+
+  msg2 = types.Content(
+      parts=[
+          types.Part(
+              function_response=types.FunctionResponse(
+                  name='adk_request_input', id=fc_id, response={'result': 'abc'}
+              )
+          )
+      ],
+      role='user',
+  )
+
+  with pytest.raises(ValueError, match='Validation failed for interrupt'):
+    async for _ in runner.run_async(
+        user_id='u', session_id=session.id, new_message=msg2
+    ):
+      pass
+
+
 # 5. test_agent_state_event_recorded
 @pytest.mark.asyncio
 async def test_internal_interrupt_event_not_persisted():

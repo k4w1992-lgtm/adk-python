@@ -44,7 +44,10 @@ from ._workflow_graph import WorkflowGraph
 from .utils._node_path_utils import direct_child_name
 from .utils._node_path_utils import is_descendant
 from .utils._node_path_utils import is_direct_child
+from .utils._workflow_hitl_utils import REQUEST_INPUT_FUNCTION_CALL_NAME
+from .utils._workflow_hitl_utils import extract_schema_from_event
 from .utils._workflow_hitl_utils import unwrap_response as _unwrap_fr_response
+from .utils._workflow_hitl_utils import validate_resume_response
 
 if TYPE_CHECKING:
   from ..agents.context import Context
@@ -614,6 +617,8 @@ class Workflow(BaseNode):
     children: dict[str, _ChildScanState] = {}
     # interrupt_id → direct child name, for resolving FRs to children
     interrupt_owner: dict[str, str] = {}
+    # interrupt_id → schema
+    schemas_by_id: dict[str, Any] = {}
 
     for event in ic.session.events:
       # Read all events in session to find interrupts from past turns.
@@ -626,9 +631,19 @@ class Workflow(BaseNode):
           if fr and fr.id and fr.id in interrupt_owner:
             owner = interrupt_owner[fr.id]
             children[owner].resolved_ids.add(fr.id)
-            children[owner].resolved_responses[fr.id] = _unwrap_fr_response(
-                fr.response
-            )
+            response_data = _unwrap_fr_response(fr.response)
+
+            # Validate against schema if found
+            schema = schemas_by_id.get(fr.id)
+            if schema:
+              try:
+                response_data = validate_resume_response(response_data, schema)
+              except Exception as e:
+                raise ValueError(
+                    f'Validation failed for interrupt {fr.id}: {e}'
+                ) from e
+
+            children[owner].resolved_responses[fr.id] = response_data
         continue
 
       if not is_descendant(workflow_path, event.node_info.path):
@@ -667,6 +682,11 @@ class Workflow(BaseNode):
         for interrupt_id in event.long_running_tool_ids:
           child.interrupt_ids.add(interrupt_id)
           interrupt_owner[interrupt_id] = child_name
+
+          # Extract schema if it's a RequestInput call
+          schema_json = extract_schema_from_event(event, interrupt_id)
+          if schema_json:
+            schemas_by_id[interrupt_id] = schema_json
 
     return children
 

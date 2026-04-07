@@ -22,6 +22,7 @@ from typing import Any
 from typing import TYPE_CHECKING
 
 from google.genai import types
+from pydantic import TypeAdapter
 from pydantic import ValidationError
 
 from ...auth.auth_credential import AuthCredentialTypes as _AuthCredentialTypes
@@ -281,3 +282,99 @@ def has_auth_credential(
 ) -> bool:
   """Returns True if a credential for the given auth config exists in state."""
   return AuthHandler(auth_config).get_auth_response(state) is not None
+
+
+def extract_schema_from_event(event: Event, interrupt_id: str) -> Any | None:
+  """Extracts the response schema from an event if it's a RequestInput call.
+
+  Args:
+    event: The event to extract from.
+    interrupt_id: The ID of the interrupt to match.
+
+  Returns:
+    The schema if found, or None.
+  """
+  if not event.content or not event.content.parts:
+    return None
+
+  for part in event.content.parts:
+    fc = part.function_call
+    if (
+        fc
+        and fc.name == REQUEST_INPUT_FUNCTION_CALL_NAME
+        and fc.id == interrupt_id
+    ):
+      return fc.args.get('response_schema')
+
+  return None
+
+
+def validate_resume_response(response_data: Any, schema: Any) -> Any:
+  """Validates and coerces resume response data against a schema.
+
+  Args:
+    response_data: The data to validate.
+    schema: The schema to validate against (Python type, GenericAlias, or raw
+      JSON Schema dict).
+
+  Returns:
+    The validated and coerced data.
+  """
+  if schema is None:
+    return response_data
+
+  # If it's a JSON Schema dict, map type to Python type for TypeAdapter
+  if isinstance(schema, dict):
+    type_str = schema.get('type')
+
+    type_mapping = {
+        'integer': int,
+        'number': float,
+        'string': str,
+        'boolean': bool,
+        'array': list,
+        'object': dict,
+    }
+
+    # Special handling for object schemas with properties
+    if type_str == 'object' and 'properties' in schema:
+      from pydantic import create_model
+
+      properties = schema['properties']
+      required = schema.get('required', [])
+
+      fields = {}
+      for prop_name, prop_schema in properties.items():
+        prop_type_str = prop_schema.get('type')
+        prop_type = type_mapping.get(prop_type_str, Any)
+
+        if prop_name in required:
+          fields[prop_name] = (prop_type, ...)
+        else:
+          fields[prop_name] = (prop_type | None, None)
+
+      try:
+        DynamicModel = create_model('DynamicModel', **fields)
+        # Validate and return as dict
+        model_instance = TypeAdapter(DynamicModel).validate_python(
+            response_data
+        )
+        return model_instance.model_dump()
+      except Exception as e:
+        raise ValueError(f'Validation failed for object schema: {e}') from e
+
+    mapped_type = type_mapping.get(type_str)
+    if mapped_type:
+      try:
+        return TypeAdapter(mapped_type).validate_python(response_data)
+      except Exception as e:
+        raise ValueError(f'Failed to coerce data to {type_str}: {e}') from e
+
+    # Fallback: skip validation for complex schemas (similar to base node)
+    return response_data
+
+  # For Python types and Pydantic models, use TypeAdapter directly
+  try:
+    return TypeAdapter(schema).validate_python(response_data)
+  except Exception as e:
+    raise ValueError(f'Validation failed against schema: {e}') from e
