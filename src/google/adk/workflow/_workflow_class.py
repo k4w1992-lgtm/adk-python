@@ -44,8 +44,8 @@ from ._workflow_graph import WorkflowGraph
 from .utils._node_path_utils import direct_child_name
 from .utils._node_path_utils import is_descendant
 from .utils._node_path_utils import is_direct_child
-from .utils._workflow_hitl_utils import REQUEST_INPUT_FUNCTION_CALL_NAME
 from .utils._workflow_hitl_utils import extract_schema_from_event
+from .utils._workflow_hitl_utils import REQUEST_INPUT_FUNCTION_CALL_NAME
 from .utils._workflow_hitl_utils import unwrap_response as _unwrap_fr_response
 from .utils._workflow_hitl_utils import validate_resume_response
 
@@ -175,12 +175,39 @@ class Workflow(BaseNode):
     super().model_post_init(context)
     if self.edges and self.graph is None:
       self.graph = self._build_graph()
+    self._validate_state_schema()
 
   def _build_graph(self) -> WorkflowGraph:
     """Convert edge definitions to a validated WorkflowGraph."""
     graph = WorkflowGraph.from_edge_items(self.edges)
     graph.validate_graph()
     return graph
+
+  def _validate_state_schema(self) -> None:
+    """Raises when FunctionNode params don't match state_schema fields."""
+    if not self.state_schema or not self.graph:
+      return
+
+    from ..sessions.state import StateSchemaError
+    from ._function_node import FunctionNode
+
+    schema_fields = set(self.state_schema.model_fields.keys())
+
+    for graph_node in self.graph.nodes:
+      if not isinstance(graph_node, FunctionNode):
+        continue
+
+      for param_name in graph_node._sig.parameters:
+        if param_name in ('ctx', 'node_input', 'self'):
+          continue
+
+        if param_name not in schema_fields:
+          raise StateSchemaError(
+              f'FunctionNode {graph_node.name!r} parameter '
+              f'{param_name!r} is not declared in state_schema '
+              f'{self.state_schema.__name__!r}. Declared fields: '
+              f'{sorted(schema_fields)}'
+          )
 
   # --- _run_impl: the orchestration loop ---
 

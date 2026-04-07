@@ -85,6 +85,7 @@ class NodeRunner:
     # Core
     self._node = node
     self._parent_ctx = parent_ctx
+
     self._run_id = str(run_id) if run_id else "1"
     self._sub_branch = sub_branch
 
@@ -227,7 +228,8 @@ class NodeRunner:
         in_nodes=self._in_nodes,
         output_for_ancestors=ancestors,
         event_author=self._parent_ctx.event_author,
-        state_schema=self._node.state_schema,
+        state_schema=self._node.state_schema
+        or (self._parent_ctx.state._schema if self._parent_ctx else None),
         retry_count=retry_count,
     )
 
@@ -302,6 +304,17 @@ class NodeRunner:
       ctx._interrupt_ids.update(event.long_running_tool_ids)
     if event.actions.route is not None:
       ctx.route = event.actions.route
+
+    # Validate state_delta if schema is present
+    if (
+        event.actions
+        and event.actions.state_delta
+        and ctx.state._schema is not None
+    ):
+      from ..sessions.state import _validate_state_entry
+
+      for key, value in event.actions.state_delta.items():
+        _validate_state_entry(ctx.state._schema, key, value)
 
   async def _enqueue_event(self, event: Event, ctx: Context) -> None:
     """Enrich and enqueue event to the session.
