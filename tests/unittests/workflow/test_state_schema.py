@@ -24,16 +24,15 @@ from google.adk.sessions.state import State
 from google.adk.sessions.state import StateSchemaError
 from google.adk.workflow import FunctionNode
 from google.adk.workflow import START
-from google.adk.workflow import Workflow
+from google.adk.workflow._workflow_class import Workflow
 from pydantic import BaseModel
 import pytest
 
+from google.adk.apps.app import App
+from .. import testing_utils
 from .workflow_testing_utils import create_parent_invocation_context
 
-pytest.skip(
-    'Skipping since not yet migrated to use .',
-    allow_module_level=True,
-)
+
 
 
 # ── Schema models for testing ────────────────────────────────────────
@@ -201,10 +200,9 @@ async def test_workflow_valid_state_writes_succeed(
       edges=[(START, write_state)],
       state_schema=_PipelineSchema,
   )
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, wf
-  )
-  events = [e async for e in wf.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=wf)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
   data_events = [e for e in events if isinstance(e, Event) and e.output]
   assert any(e.output == 'done' for e in data_events)
 
@@ -224,11 +222,10 @@ async def test_workflow_rejects_unknown_key_via_ctx_state(
       edges=[(START, write_bad_key)],
       state_schema=_PipelineSchema,
   )
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, wf
-  )
+  app = App(name=request.function.__name__, root_agent=wf)
+  runner = testing_utils.InMemoryRunner(app=app)
   with pytest.raises(StateSchemaError, match='unknown_key'):
-    _ = [e async for e in wf.run_async(ctx)]
+    await runner.run_async(testing_utils.get_user_content('start'))
 
 
 @pytest.mark.asyncio
@@ -245,11 +242,10 @@ async def test_workflow_rejects_unknown_key_via_event_state(
       edges=[(START, emit_bad_state)],
       state_schema=_PipelineSchema,
   )
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, wf
-  )
+  app = App(name=request.function.__name__, root_agent=wf)
+  runner = testing_utils.InMemoryRunner(app=app)
   with pytest.raises(StateSchemaError, match='arbitrary_key'):
-    _ = [e async for e in wf.run_async(ctx)]
+    await runner.run_async(testing_utils.get_user_content('start'))
 
 
 @pytest.mark.asyncio
@@ -266,10 +262,9 @@ async def test_workflow_accepts_valid_event_state(
       edges=[(START, emit_valid_state)],
       state_schema=_PipelineSchema,
   )
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, wf
-  )
-  events = [e async for e in wf.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=wf)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
   data_events = [e for e in events if isinstance(e, Event) and e.output]
   assert any(e.output == 'done' for e in data_events)
 
@@ -290,10 +285,9 @@ async def test_workflow_allows_prefixed_keys_at_runtime(
       edges=[(START, write_prefixed)],
       state_schema=_PipelineSchema,
   )
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, wf
-  )
-  events = [e async for e in wf.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=wf)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
   data_events = [e for e in events if isinstance(e, Event) and e.output]
   assert any(e.output == 'done' for e in data_events)
 
@@ -313,10 +307,9 @@ async def test_workflow_without_schema_allows_anything(
       name='wf',
       edges=[(START, write_anything)],
   )
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, wf
-  )
-  events = [e async for e in wf.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=wf)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
   data_events = [e for e in events if isinstance(e, Event) and e.output]
   assert any(e.output == 'done' for e in data_events)
 
@@ -343,11 +336,10 @@ async def test_node_level_schema_validates_writes(
       name='wf',
       edges=[(START, node)],
   )
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, wf
-  )
+  app = App(name=request.function.__name__, root_agent=wf)
+  runner = testing_utils.InMemoryRunner(app=app)
   with pytest.raises(StateSchemaError, match='bad_key'):
-    _ = [e async for e in wf.run_async(ctx)]
+    await runner.run_async(testing_utils.get_user_content('start'))
 
 
 @pytest.mark.asyncio
@@ -370,10 +362,9 @@ async def test_node_level_schema_accepts_valid_writes(
       name='wf',
       edges=[(START, node)],
   )
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, wf
-  )
-  events = [e async for e in wf.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=wf)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
   data_events = [e for e in events if isinstance(e, Event) and e.output]
   assert any(e.output == 'done' for e in data_events)
 
@@ -398,12 +389,11 @@ async def test_node_schema_overrides_workflow_schema(
       edges=[(START, node)],
       state_schema=_PipelineSchema,
   )
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, wf
-  )
+  app = App(name=request.function.__name__, root_agent=wf)
+  runner = testing_utils.InMemoryRunner(app=app)
   # 'x' is in _NodeSchema but NOT in _PipelineSchema — should succeed
   # because node schema overrides workflow schema
-  events = [e async for e in wf.run_async(ctx)]
+  events = await runner.run_async(testing_utils.get_user_content('start'))
   data_events = [e for e in events if isinstance(e, Event) and e.output]
   assert any(e.output == 'done' for e in data_events)
 
@@ -423,8 +413,7 @@ async def test_node_without_schema_inherits_workflow_schema(
       edges=[(START, write_bad_key)],
       state_schema=_PipelineSchema,
   )
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, wf
-  )
+  app = App(name=request.function.__name__, root_agent=wf)
+  runner = testing_utils.InMemoryRunner(app=app)
   with pytest.raises(StateSchemaError, match='unknown'):
-    _ = [e async for e in wf.run_async(ctx)]
+    await runner.run_async(testing_utils.get_user_content('start'))

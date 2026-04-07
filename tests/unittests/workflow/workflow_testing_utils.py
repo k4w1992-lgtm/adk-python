@@ -46,6 +46,23 @@ from .testing_utils import _split_name_and_run_id
 from .testing_utils import simplify_content
 
 
+from google.adk.runners import Runner
+
+
+async def run_workflow(wf, message='start'):
+  """Run a Workflow through Runner, return collected events."""
+  ss = InMemorySessionService()
+  runner = Runner(app_name=wf.name, node=wf, session_service=ss)
+  session = await ss.create_session(app_name=wf.name, user_id='u')
+  msg = types.Content(parts=[types.Part(text=message)], role='user')
+  events = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg
+  ):
+    events.append(event)
+  return events, ss, session
+
+
 # Emulates a node that outputs an Event & a route.
 # If output is not None, the output is set as the data field in the event.
 # If route is not None, the route is set in the node output event.

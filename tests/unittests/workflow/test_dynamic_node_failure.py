@@ -20,7 +20,9 @@ from typing import AsyncGenerator
 from google.adk.agents.context import Context
 from google.adk.workflow import Edge
 from google.adk.workflow import START
-from google.adk.workflow import Workflow
+from google.adk.workflow._workflow_class import Workflow
+from google.adk.apps.app import App
+from .. import testing_utils
 from google.adk.workflow._base_node import BaseNode
 from google.adk.workflow._node import node
 from google.adk.workflow._node_status import NodeStatus
@@ -28,10 +30,6 @@ import pytest
 
 from .workflow_testing_utils import create_parent_invocation_context
 
-pytest.skip(
-    'Skipping since not yet migrated to use .',
-    allow_module_level=True,
-)
 
 @node
 async def failing_node(node_input: str):
@@ -63,12 +61,12 @@ async def test_dynamic_node_failure_handling(request: pytest.FixtureRequest):
       ],
   )
 
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, agent, resumable=True
-  )
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
 
   results = []
-  async for event in agent.run_async(ctx):
+  events = await runner.run_async(testing_utils.get_user_content('start'))
+  for event in events:
     if event.output:
       if isinstance(event.output, list):
         results.extend(event.output)

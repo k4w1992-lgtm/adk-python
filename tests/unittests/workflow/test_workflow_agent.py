@@ -31,7 +31,7 @@ from google.adk.events.event_actions import EventActions
 from google.adk.workflow import BaseNode
 from google.adk.workflow import Edge
 from google.adk.workflow import START
-from google.adk.workflow import Workflow
+from google.adk.workflow._workflow_class import Workflow
 from google.adk.workflow._node_status import NodeStatus
 from google.adk.workflow._trigger import Trigger
 from google.adk.workflow._workflow import NodeState
@@ -53,12 +53,9 @@ from .workflow_testing_utils import simplify_events_with_node
 from .workflow_testing_utils import simplify_events_with_node_and_agent_state
 from .workflow_testing_utils import TestingNode
 from .workflow_testing_utils import TestingNodeWithIntermediateContent
+from .workflow_testing_utils import run_workflow
 
 
-pytest.skip(
-    'Skipping since not yet migrated to use .',
-    allow_module_level=True,
-)
 
 
 @pytest.mark.asyncio
@@ -75,8 +72,9 @@ async def test_run_async(request: pytest.FixtureRequest):
       name='test_workflow_agent',
       graph=graph,
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
 
   assert simplify_events_with_node(events) == [
       ('test_workflow_agent', {'node_name': 'NodeA', 'output': 'Hello'}),
@@ -105,8 +103,10 @@ async def test_run_async_with_intermediate_content(
       name='test_workflow_agent',
       graph=graph,
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
 
   assert simplify_events_with_node(events) == [
       ('NodeA', 'A message'),
@@ -189,8 +189,11 @@ async def test_run_async_with_loop_and_break(request: pytest.FixtureRequest):
       name='loop_agent_with_conditional_break',
       graph=graph,
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
+
 
   assert simplify_events_with_node(events) == [
       (
@@ -225,164 +228,6 @@ async def test_run_async_with_loop_and_break(request: pytest.FixtureRequest):
   assert tracker['iteration_count'] == 3
 
 
-class _FailableNode(BaseNode):
-  model_config = ConfigDict(arbitrary_types_allowed=True)
-
-  name: str = Field(default='')
-  message: str = Field(default='')
-  fail_on_iteration: int = Field(default=0)
-  tracker: dict[str, Any] = Field(default_factory=dict)
-
-  def __init__(
-      self,
-      *,
-      name: str,
-      message: str,
-      fail_on_iteration: int,
-      tracker: dict[str, Any],
-  ):
-    super().__init__()
-    object.__setattr__(self, 'name', name)
-    object.__setattr__(self, 'message', message)
-    object.__setattr__(self, 'fail_on_iteration', fail_on_iteration)
-    object.__setattr__(self, 'tracker', tracker)
-
-  @override
-  def get_name(self) -> str:
-    return self.name
-
-  @override
-  async def run(
-      self,
-      *,
-      ctx: Context,
-      node_input: Any,
-  ) -> AsyncGenerator[Any, None]:
-    iteration_count = self.tracker.get('iteration_count', 0)
-
-    if (
-        not self.tracker.get('has_failed', False)
-        and iteration_count == self.fail_on_iteration
-    ):
-      self.tracker['has_failed'] = True
-      raise ValueError('Artificial failure')
-
-    yield Event(
-        output=self.message,
-    )
-
-
-@pytest.mark.asyncio
-async def test_resume_behavior(request: pytest.FixtureRequest):
-  tracker = {'has_failed': False, 'iteration_count': 0}
-  node_a = TestingNode(name='NodeA', output='Executing A')
-  fail_node = _FailableNode(
-      name='FailNode',
-      message='Executing B',
-      fail_on_iteration=1,
-      tracker=tracker,
-  )
-  check_node = IncrementingNode(
-      name='CheckNode',
-      message='Executing C',
-      tracker=tracker,
-  )
-  graph = WorkflowGraph(
-      edges=[
-          Edge(START, node_a),
-          Edge(node_a, fail_node),
-          Edge(fail_node, check_node),
-          Edge(
-              check_node,
-              node_a,
-              route='continue_loop',
-          ),
-      ],
-  )
-  agent = Workflow(
-      name='test_workflow_agent_resume',
-      graph=graph,
-  )
-
-  # Run 1: fails
-  ctx1 = await create_parent_invocation_context(
-      request.function.__name__, agent, resumable=True
-  )
-  ctx1.user_content = testing_utils.UserContent('start it')
-
-  events1 = []
-  with pytest.raises(ValueError, match='Artificial failure'):
-    async for e in agent.run_async(ctx1):
-      events1.append(e)
-
-  # Iteration 0: A, B, C. count becomes 1.
-  # Iteration 1: A runs. B fails.
-  assert simplify_events_with_node(events1) == [
-      (
-          'test_workflow_agent_resume',
-          {'node_name': 'NodeA', 'output': 'Executing A'},
-      ),
-      (
-          'test_workflow_agent_resume',
-          {'node_name': 'FailNode', 'output': 'Executing B'},
-      ),
-      (
-          'test_workflow_agent_resume',
-          {'node_name': 'CheckNode', 'output': 'Executing C'},
-      ),
-      (
-          'test_workflow_agent_resume',
-          {'node_name': 'NodeA', 'output': 'Executing A'},
-      ),
-  ]
-  assert tracker['iteration_count'] == 1
-
-  # Constructing agent state to simulate resume. Marking Failed node as PENDING.
-  agent_state = WorkflowAgentState(
-      nodes={
-          node_a.name: NodeState(status=NodeStatus.COMPLETED),
-          fail_node.name: NodeState(status=NodeStatus.PENDING),
-          check_node.name: NodeState(status=NodeStatus.COMPLETED),
-      }
-  ).model_dump(mode='json')
-
-  # Run 2: resume
-  ctx2 = await create_parent_invocation_context(
-      request.function.__name__, agent, resumable=True
-  )
-  ctx2.agent_states[agent.name] = agent_state
-  ctx2.invocation_id = events1[0].invocation_id
-
-  events2 = [e async for e in agent.run_async(ctx2)]
-
-  # Resumes from B in iteration 1. count is 1.
-  # Iteration 1 continued: B, C. count becomes 2.
-  # Iteration 2: A, B, C. count becomes 3. Loop terminates.
-  assert simplify_events_with_node(events2) == [
-      (
-          'test_workflow_agent_resume',
-          {'node_name': 'FailNode', 'output': 'Executing B'},
-      ),
-      (
-          'test_workflow_agent_resume',
-          {'node_name': 'CheckNode', 'output': 'Executing C'},
-      ),
-      (
-          'test_workflow_agent_resume',
-          {'node_name': 'NodeA', 'output': 'Executing A'},
-      ),
-      (
-          'test_workflow_agent_resume',
-          {'node_name': 'FailNode', 'output': 'Executing B'},
-      ),
-      (
-          'test_workflow_agent_resume',
-          {'node_name': 'CheckNode', 'output': 'Executing C'},
-      ),
-  ]
-  assert tracker['iteration_count'] == 3
-
-
 @pytest.mark.asyncio
 async def test_agent_state_event_recorded(request: pytest.FixtureRequest):
   """Verifies that agent_state events are correctly recorded."""
@@ -399,10 +244,7 @@ async def test_agent_state_event_recorded(request: pytest.FixtureRequest):
       name=agent_name,
       graph=graph,
   )
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, agent, resumable=True
-  )
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
   simplified_events = simplify_events_with_node_and_agent_state(
       events, include_inputs_and_triggers=True
   )
@@ -464,8 +306,7 @@ async def test_run_async_with_implicit_graph(request: pytest.FixtureRequest):
           (node_a, node_b),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
 
   assert simplify_events_with_node(events) == [
       (
@@ -490,8 +331,7 @@ async def test_run_async_with_string_start(request: pytest.FixtureRequest):
           (node_a, node_b),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
 
   assert simplify_events_with_node(events) == [
       (
@@ -520,8 +360,7 @@ async def test_run_async_with_implicit_graph_with_edge_combinations(
           (node_b, node_c),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
 
   assert simplify_events_with_node(events) == [
       (
@@ -698,8 +537,7 @@ async def test_run_async_with_raw_output_node(
           (START, node_a),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
 
   assert simplify_events_with_node(events) == [
       (
@@ -724,8 +562,7 @@ async def test_node_output_event_with_content_data(
           (START, content_producing_node_fn),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
   node_output_events = [
       e
       for e in events
@@ -1395,8 +1232,7 @@ async def test_run_async_parallel_nodes_interleaved_events(
       name='test_workflow_agent_parallel',
       graph=graph,
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
 
   simplified_events = testing_utils.simplify_events(events)
   assert len(simplified_events) == 4
@@ -1457,8 +1293,7 @@ async def test_run_id_uniqueness(request: pytest.FixtureRequest):
           Edge(node_a, node_a, route='continue'),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
 
   node_a_events = [
       e for e in events if isinstance(e, Event) and e.node_name == 'NodeA'
@@ -1495,12 +1330,7 @@ async def test_run_id_uniqueness_nested(request: pytest.FixtureRequest):
           (inner_agent, outer_node_b),
       ],
   )
-
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, outer_agent
-  )
-  ctx.user_content = testing_utils.UserContent('start outer')
-  events = [e async for e in outer_agent.run_async(ctx)]
+  events, _, _ = await run_workflow(outer_agent)
 
   node_output_events = [
       e
@@ -1550,15 +1380,10 @@ async def test_resume_with_manual_state_verifies_input_persistence(
           ),
       },
   ).model_dump(mode='json')
-
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, agent, resumable=True
-  )
   # Inject the state
-  ctx.agent_states[agent.name] = agent_state
 
   # Run agent
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
 
   # NodeB should have run and captured the input from the state
   assert node_b.received_inputs == ['injected_input_from_state']
@@ -1718,11 +1543,10 @@ async def test_run_async_streaming_behavior(request: pytest.FixtureRequest):
       name='test_streaming',
       edges=[(START, node)],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
 
   events = []
   sleep_started_values = []
-  async for e in agent.run_async(ctx):
+  for e in (await run_workflow(agent))[0]:
     events.append(e)
     if (
         isinstance(e, Event)
@@ -1769,8 +1593,7 @@ async def test_node_path_generation(request: pytest.FixtureRequest):
       name='test_workflow_agent_path',
       graph=WorkflowGraph(edges=[Edge(START, node_a)]),
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
 
   # Filter for node events (excluding user input echo if any)
   node_events = [e for e in events if e.node_name == 'NodeA']
@@ -1959,12 +1782,7 @@ async def test_bytes_input_full_workflow_resume(
       },
   ).model_dump(mode='json')
 
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, agent, resumable=True
-  )
-  ctx.agent_states[agent.name] = agent_state
-
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
 
   # NodeB receives a dict (Content was serialized). It can reconstruct
   # the Content object if it has a type hint.

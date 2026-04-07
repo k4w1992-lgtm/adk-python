@@ -25,7 +25,9 @@ from google.adk.events.event import Event
 from google.adk.workflow import BaseNode
 from google.adk.workflow import Edge
 from google.adk.workflow import START
-from google.adk.workflow import Workflow
+from google.adk.workflow._workflow_class import Workflow
+from google.adk.apps.app import App
+from .. import testing_utils
 from google.adk.workflow._errors import NodeTimeoutError
 from google.adk.workflow._retry_config import RetryConfig
 from google.adk.workflow._workflow_graph import WorkflowGraph
@@ -38,10 +40,7 @@ from .workflow_testing_utils import create_parent_invocation_context
 from .workflow_testing_utils import simplify_events_with_node
 from .workflow_testing_utils import TestingNode
 
-pytest.skip(
-    'Skipping since not yet migrated to use .',
-    allow_module_level=True,
-)
+
 
 
 class _SlowNode(BaseNode):
@@ -101,8 +100,9 @@ async def test_node_completes_within_timeout(request: pytest.FixtureRequest):
       edges=[Edge(START, node_a)],
   )
   agent = Workflow(name='test_workflow', graph=graph)
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
 
   assert simplify_events_with_node(events) == [
       ('test_workflow', {'node_name': 'NodeA', 'output': 'done'}),
@@ -121,10 +121,11 @@ async def test_node_exceeds_timeout(request: pytest.FixtureRequest):
       ],
   )
   agent = Workflow(name='test_workflow', graph=graph)
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
 
   with pytest.raises(NodeTimeoutError) as exc_info:
-    [e async for e in agent.run_async(ctx)]
+    await runner.run_async(testing_utils.get_user_content('start'))
 
   assert exc_info.value.node_name == 'NodeA'
   assert exc_info.value.timeout == 0.05
@@ -139,8 +140,9 @@ async def test_node_no_timeout(request: pytest.FixtureRequest):
       edges=[Edge(START, node_a)],
   )
   agent = Workflow(name='test_workflow', graph=graph)
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
 
   assert simplify_events_with_node(events) == [
       ('test_workflow', {'node_name': 'NodeA', 'output': 'done'}),
@@ -171,10 +173,9 @@ async def test_timeout_with_retry(request: pytest.FixtureRequest):
       edges=[Edge(START, node_a)],
   )
   agent = Workflow(name='test_workflow', graph=graph)
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, agent, resumable=True
-  )
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
 
   assert simplify_events_with_node(events) == [
       ('test_workflow', {'node_name': 'NodeA', 'output': 'success'}),

@@ -17,20 +17,17 @@
 from google.adk.apps import app
 from google.adk.workflow import _base_node as base_node
 from google.adk.workflow import _join_node as join_node
-from google.adk.workflow import _workflow as workflow
 from google.adk.workflow import _workflow_graph as workflow_graph
 from google.adk.workflow import START
-from google.adk.workflow import Workflow
+from google.adk.workflow._workflow_class import Workflow
+from google.adk import workflow
 from pydantic import BaseModel
 import pytest
 
 from .. import testing_utils
 from . import workflow_testing_utils
 
-pytest.skip(
-    'Skipping since not yet migrated to use .',
-    allow_module_level=True,
-)
+
 
 
 def _build_join_node_workflow(

@@ -20,19 +20,16 @@ from typing import Dict
 from google.adk.agents.context import Context
 from google.adk.workflow import Edge
 from google.adk.workflow import START
-from google.adk.workflow import Workflow
+from google.adk.workflow._workflow_class import Workflow
 from google.adk.workflow._workflow_graph import DEFAULT_ROUTE
 from google.adk.workflow._workflow_graph import WorkflowGraph
+from google.adk.apps.app import App
+from .. import testing_utils
 import pytest
 
 from .workflow_testing_utils import create_parent_invocation_context
 from .workflow_testing_utils import simplify_events_with_node
 from .workflow_testing_utils import TestingNode
-
-pytest.skip(
-    'Skipping since not yet migrated to use .',
-    allow_module_level=True,
-)
 
 
 @pytest.mark.asyncio
@@ -67,10 +64,9 @@ async def test_run_async_with_edge_routes(request: pytest.FixtureRequest):
 
   # Test case for route_b
   route_holder['route'] = 'route_b'
-  ctx_b = await create_parent_invocation_context(
-      request.function.__name__ + '_b', agent
-  )
-  events_b = [e async for e in agent.run_async(ctx_b)]
+  app = App(name=request.function.__name__ + '_b', root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events_b = await runner.run_async(testing_utils.get_user_content('start'))
   assert simplify_events_with_node(events_b) == [
       ('test_workflow_agent', {'node_name': 'NodeA', 'output': 'A'}),
       ('test_workflow_agent', {'node_name': 'NodeB', 'output': 'B'}),
@@ -78,10 +74,9 @@ async def test_run_async_with_edge_routes(request: pytest.FixtureRequest):
 
   # Test case for route_c
   route_holder['route'] = 'route_c'
-  ctx_c = await create_parent_invocation_context(
-      request.function.__name__ + '_c', agent
-  )
-  events_c = [e async for e in agent.run_async(ctx_c)]
+  app_c = App(name=request.function.__name__ + '_c', root_agent=agent)
+  runner_c = testing_utils.InMemoryRunner(app=app_c)
+  events_c = await runner_c.run_async(testing_utils.get_user_content('start'))
   assert simplify_events_with_node(events_c) == [
       ('test_workflow_agent', {'node_name': 'NodeA', 'output': 'A'}),
       ('test_workflow_agent', {'node_name': 'NodeC', 'output': 'C'}),
@@ -100,8 +95,9 @@ async def test_output_route_int(request: pytest.FixtureRequest):
           (node_a, {1: node_b, 2: node_c}),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
 
   assert simplify_events_with_node(events) == [
       ('test_workflow_agent_route_int', {'node_name': 'NodeA', 'output': None}),
@@ -121,8 +117,9 @@ async def test_output_route_bool(request: pytest.FixtureRequest):
           (node_a, {True: node_b, False: node_c}),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
 
   assert simplify_events_with_node(events) == [
       (
@@ -157,8 +154,9 @@ async def test_output_route_no_data(request: pytest.FixtureRequest):
       name='test_workflow_agent_route_no_data',
       graph=graph,
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
 
   assert simplify_events_with_node(events) == [
       (
@@ -203,8 +201,9 @@ async def test_run_async_with_list_of_routes(request: pytest.FixtureRequest):
       graph=graph,
   )
 
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
 
   simplified_events = simplify_events_with_node(events)
 
@@ -263,8 +262,9 @@ async def test_run_async_with_default_route(request: pytest.FixtureRequest):
       graph=graph,
   )
 
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
 
   simplified_events = simplify_events_with_node(events)
 
@@ -319,8 +319,9 @@ async def test_run_async_default_route_not_triggered_if_match(
       graph=graph,
   )
 
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
 
   simplified_events = simplify_events_with_node(events)
 
@@ -367,8 +368,9 @@ async def test_run_async_with_untagged_edges(request: pytest.FixtureRequest):
       graph=graph,
   )
 
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
 
   simplified_events = simplify_events_with_node(events)
 
@@ -421,8 +423,9 @@ async def test_edge_with_multiple_routes(
       ],
   )
 
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
   assert simplify_events_with_node(events) == [
       ('test_multi_route', {'node_name': 'Router', 'output': 'R'}),
       (
@@ -463,8 +466,9 @@ async def test_routing_map_selects_correct_route(
       ],
   )
 
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
   expected_output = 'B' if expected_target == 'NodeB' else 'C'
   assert simplify_events_with_node(events) == [
       ('test_routing_map', {'node_name': 'NodeA', 'output': 'A'}),
@@ -492,8 +496,9 @@ async def test_routing_map_with_default_route(
       ],
   )
 
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
   assert simplify_events_with_node(events) == [
       ('test_routing_map_default', {'node_name': 'NodeA', 'output': 'A'}),
       ('test_routing_map_default', {'node_name': 'NodeC', 'output': 'C'}),
@@ -520,8 +525,9 @@ async def test_routing_map_mixed_with_other_formats(
       ],
   )
 
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
   assert simplify_events_with_node(events) == [
       ('test_routing_map_mixed', {'node_name': 'NodeA', 'output': 'A'}),
       ('test_routing_map_mixed', {'node_name': 'NodeB', 'output': 'B'}),
@@ -546,8 +552,9 @@ async def test_routing_map_fan_out_runs_both_targets(
       ],
   )
 
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
   simplified = simplify_events_with_node(events)
 
   assert len(simplified) == 3

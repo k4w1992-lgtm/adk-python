@@ -26,7 +26,7 @@ from google.adk.events.request_input import RequestInput
 from google.adk.tools.long_running_tool import LongRunningFunctionTool
 from google.adk.workflow import BaseNode
 from google.adk.workflow import JoinNode
-from google.adk.workflow import Workflow
+from google.adk.workflow._workflow_class import Workflow
 from google.adk.workflow._node_status import NodeStatus
 from google.adk.workflow.utils._workflow_hitl_utils import create_request_input_response
 from google.adk.workflow.utils._workflow_hitl_utils import get_request_input_interrupt_ids
@@ -45,10 +45,6 @@ from .workflow_testing_utils import simplify_events_with_node_and_agent_state
 from .workflow_testing_utils import strip_checkpoint_events
 from .workflow_testing_utils import TestingNode
 
-pytest.skip(
-    'Skipping since not yet migrated to use .',
-    allow_module_level=True,
-)
 
 def long_running_tool_func():
   """A test tool that simulates a long-running operation."""

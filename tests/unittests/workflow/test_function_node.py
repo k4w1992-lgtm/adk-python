@@ -30,7 +30,7 @@ from google.adk.events.event import Event as AdkEvent
 from google.adk.events.request_input import RequestInput
 from google.adk.workflow import FunctionNode
 from google.adk.workflow import START
-from google.adk.workflow import Workflow
+from google.adk.workflow._workflow_class import Workflow
 from google.adk.workflow._node_status import NodeStatus
 from google.adk.workflow.utils._node_path_utils import is_direct_child
 from google.adk.workflow.utils._workflow_hitl_utils import create_request_input_response
@@ -44,13 +44,13 @@ from .workflow_testing_utils import create_parent_invocation_context
 from .workflow_testing_utils import get_request_input_events
 from .workflow_testing_utils import simplify_events_with_node
 from .workflow_testing_utils import simplify_events_with_node_and_agent_state
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
 
 ANY = mock.ANY
 
-pytest.skip(
-    'Skipping since not yet migrated to use .',
-    allow_module_level=True,
-)
+from .workflow_testing_utils import run_workflow
+
 
 @pytest.mark.asyncio
 async def test_various_function_nodes(request: pytest.FixtureRequest):
@@ -103,8 +103,9 @@ async def test_various_function_nodes(request: pytest.FixtureRequest):
           (async_gen_func_raw_output, sync_gen_func_raw_output),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  app_instance = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app_instance)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
 
   # Functions with no output (sync_func_no_out, async_func_no_out)
   # will not produce events.
@@ -163,8 +164,7 @@ async def test_function_node_state_injection(request: pytest.FixtureRequest):
           (set_state_node_fn, check_state_node_fn),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
   assert simplify_events_with_node(events) == [
       (
           'test_workflow_agent_state_injection',
@@ -191,10 +191,8 @@ async def test_function_node_state_injection_missing_param(
           (START, check_state_node_fn),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
   with pytest.raises(ValueError, match='Missing value for parameter "param1"'):
-    async for _ in agent.run_async(ctx):
-      pass
+    await run_workflow(agent)
 
 
 @pytest.mark.asyncio
@@ -220,10 +218,8 @@ async def test_function_node_type_checking(
           (set_state_node_fn, check_type_node_fn),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
   with pytest.raises(ValueError):
-    async for _ in agent.run_async(ctx):
-      pass
+    await run_workflow(agent)
 
 
 @pytest.mark.asyncio
@@ -243,10 +239,7 @@ async def test_function_node_input_injection(request: pytest.FixtureRequest):
           (node1_fn, node2_fn),
       ],
   )
-  ctx = await create_parent_invocation_context(
-      request.function.__name__ + '_dict', agent
-  )
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
   assert simplify_events_with_node(events) == [
       (
           'test_workflow_agent_input_injection_dict',
@@ -289,10 +282,7 @@ async def test_function_node_input_injection_pydantic(
           (node1_fn, node2_fn),
       ],
   )
-  ctx = await create_parent_invocation_context(
-      request.function.__name__ + '_pydantic', agent
-  )
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
   assert simplify_events_with_node(events) == [
       (
           'test_workflow_agent_input_injection_pydantic',
@@ -330,12 +320,8 @@ async def test_function_node_input_list_wrong_type(
           (node1_fn, node2_fn),
       ],
   )
-  ctx = await create_parent_invocation_context(
-      request.function.__name__ + '_pydantic', agent
-  )
   with pytest.raises(ValueError):
-    async for _ in agent.run_async(ctx):
-      pass
+    await run_workflow(agent)
 
 
 @pytest.mark.asyncio
@@ -357,10 +343,7 @@ async def test_function_node_input_list_no_item_type(
           (node1_fn, node2_fn),
       ],
   )
-  ctx = await create_parent_invocation_context(
-      request.function.__name__ + '_pydantic', agent
-  )
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
   assert simplify_events_with_node(events) == [
       (
           'test_workflow_agent_input_list_no_item_type',
@@ -403,10 +386,7 @@ async def test_function_node_input_and_state_injection(
           (nodea_fn, nodeb_fn),
       ],
   )
-  ctx = await create_parent_invocation_context(
-      request.function.__name__ + '_single_and_state', agent
-  )
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
   assert simplify_events_with_node(events) == [
       (
           'test_node_param_injection_single_and_state',
@@ -446,10 +426,7 @@ async def test_function_node_state_injection_pydantic(
           (node1_fn, node2_fn),
       ],
   )
-  ctx = await create_parent_invocation_context(
-      request.function.__name__ + '_pydantic', agent
-  )
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
   assert simplify_events_with_node(events) == [
       (
           'test_workflow_agent_state_injection_pydantic',
@@ -589,8 +566,7 @@ async def test_function_node_adk_events(request: pytest.FixtureRequest):
           (START, adk_events_fn),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
 
   assert len(events) == 2
   assert isinstance(events[0], AdkEvent)
@@ -629,8 +605,7 @@ async def test_function_node_list_conversion_pydantic(
           (upstream_func, aggregate),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  unused_events = [e async for e in agent.run_async(ctx)]
+  unused_events, _, _ = await run_workflow(agent)
 
   # Check if received_input contains Section objects
   assert isinstance(received_input, list)
@@ -669,8 +644,7 @@ async def test_function_node_dict_conversion_pydantic(
           (upstream_func, aggregate),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  unused_events = [e async for e in agent.run_async(ctx)]
+  unused_events, _, _ = await run_workflow(agent)
 
   # Check if received_input contains Section objects
   assert isinstance(received_input, dict)
@@ -696,8 +670,7 @@ async def test_function_node_no_data_returns_none(
           (START, func_no_data),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
 
   assert len(events) == 1
   assert events[0].output is None
@@ -719,8 +692,7 @@ async def test_function_node_yield_content(
           (START, func_yield_content),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
 
   assert len(events) == 1
   assert events[0].output is None
@@ -743,8 +715,7 @@ async def test_function_node_yield_event_with_content(
           (START, func_yield_event_with_content),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
 
   assert len(events) == 1
   assert events[0].output is None
@@ -978,8 +949,7 @@ async def test_function_node_ctx_state_delta_sync(
           (set_state_via_ctx, read_state),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
   simplified = simplify_events_with_node(events, include_state_delta=True)
   assert simplified == [
       (
@@ -1021,8 +991,7 @@ async def test_function_node_ctx_state_delta_async(
           (set_state_via_ctx, read_state),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
   simplified = simplify_events_with_node(events, include_state_delta=True)
   assert simplified == [
       (
@@ -1062,8 +1031,7 @@ async def test_function_node_ctx_state_delta_none_return(
           (set_state_return_none, read_state),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
   simplified = simplify_events_with_node(events, include_state_delta=True)
   assert simplified == [
       (
@@ -1107,8 +1075,7 @@ async def test_function_node_ctx_state_delta_with_event_return(
           (set_state_return_event, read_state),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
   simplified = simplify_events_with_node(events, include_state_delta=True)
   assert simplified == [
       (
@@ -1154,8 +1121,7 @@ async def test_function_node_ctx_state_delta_generator(
           (gen_with_state, read_state),
       ],
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
   simplified = simplify_events_with_node(events, include_state_delta=True)
 
   # First yield is a state-only Event, second is the data output with
@@ -1214,8 +1180,7 @@ async def test_output_schema_inferred_validates_dict(
   assert node.output_schema is _OutputModel
 
   agent = Workflow(name='wf', edges=[(START, node)])
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
 
   data_events = [
       e
@@ -1239,9 +1204,8 @@ async def test_output_schema_inferred_rejects_invalid(
 
   node = FunctionNode(produce)
   agent = Workflow(name='wf', edges=[(START, node)])
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
   with pytest.raises(ValueError):
-    [e async for e in agent.run_async(ctx)]
+    await run_workflow(agent)
 
 
 @pytest.mark.asyncio
@@ -1255,9 +1219,8 @@ async def test_output_schema_inferred_rejects_wrong_type(
 
   node = FunctionNode(produce)
   agent = Workflow(name='wf', edges=[(START, node)])
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
   with pytest.raises(ValueError):
-    [e async for e in agent.run_async(ctx)]
+    await run_workflow(agent)
 
 
 @pytest.mark.asyncio
@@ -1272,9 +1235,8 @@ async def test_output_schema_generator_rejects_invalid_item(
 
   node = FunctionNode(produce_items)
   agent = Workflow(name='wf', edges=[(START, node)])
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
   with pytest.raises(ValueError):
-    [e async for e in agent.run_async(ctx)]
+    await run_workflow(agent)
 
 
 @pytest.mark.asyncio
@@ -1290,8 +1252,7 @@ async def test_output_schema_inferred_coerces_defaults(
   assert node.output_schema is _OtherModel
 
   agent = Workflow(name='wf', edges=[(START, node)])
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
 
   data_events = [
       e
@@ -1321,8 +1282,7 @@ async def test_output_schema_inferred_from_return_hint(
   assert node.output_schema is _OutputModel
 
   agent = Workflow(name='wf', edges=[(START, node)])
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
 
   data_events = [
       e
@@ -1356,8 +1316,7 @@ async def test_output_schema_inferred_type_coercion(
 
   node = FunctionNode(produce)
   agent = Workflow(name='wf', edges=[(START, node)])
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
 
   data_events = [
       e
@@ -1384,8 +1343,7 @@ async def test_output_schema_none_return(request: pytest.FixtureRequest):
     return f'got: {node_input}'
 
   agent = Workflow(name='wf', edges=[(START, node), (node, downstream)])
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
 
   data_events = [
       e
@@ -1411,8 +1369,7 @@ async def test_output_schema_validates_returned_event_data(
   assert node.output_schema is _OutputModel
 
   agent = Workflow(name='wf', edges=[(START, node)])
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
 
   data_events = [
       e
@@ -1436,9 +1393,8 @@ async def test_output_schema_rejects_invalid_returned_event_data(
 
   node = FunctionNode(produce)
   agent = Workflow(name='wf', edges=[(START, node)])
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
   with pytest.raises(ValueError):
-    [e async for e in agent.run_async(ctx)]
+    await run_workflow(agent)
 
 
 # ── FunctionNode input_schema ──────────────────────────────────────
@@ -1460,8 +1416,7 @@ async def test_input_schema_validates_dict(request: pytest.FixtureRequest):
   assert node.input_schema is _OutputModel
 
   agent = Workflow(name='wf', edges=[(START, produce), (produce, node)])
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  [e async for e in agent.run_async(ctx)]
+  await run_workflow(agent)
 
   # input_schema validates before FunctionNode converts dict -> BaseModel
   assert received == [_OutputModel(name='test', value=42)]
@@ -1481,9 +1436,8 @@ async def test_input_schema_rejects_invalid_dict(
 
   node = FunctionNode(process)
   agent = Workflow(name='wf', edges=[(START, produce), (produce, node)])
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
   with pytest.raises(ValueError):
-    [e async for e in agent.run_async(ctx)]
+    await run_workflow(agent)
 
 
 @pytest.mark.asyncio
@@ -1500,8 +1454,7 @@ async def test_input_schema_coerces_types(request: pytest.FixtureRequest):
 
   node = FunctionNode(process)
   agent = Workflow(name='wf', edges=[(START, produce), (produce, node)])
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  [e async for e in agent.run_async(ctx)]
+  await run_workflow(agent)
 
   assert received == [_OutputModel(name='test', value=5)]
 
@@ -1522,8 +1475,7 @@ async def test_input_schema_fills_defaults(request: pytest.FixtureRequest):
   assert node.input_schema is _OtherModel
 
   agent = Workflow(name='wf', edges=[(START, produce), (produce, node)])
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  [e async for e in agent.run_async(ctx)]
+  await run_workflow(agent)
 
   assert received == [_OtherModel(name='test', value=1, extra='default')]
 
@@ -1552,8 +1504,7 @@ async def test_input_schema_none_passthrough(request: pytest.FixtureRequest):
   agent = Workflow(
       name='wf', edges=[(START, produce_none), (produce_none, node)]
   )
-  ctx = await create_parent_invocation_context(request.function.__name__, agent)
-  events = [e async for e in agent.run_async(ctx)]
+  events, _, _ = await run_workflow(agent)
 
   data_events = [
       e
@@ -1704,10 +1655,7 @@ class TestParameterBindingNodeInput:
             (produce, node),
         ],
     )
-    ctx = await create_parent_invocation_context(
-        request.function.__name__, agent
-    )
-    events = [e async for e in agent.run_async(ctx)]
+    events, _, _ = await run_workflow(agent)
     assert simplify_events_with_node(events) == [
         (
             'test_bind_from_node_input',
@@ -1740,11 +1688,8 @@ class TestParameterBindingNodeInput:
             (produce, node),
         ],
     )
-    ctx = await create_parent_invocation_context(
-        request.function.__name__, agent
-    )
     with pytest.raises(ValueError, match='Missing value for parameter "y"'):
-      [e async for e in agent.run_async(ctx)]
+      await run_workflow(agent)
 
   @pytest.mark.asyncio
   async def test_bind_from_node_input_with_ctx(
@@ -1769,10 +1714,7 @@ class TestParameterBindingNodeInput:
             (produce, node),
         ],
     )
-    ctx = await create_parent_invocation_context(
-        request.function.__name__, agent
-    )
-    events = [e async for e in agent.run_async(ctx)]
+    events, _, _ = await run_workflow(agent)
 
     assert len(received_ctx) == 1
     assert isinstance(received_ctx[0], Context)

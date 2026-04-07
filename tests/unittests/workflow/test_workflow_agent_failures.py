@@ -24,7 +24,9 @@ from google.adk.events.event import Event
 from google.adk.workflow import BaseNode
 from google.adk.workflow import Edge
 from google.adk.workflow import START
-from google.adk.workflow import Workflow
+from google.adk.workflow._workflow_class import Workflow
+from google.adk.apps.app import App
+from .. import testing_utils
 from google.adk.workflow._node import node
 from google.adk.workflow._node import Node
 from google.adk.workflow._node_status import NodeStatus
@@ -42,10 +44,7 @@ from .workflow_testing_utils import create_parent_invocation_context
 from .workflow_testing_utils import simplify_events_with_node
 from .workflow_testing_utils import TestingNode
 
-pytest.skip(
-    'Skipping since not yet migrated to use .',
-    allow_module_level=True,
-)
+
 
 
 class CustomRetryableError(Exception):
@@ -115,11 +114,9 @@ async def test_retry_on_matching_exception(request: pytest.FixtureRequest):
       graph=graph,
   )
 
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, agent, resumable=True
-  )
-
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
 
   assert simplify_events_with_node(events) == [
       (
@@ -175,14 +172,13 @@ async def test_no_retry_on_non_matching_exception(
       graph=graph,
   )
 
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, agent, resumable=True
-  )
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
 
-  events = []
   with pytest.raises(CustomNonRetryableError, match='Unexpected failure'):
-    async for e in agent.run_async(ctx):
-      events.append(e)
+    await runner.run_async(testing_utils.get_user_content('start'))
+
+  events = runner.session.events
 
   assert simplify_events_with_node(events) == [
       (
@@ -230,11 +226,9 @@ async def test_retry_on_all_exceptions_if_not_specified(
       graph=graph,
   )
 
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, agent, resumable=True
-  )
-
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
 
   assert simplify_events_with_node(events) == [
       (
@@ -284,11 +278,9 @@ async def test_retry_count_populated_correctly(
       graph=graph,
   )
 
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, agent, resumable=True
-  )
-
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
 
   assert simplify_events_with_node(events) == [
       (
@@ -349,14 +341,14 @@ async def test_retry_max_attempts_exceeded(
       graph=graph,
   )
 
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, agent, resumable=True
-  )
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
 
-  events = []
   with pytest.raises(CustomRetryableError, match='Persisted failure'):
-    async for e in agent.run_async(ctx):
-      events.append(e)
+    await runner.run_async(testing_utils.get_user_content('start'))
+
+  events = runner.session.events
+
 
   assert simplify_events_with_node(events) == [
       (
@@ -398,14 +390,11 @@ async def test_fails_without_retry_config(
       graph=graph,
   )
 
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, agent, resumable=True
-  )
-
-  events = []
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
   with pytest.raises(ValueError, match='Any failure'):
-    async for e in agent.run_async(ctx):
-      events.append(e)
+    await runner.run_async(testing_utils.get_user_content('start'))
+  events = runner.session.events
 
   assert simplify_events_with_node(events) == [
       (
@@ -447,11 +436,9 @@ async def test_retries_with_empty_retry_config(
       graph=graph,
   )
 
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, agent, resumable=True
-  )
-
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
 
   assert simplify_events_with_node(events) == [
       (
@@ -505,14 +492,13 @@ async def test_retry_with_delay(request: pytest.FixtureRequest):
       graph=graph,
   )
 
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, agent, resumable=True
-  )
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
 
   with mock.patch.object(
       asyncio, 'sleep', new_callable=mock.AsyncMock
   ) as mock_sleep:
-    events = [e async for e in agent.run_async(ctx)]
+    events = await runner.run_async(testing_utils.get_user_content('start'))
     mock_sleep.assert_any_await(5.0)
 
   assert simplify_events_with_node(events) == [
@@ -567,12 +553,11 @@ async def test_retry_with_backoff_and_jitter(request: pytest.FixtureRequest):
       graph=graph,
   )
 
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, agent, resumable=True
-  )
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
 
   with mock.patch('asyncio.sleep', new_callable=mock.AsyncMock) as mock_sleep:
-    events = [e async for e in agent.run_async(ctx)]
+    events = await runner.run_async(testing_utils.get_user_content('start'))
     # Attempt 1: fails, delay = 2.0 * (3.0 ** 0) = 2.0
     # Attempt 2: fails, delay = 2.0 * (3.0 ** 1) = 6.0
     # Attempt 3: fails, delay = 2.0 * (3.0 ** 2) = 18.0
@@ -632,15 +617,14 @@ async def test_retry_with_jitter(request: pytest.FixtureRequest):
       graph=graph,
   )
 
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, agent, resumable=True
-  )
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
 
   with (
       mock.patch('asyncio.sleep', new_callable=mock.AsyncMock) as mock_sleep,
       mock.patch('random.uniform', return_value=-1.0) as mock_random,
   ):
-    events = [e async for e in agent.run_async(ctx)]
+    events = await runner.run_async(testing_utils.get_user_content('start'))
 
     # 4.0 + (-1.0) = 3.0
     mock_sleep.assert_any_await(3.0)
@@ -698,11 +682,9 @@ async def test_retry_with_exception_classes(request: pytest.FixtureRequest):
       graph=graph,
   )
 
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, agent, resumable=True
-  )
-
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
 
   assert simplify_events_with_node(events) == [
       (
@@ -755,11 +737,9 @@ async def test_retry_with_mixed_exception_types(request: pytest.FixtureRequest):
       graph=graph,
   )
 
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, agent, resumable=True
-  )
-
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
 
   assert simplify_events_with_node(events) == [
       (
@@ -810,13 +790,11 @@ async def test_retry_exception_class_no_match(request: pytest.FixtureRequest):
       graph=graph,
   )
 
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, agent, resumable=True
-  )
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
 
   with pytest.raises(CustomNonRetryableError, match='Unexpected failure'):
-    async for _ in agent.run_async(ctx):
-      pass
+    await runner.run_async(testing_utils.get_user_content('start'))
 
   flaky_node_in_agent = next(
       n for n in agent.graph.nodes if n.name == 'FlakyNode'
@@ -864,9 +842,10 @@ async def test_node_cancellation_on_sibling_failure(
       request.function.__name__, agent, resumable=True
   )
 
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
   with pytest.raises(ValueError, match='Fail'):
-    async for _ in agent.run_async(ctx):
-      pass
+    await runner.run_async(testing_utils.get_user_content('start'))
 
   # Check persistence
   assert agent.name in ctx.agent_states
@@ -907,9 +886,10 @@ async def test_parallel_worker_cancellation_on_sibling_failure(
 
   token = workflow_node_input.set(['item1', 'item2'])
   try:
+    app = App(name=request.function.__name__, root_agent=agent)
+    runner = testing_utils.InMemoryRunner(app=app)
     with pytest.raises(ValueError, match='Fail'):
-      async for _ in agent.run_async(ctx):
-        pass
+      await runner.run_async(testing_utils.get_user_content('start'))
   finally:
     workflow_node_input.reset(token)
 
@@ -953,9 +933,10 @@ async def test_parallel_worker_cancellation_on_worker_failure(
 
   token = workflow_node_input.set(['fail', 'slow'])
   try:
+    app = App(name=request.function.__name__, root_agent=agent)
+    runner = testing_utils.InMemoryRunner(app=app)
     with pytest.raises(ValueError, match='Worker Fail'):
-      async for _ in agent.run_async(ctx):
-        pass
+      await runner.run_async(testing_utils.get_user_content('start'))
   finally:
     workflow_node_input.reset(token)
 
@@ -1000,9 +981,10 @@ async def test_nested_workflow_cancellation_on_sibling_failure(
       request.function.__name__, outer_agent, resumable=True
   )
 
+  app = App(name=request.function.__name__, root_agent=outer_agent)
+  runner = testing_utils.InMemoryRunner(app=app)
   with pytest.raises(ValueError, match='Fail'):
-    async for _ in outer_agent.run_async(ctx):
-      pass
+    await runner.run_async(testing_utils.get_user_content('start'))
 
   # Check outer persistence
   assert outer_agent.name in ctx.agent_states
@@ -1050,10 +1032,11 @@ async def test_error_event_emitted_on_failure(
       request.function.__name__, agent, resumable=True
   )
 
-  events = []
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
   with pytest.raises(ValueError, match='Something went wrong'):
-    async for e in agent.run_async(ctx):
-      events.append(e)
+    await runner.run_async(testing_utils.get_user_content('start'))
+  events = runner.session.events
 
   # Find the error event emitted by the failed node.
   error_events = [
@@ -1101,7 +1084,9 @@ async def test_error_event_emitted_on_each_retry(
       request.function.__name__, agent, resumable=True
   )
 
-  events = [e async for e in agent.run_async(ctx)]
+  app = App(name=request.function.__name__, root_agent=agent)
+  runner = testing_utils.InMemoryRunner(app=app)
+  events = await runner.run_async(testing_utils.get_user_content('start'))
 
   # Two failures before success → two error events.
   error_events = [
