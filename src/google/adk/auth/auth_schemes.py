@@ -28,6 +28,7 @@ from pydantic import Field
 
 from ..integrations._iam_connectors.gcp_iam_connector_auth import GcpIamConnectorAuth
 from ..utils.feature_decorator import experimental
+from .auth_credential import BaseModelWithConfig
 
 
 class OpenIdConnectWithConfig(SecurityBase):
@@ -43,9 +44,20 @@ class OpenIdConnectWithConfig(SecurityBase):
   scopes: Optional[List[str]] = None
 
 
+class CustomAuthScheme(BaseModelWithConfig):
+  """A flexible model for custom authentication schemes.
+
+  The subclasses must define a `default` for the `type_` field, if using OAuth2
+  user consent flow, to ensure correct rehydration.
+  """
+
+  type_: str = Field(alias="type")
+
+
 # AuthSchemes contains SecuritySchemes from OpenAPI 3.0, an extra flattened
-# OpenIdConnectWithConfig, and GCP managed auth.
-AuthScheme = Union[SecurityScheme, OpenIdConnectWithConfig, GcpIamConnectorAuth]
+# OpenIdConnectWithConfig, GCP managed auth, and supports external schemes
+# that subclass CustomAuthScheme.
+AuthScheme = Union[SecurityScheme, OpenIdConnectWithConfig, GcpIamConnectorAuth, CustomAuthScheme]
 
 
 class OAuthGrantType(str, Enum):
