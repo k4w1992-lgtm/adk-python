@@ -753,7 +753,7 @@ class Workflow(BaseNode):
         if name in loop_state.node_outputs
     ]
     if len(terminal_outputs) == 1:
-      ctx.output = terminal_outputs[0]
+      ctx.output = self._validate_output_data(terminal_outputs[0])
     elif terminal_outputs:
       raise ValueError(
           f'Workflow {self.name}: multiple terminal nodes produced'
