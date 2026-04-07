@@ -1934,6 +1934,7 @@ class InMemoryRunner(Runner):
       self,
       agent: Optional[BaseAgent] = None,
       *,
+      node: Any = None,
       app_name: Optional[str] = None,
       plugins: Optional[list[BasePlugin]] = None,
       app: Optional[App] = None,
@@ -1943,6 +1944,7 @@ class InMemoryRunner(Runner):
 
     Args:
         agent: The root agent to run.
+        node: The root node to run.
         app_name: The application name of the runner. Defaults to
           'InMemoryRunner'.
         plugins: Optional list of plugins for the runner.
@@ -1954,6 +1956,7 @@ class InMemoryRunner(Runner):
     super().__init__(
         app_name=app_name,
         agent=agent,
+        node=node,
         artifact_service=InMemoryArtifactService(),
         plugins=plugins,
         app=app,

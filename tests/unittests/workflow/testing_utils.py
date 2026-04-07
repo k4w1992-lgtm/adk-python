@@ -15,6 +15,7 @@
 import asyncio
 import contextlib
 import copy
+from typing import Any
 from typing import AsyncGenerator
 from typing import Generator
 from typing import Optional
@@ -273,6 +274,7 @@ class InMemoryRunner:
       response_modalities: list[str] = None,
       plugins: list[BasePlugin] = [],
       app: Optional[App] = None,
+      node: Any = None,
   ):
     """Initializes the InMemoryRunner.
 
@@ -282,9 +284,20 @@ class InMemoryRunner:
       plugins: The plugins to use in the runner, won't be used if app is
         provided.
       app: The app to use in the runner.
+      node: The root node to run.
     """
     self._app = app
-    if not app:
+    if node:
+      self.app_name = node.name
+      self.root_agent = None
+      self.runner = Runner(
+          node=node,
+          artifact_service=InMemoryArtifactService(),
+          session_service=InMemorySessionService(),
+          memory_service=InMemoryMemoryService(),
+          plugins=plugins,
+      )
+    elif not app:
       self.app_name = 'test_app'
       self.root_agent = root_agent
       self.runner = Runner(
