@@ -7,6 +7,10 @@ description: Use when debugging ADK agents, inspecting sessions, testing agent b
 
 Two debugging modes: `adk web` (browser UI + API) and `adk run` (CLI).
 
+> [!NOTE]
+> **Preference**: For most development and debugging tasks, `adk run` (CLI) is preferred as it is faster and more convenient. **Within `adk run`, query mode is preferred over interactive mode** because it requires less human intervention. However, `adk web` is still required for UI-specific issues, session management visualization, or debugging the API server itself.
+
+
 ---
 
 ## Mode 1: adk web (Browser UI + REST API)
@@ -145,13 +149,33 @@ adk run --jsonl path/to/my_agent "query"      # output structured JSONL (noise r
 
 ### When to use automated query mode
 
-- **No Server Needed**: Fast testing without starting `adk web` server.
-- **CI/CD & Automation**: Perfect for non-interactive regression tests.
-- **Noise Reduction**: `--jsonl` strips empty payloads for machine parsing.
-- **Concurrency**: Use with `--in_memory` for multi-threaded testing (isolates session state).
+- **Fast & Lightweight**: Run tests quickly without starting the `adk web` dev server.
+- **Easy Automation**: Perfect for CI/CD pipelines and regression scripts.
+- **Highly Composable**: You can pipe the `--jsonl` output to standard tools like `jq`, `grep`, or `diff`.
+- **Parallel Execution**: Each run is an isolated process. You can run multiple tests concurrently without port conflicts.
+- **State Isolation**: Use `--in_memory` for fast, side-effect-free testing (no database updates).
+- **Multi-Turn Support**: Remember to set a session ID if you need to maintain conversation state across turns.
 
 > [!TIP]
 > Always read the sample's `README.md` first to understand expected inputs and behaviors!
+
+### Unit Tests vs. Sample Agents (When to use which)
+
+Choosing the right testing strategy is crucial for efficiency and coverage:
+
+- **Use Unit Tests when**:
+  - Testing **isolated logic**, specific methods, or edge cases of a single component.
+  - Verifying **data schemas**, Pydantic validations, or utility functions.
+  - *Location*: `tests/unittests/`.
+
+- **Use Sample Agents (Integration Testing) when**:
+  - Developing features with **multi-level integration** (Runner + Agent + Workflow) or changes with wide impact.
+  - Testing complex scenarios like **Human-in-the-Loop (HITL)** or long-running tools.
+  - You need to verify the **real behavior** of the agent in a simulated environment.
+  - *Location*: Create a sample under `contributing/agent_samples/` (refer to `adk-sample-creator`).
+
+> [!IMPORTANT]
+> **AI Assistant Reminder**: If you create a temporary sample agent for testing, you **MUST delete it** after verification is complete, unless the user explicitly asks to keep it.
 
 ### Exit Codes & Details
 
