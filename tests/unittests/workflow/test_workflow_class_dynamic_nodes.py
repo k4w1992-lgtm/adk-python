@@ -23,6 +23,7 @@ Plus edge cases for multiple dynamic nodes, nested dynamic nodes,
 and use_as_output delegation.
 """
 
+import asyncio
 from typing import Any
 from typing import AsyncGenerator
 
@@ -33,6 +34,7 @@ from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.workflow._base_node import BaseNode
 from google.adk.workflow._base_node import START
 from google.adk.workflow._workflow_class import Workflow
+from google.adk.workflow._errors import DynamicNodeFailError
 from google.genai import types
 import pytest
 
@@ -1091,3 +1093,94 @@ async def test_custom_run_id_used_on_events():
   ]
   assert child_events
   assert all(e.node_info.path.split('@')[-1] == 'my-custom-id' for e in child_events)
+
+
+# =========================================================================
+# Failure handling in dynamic nodes
+# =========================================================================
+
+
+@pytest.mark.asyncio
+async def test_dynamic_node_failure_handling():
+  """Dynamic node throws exception; parent catches it and continues."""
+
+  class _FailingChild(BaseNode):
+
+    async def _run_impl(self, *, ctx, node_input):
+      if node_input == 'fail':
+        raise ValueError('Intentional Failure')
+      yield f'Processed {node_input}'
+
+  class _Parent(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(self, *, ctx, node_input):
+      results = []
+      try:
+        await ctx.run_node(
+            _FailingChild(name='failing_node'), node_input='fail'
+        )
+      except DynamicNodeFailError as e:
+        results.append(f'Caught: {str(e.error)}')
+
+      res = await ctx.run_node(
+          _FailingChild(name='failing_node'), node_input='work'
+      )
+      results.append(f'Success: {res}')
+      yield results
+
+  wf = Workflow(name='wf', edges=[(START, _Parent(name='parent'))])
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  events = await _run(runner, ss, session, 'go')
+  outputs = _outputs(events)
+
+  # Find the list output from parent
+  list_outputs = [o for o in outputs if isinstance(o, list)]
+  assert len(list_outputs) == 1
+  results = list_outputs[0]
+  assert 'Caught: Intentional Failure' in results
+  assert 'Success: Processed work' in results
+
+
+# =========================================================================
+# Parallel execution of dynamic nodes
+# =========================================================================
+
+
+@pytest.mark.asyncio
+async def test_dynamic_node_parallel_execution():
+  """Three parallel ctx.run_node calls via asyncio.gather return ordered results."""
+
+  class _EchoNode(BaseNode):
+
+    async def _run_impl(self, *, ctx, node_input):
+      yield node_input
+
+  class _ParentNode(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(self, *, ctx, node_input):
+      tasks = [
+          ctx.run_node(_EchoNode(name='echo_node'), node_input=f'call_{i}')
+          for i in range(3)
+      ]
+      results = await asyncio.gather(*tasks)
+      yield results
+
+  wf = Workflow(name='wf', edges=[(START, _ParentNode(name='parent_node'))])
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  events = await _run(runner, ss, session, 'go')
+  outputs = _outputs(events)
+
+  # Find the list output from parent
+  list_outputs = [o for o in outputs if isinstance(o, list)]
+  assert len(list_outputs) == 1
+  results = list_outputs[0]
+  assert results == ['call_0', 'call_1', 'call_2']
+
