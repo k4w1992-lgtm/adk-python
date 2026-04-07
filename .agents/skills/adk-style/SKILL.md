@@ -8,6 +8,16 @@ description: ADK development style guide — architecture patterns, testing best
 ## Development Conventions
 [references/development.md](references/development.md) — public API vs internal methods, comments, file organization, imports, Pydantic patterns, formatting
 
+## Code Paths
+[references/code_paths.md](references/code_paths.md) — Key files and directories along the different agent and workflow code paths.
+
+## Beta Launch Scope (Priority)
+[references/beta_launch_scope.md](references/beta_launch_scope.md) — Scope decisions for the upcoming beta launch. **This path is the current priority. All analysis and development should focus here.**
+
+## Alpha Launch Scope
+[references/alpha_launch_scope.md](references/alpha_launch_scope.md) — Scope for the alpha launch (legacy).
+
+
 ## Architecture (references/architecture/)
 - [BaseNode](references/architecture/base-node.md) — node contract, output/streaming, state/routing, HITL, configuration
 - [Context](references/architecture/context.md) — 1:1 node-context mapping, InvocationContext singleton, property reference
