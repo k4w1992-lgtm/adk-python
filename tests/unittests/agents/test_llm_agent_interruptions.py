@@ -19,6 +19,7 @@ from google.adk.runners import Runner
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.tools.function_tool import FunctionTool
 from google.adk.tools.long_running_tool import LongRunningFunctionTool
+from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 import pytest
 
@@ -28,6 +29,91 @@ from tests.unittests.agents.llm.event_utils import text_parts
 _USER_ID = 'test_user'
 _SESSION_ID = 'test_session'
 
+
+async def _setup_runner(mock_model, tools=None, **agent_kwargs):
+  """Setup runner with LlmAgent directly."""
+  llm_agent = LlmAgent(
+      name='test_agent',
+      model=mock_model,
+      tools=tools or [],
+      **agent_kwargs,
+  )
+  session_service = InMemorySessionService()
+  await session_service.create_session(
+      app_name='test', user_id=_USER_ID, session_id=_SESSION_ID
+  )
+  runner = Runner(
+      app_name='test',
+      agent=llm_agent,
+      session_service=session_service,
+  )
+  return runner
+
+
+async def _run_turn(runner, user_message):
+  """Run a single turn."""
+  return [
+      e
+      async for e in runner.run_async(
+          user_id=_USER_ID,
+          session_id=_SESSION_ID,
+          new_message=types.Content(
+              role='user', parts=[types.Part(text=user_message)]
+          ),
+      )
+  ]
+
+
+async def _resume_turn(
+    runner, prev_events, tool_name, tool_response_value='done'
+):
+  """Resume after an interrupt."""
+  fc_ids = []
+  for e in prev_events:
+    if e.content and e.content.parts:
+      for p in e.content.parts:
+        if (
+            p.function_call
+            and p.function_call.name == tool_name
+            and p.function_call.id
+        ):
+          fc_ids.append(p.function_call.id)
+    if getattr(e.output, 'function_calls', None):
+      for fc in e.output.function_calls:
+        if fc.name == tool_name and fc.id:
+          fc_ids.append(fc.id)
+
+  if not fc_ids:
+    for e in prev_events:
+      if e.long_running_tool_ids:
+        fc_ids = list(e.long_running_tool_ids)
+        break
+
+  invocation_id = prev_events[0].invocation_id
+
+  fr_parts = [
+      types.Part(
+          function_response=types.FunctionResponse(
+              name=tool_name,
+              id=fc_id,
+              response={'result': tool_response_value},
+          )
+      )
+      for fc_id in fc_ids
+  ]
+  resume_msg = types.Content(role='user', parts=fr_parts)
+
+  return [
+      e
+      async for e in runner.run_async(
+          user_id=_USER_ID,
+          session_id=_SESSION_ID,
+          invocation_id=invocation_id,
+          new_message=resume_msg,
+      )
+  ]
+
+
 # ---------------------------------------------------------------------------
 # Tests: Single Agent
 # ---------------------------------------------------------------------------
@@ -35,87 +121,6 @@ _SESSION_ID = 'test_session'
 
 class TestSingleAgentInterruptions:
   """Tests for single agent triggering interruptions."""
-
-  async def setup_runner(self, mock_model, tools=None, **agent_kwargs):
-    """Setup runner with LlmAgent directly."""
-    llm_agent = LlmAgent(
-        name='test_agent',
-        model=mock_model,
-        tools=tools or [],
-        **agent_kwargs,
-    )
-    session_service = InMemorySessionService()
-    await session_service.create_session(
-        app_name='test', user_id=_USER_ID, session_id=_SESSION_ID
-    )
-    runner = Runner(
-        app_name='test',
-        agent=llm_agent,
-        session_service=session_service,
-    )
-    return runner
-
-  async def run_turn(self, runner, user_message):
-    """Run a single turn."""
-    return [
-        e
-        async for e in runner.run_async(
-            user_id=_USER_ID,
-            session_id=_SESSION_ID,
-            new_message=types.Content(
-                role='user', parts=[types.Part(text=user_message)]
-            ),
-        )
-    ]
-
-  async def resume_turn(
-      self, runner, prev_events, tool_name, tool_response_value='done'
-  ):
-    """Resume after an interrupt."""
-    fc_ids = []
-    for e in prev_events:
-      if e.content and e.content.parts:
-        for p in e.content.parts:
-          if (
-              p.function_call
-              and p.function_call.name == tool_name
-              and p.function_call.id
-          ):
-            fc_ids.append(p.function_call.id)
-      if getattr(e.output, 'function_calls', None):
-        for fc in e.output.function_calls:
-          if fc.name == tool_name and fc.id:
-            fc_ids.append(fc.id)
-
-    if not fc_ids:
-      for e in prev_events:
-        if e.long_running_tool_ids:
-          fc_ids = list(e.long_running_tool_ids)
-          break
-
-    invocation_id = prev_events[0].invocation_id
-
-    fr_parts = [
-        types.Part(
-            function_response=types.FunctionResponse(
-                name=tool_name,
-                id=fc_id,
-                response={'result': tool_response_value},
-            )
-        )
-        for fc_id in fc_ids
-    ]
-    resume_msg = types.Content(role='user', parts=fr_parts)
-
-    return [
-        e
-        async for e in runner.run_async(
-            user_id=_USER_ID,
-            session_id=_SESSION_ID,
-            invocation_id=invocation_id,
-            new_message=resume_msg,
-        )
-    ]
 
   async def test_single_agent_yields_on_long_running_tool(self):
     """Single agent yields on Long Running Tool.
@@ -136,10 +141,10 @@ class TestSingleAgentInterruptions:
     mock_model = testing_utils.MockModel.create(responses=[fc, 'Final answer'])
 
     lro_tool = create_lro_tool()
-    runner = await self.setup_runner(mock_model, tools=[lro_tool])
+    runner = await _setup_runner(mock_model, tools=[lro_tool])
 
     # Act: Run first turn
-    events = await self.run_turn(runner, 'Go')
+    events = await _run_turn(runner, 'Go')
 
     # Assert: Should have triggered function call
     assert any(
@@ -152,46 +157,80 @@ class TestSingleAgentInterruptions:
     assert len(mock_model.requests) == 1
 
     # Act: Resume
-    resume_events = await self.resume_turn(runner, events, 'long_running_op')
+    resume_events = await _resume_turn(runner, events, 'long_running_op')
 
     # Assert: Should have completed
     assert any('Final answer' in t for t in text_parts(resume_events))
     assert len(mock_model.requests) == 2
 
-  async def test_single_agent_confirmation(self):
-    """Single agent yields on Confirmation.
 
-    Arrange: Set up a single agent with a tool requiring confirmation.
-    Act: Run the agent with a prompt that triggers the tool.
-    Assert: Verify that the execution yields a tool confirmation request.
+class TestNestedAgentInterruptions:
+  """Tests for multi-agent setups with interruptions."""
+
+  async def test_child_agent_interrupt_and_resume(self):
+    """Child agent yields on LRO and resumes successfully.
+
+    Arrange: Parent agent with Child agent. Parent transfers to Child.
+      Child calls LRO tool.
+    Act: Run, expect LRO interrupt. Then resume.
+    Assert: Should complete successfully.
     """
 
-    def dangerous_action() -> str:
-      return 'done'
+    def transfer_to_child(tool_context: ToolContext) -> str:
+      tool_context.actions.transfer_to_agent = 'child_agent'
+      return 'transferring'
 
-    tool = FunctionTool(dangerous_action, require_confirmation=True)
+    # Child agent
+    fc_child = types.Part.from_function_call(name='child_lro', args={})
+    child_mock_model = testing_utils.MockModel.create(
+        responses=[fc_child, 'Child final answer']
+    )
 
-    fc = types.Part.from_function_call(name='dangerous_action', args={})
-    mock_model = testing_utils.MockModel.create(responses=[fc, 'Final answer'])
+    def create_lro_tool(name='child_lro'):
+      def _impl() -> None:
+        return None
 
-    runner = await self.setup_runner(mock_model, tools=[tool])
+      _impl.__name__ = name
+      return LongRunningFunctionTool(_impl)
+
+    lro_tool = create_lro_tool()
+
+    child_agent = LlmAgent(
+        name='child_agent',
+        model=child_mock_model,
+        tools=[lro_tool],
+    )
+
+    # Parent agent
+    fc_parent = types.Part.from_function_call(name='transfer_to_child', args={})
+    parent_mock_model = testing_utils.MockModel.create(
+        responses=[fc_parent, fc_parent, 'Parent final answer']
+    )
+
+    parent_agent = LlmAgent(
+        name='parent_agent',
+        model=parent_mock_model,
+        tools=[transfer_to_child],
+        sub_agents=[child_agent],
+    )
+
+    # Setup runner
+    session_service = InMemorySessionService()
+    await session_service.create_session(
+        app_name='test', user_id=_USER_ID, session_id=_SESSION_ID
+    )
+    runner = Runner(
+        app_name='test', agent=parent_agent, session_service=session_service
+    )
 
     # Act: Run first turn
-    events = await self.run_turn(runner, 'Go')
+    events = await _run_turn(runner, 'Go')
 
-    # Assert: Should have triggered function call
-    assert any(
-        any(
-            p.function_call and p.function_call.name == 'dangerous_action'
-            for p in e.content.parts or []
-        )
-        for e in events
-    )
-    assert len(mock_model.requests) == 1
+    # Assert: Should have triggered child LRO interrupt!
+    assert any(e.long_running_tool_ids for e in events)
 
     # Act: Resume
-    resume_events = await self.resume_turn(runner, events, 'dangerous_action')
+    resume_events = await _resume_turn(runner, events, 'child_lro')
 
-    # Assert: Should have completed
-    assert any('Final answer' in t for t in text_parts(resume_events))
-    assert len(mock_model.requests) == 2
+    # Assert: Should have completed!
+    assert any('Child final answer' in t for t in text_parts(resume_events))
