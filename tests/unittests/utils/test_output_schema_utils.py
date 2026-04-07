@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
 
 import importlib.util
 
+from google.adk.models.base_llm import BaseLlm
 from google.adk.models.google_llm import Gemini
 from google.adk.utils.output_schema_utils import can_use_output_schema_with_tools
 import pytest
@@ -60,8 +62,11 @@ def _make_litellm(model: str):
     ],
 )
 def test_can_use_output_schema_with_tools(
-    monkeypatch, model, env_value, expected
-):
+    monkeypatch: pytest.MonkeyPatch,
+    model: str | BaseLlm,
+    env_value: str | None,
+    expected: bool,
+) -> None:
   """Test can_use_output_schema_with_tools."""
   if env_value is not None:
     monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", env_value)
