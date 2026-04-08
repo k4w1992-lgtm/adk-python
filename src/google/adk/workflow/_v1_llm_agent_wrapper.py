@@ -29,6 +29,7 @@ from ..agents.llm_agent_1x import LlmAgent as V1LlmAgent
 from ..events.event import Event
 from ..utils._schema_utils import validate_schema
 from ._base_node import BaseNode
+from .utils._workflow_graph_utils import build_node
 
 
 def _node_input_to_content(node_input: Any) -> types.Content:
@@ -170,6 +171,8 @@ class _V1LlmAgentWrapper(BaseNode):
           if target_name != self.agent.name:
             target_agent = self.agent.root_agent.find_agent(target_name)
             if target_agent:
+              wrapped_target = build_node(target_agent)
+              await ctx.run_node(wrapped_target, node_input=None)
               if ctx._invocation_context.is_resumable:
                 ctx._invocation_context.set_agent_state(
                     self.agent.name, end_of_agent=True
@@ -177,8 +180,6 @@ class _V1LlmAgentWrapper(BaseNode):
                 yield self.agent._create_agent_state_event(
                     ctx._invocation_context
                 )
-              wrapped_target = _V1LlmAgentWrapper(agent=target_agent)
-              await ctx.run_node(wrapped_target, node_input=None)
               break
     else:
       # Task mode: finish_task output is inside event.actions, not

@@ -69,6 +69,11 @@ class AgentNode(BaseNode):
       # Convert AdkEvent to WorkflowEvent to support node_path
       if not isinstance(event, Event):
         event = Event(**event.model_dump())
+
+      # Preserve author by setting it in context for NodeRunner
+      if event.author:
+        ctx.event_author = event.author
+
       if not event.node_info.path and event.author == self.agent.name:
         event.node_info.path = ctx.node_path
       yield event

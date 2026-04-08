@@ -1448,7 +1448,12 @@ class Runner:
     # type of the agent. e.g. a remote a2a agent may surface a credential
     # request as a special long-running function tool call.
     event = find_matching_function_call(session.events)
-    if event and event.author:
+    is_resumable = self.resumability_config and self.resumability_config.is_resumable
+    # Only route based on a past function response if resumability is enabled.
+    # In non-resumable scenarios, a turn ending with function call response
+    # shouldn't trap the next turn on that same agent if it's not transferable.
+    # Falling through allows it to return to root.
+    if event and event.author and is_resumable:
       return root_agent.find_agent(event.author)
 
     def _event_filter(event: Event) -> bool:

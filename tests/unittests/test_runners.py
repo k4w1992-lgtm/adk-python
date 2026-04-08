@@ -622,6 +622,76 @@ async def test_runner_allows_nested_agent_directories(tmp_path, monkeypatch):
     result = self.runner._find_agent_to_run(session, self.root_agent)
     assert result == self.sub_agent2
 
+  def test_find_agent_to_run_skips_function_response_when_not_resumable(self):
+    """Test that function response scenario is skipped when not resumable."""
+    function_call = types.FunctionCall(id="func_456", name="test_func", args={})
+    function_response = types.FunctionResponse(
+        id="func_456", name="test_func", response={}
+    )
+
+    call_event = Event(
+        invocation_id="inv1",
+        author="non_transferable",
+        content=types.Content(
+            role="model", parts=[types.Part(function_call=function_call)]
+        ),
+    )
+
+    response_event = Event(
+        invocation_id="inv2",
+        author="user",
+        content=types.Content(
+            role="user", parts=[types.Part(function_response=function_response)]
+        ),
+    )
+
+    session = Session(
+        id="test_session",
+        user_id="test_user",
+        app_name="test_app",
+        events=[call_event, response_event],
+    )
+
+    self.runner.resumability_config = ResumabilityConfig(is_resumable=False)
+
+    result = self.runner._find_agent_to_run(session, self.root_agent)
+    assert result == self.root_agent
+
+  def test_find_agent_to_run_uses_function_response_when_resumable(self):
+    """Test that function response scenario is used when resumable."""
+    function_call = types.FunctionCall(id="func_456", name="test_func", args={})
+    function_response = types.FunctionResponse(
+        id="func_456", name="test_func", response={}
+    )
+
+    call_event = Event(
+        invocation_id="inv1",
+        author="non_transferable",
+        content=types.Content(
+            role="model", parts=[types.Part(function_call=function_call)]
+        ),
+    )
+
+    response_event = Event(
+        invocation_id="inv2",
+        author="user",
+        content=types.Content(
+            role="user", parts=[types.Part(function_response=function_response)]
+        ),
+    )
+
+    session = Session(
+        id="test_session",
+        user_id="test_user",
+        app_name="test_app",
+        events=[call_event, response_event],
+    )
+
+    self.runner.resumability_config = ResumabilityConfig(is_resumable=True)
+
+    result = self.runner._find_agent_to_run(session, self.root_agent)
+    assert result == self.non_transferable_agent
+
   def test_is_transferable_across_agent_tree_with_llm_agent(self):
     """Test _is_transferable_across_agent_tree with LLM agent."""
     result = self.runner._is_transferable_across_agent_tree(self.sub_agent1)
