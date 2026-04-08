@@ -2,6 +2,9 @@
   "id": "1f627a81-1341-43b7-b971-c8809ff8f6d1",
   "appName": "loop_self",
   "userId": "user",
+  "mocks": {
+    "random.randint": [10, 1, 0, 4, 3]
+  },
   "state": {
     "__session_metadata__": {
       "displayName": "3"

@@ -452,7 +452,29 @@ def test_agent_replay(agent_dir, test_file, monkeypatch):
     actual_events = []
     import random
 
-    random.seed(42)
+    mocks_data = session_data.get("mocks", {})
+    if mocks_data:
+      if "random.random" in mocks_data:
+        random_values = list(mocks_data["random.random"])
+
+        def mock_random():
+          if random_values:
+            return random_values.pop(0)
+          return 0.8
+
+        monkeypatch.setattr(random, "random", mock_random)
+
+      if "random.randint" in mocks_data:
+        randint_values = list(mocks_data["random.randint"])
+
+        def mock_randint(a, b):
+          if randint_values:
+            return randint_values.pop(0)
+          return b
+
+        monkeypatch.setattr(random, "randint", mock_randint)
+    else:
+      random.seed(42)
     first_run_events = runner.run(user_message)
 
     # Post-process events to inject deterministic function IDs

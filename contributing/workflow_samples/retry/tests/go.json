@@ -2,6 +2,9 @@
   "id": "c0e0c167-1e63-4e18-84b6-ad64ba59376f",
   "appName": "retry",
   "userId": "user",
+  "mocks": {
+    "random.random": [0.5, 0.5, 0.8]
+  },
   "state": {
     "__session_metadata__": {
       "displayName": "go"
