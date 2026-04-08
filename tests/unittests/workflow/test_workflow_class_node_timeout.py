@@ -17,16 +17,17 @@
 from __future__ import annotations
 
 import asyncio
-from google.adk.workflow import START
-from google.adk.workflow._workflow_class import Workflow
-from google.adk.workflow._node import node
-from google.adk.workflow._errors import NodeTimeoutError
+
 from google.adk.apps import App
 from google.adk.runners import Runner
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
+from google.adk.workflow import START
+from google.adk.workflow._errors import NodeTimeoutError
+from google.adk.workflow._node import node
+from google.adk.workflow._retry_config import RetryConfig
+from google.adk.workflow._workflow_class import Workflow
 from google.genai import types
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -37,6 +38,7 @@ async def _run_workflow(wf, message='start'):
   """Run a Workflow through Runner, return collected events."""
   ss = InMemorySessionService()
   runner = Runner(app_name='test', node=wf, session_service=ss)
+
   session = await ss.create_session(app_name='test', user_id='u')
   msg = types.Content(parts=[types.Part(text=message)], role='user')
   events = []
@@ -95,7 +97,9 @@ async def test_node_exceeds_timeout():
     await asyncio.sleep(1.0)
     return 'done'
 
-  my_too_slow_node = FunctionNode(name='my_too_slow_node', func=raw_slow_func, timeout=0.05)
+  my_too_slow_node = FunctionNode(
+      name='my_too_slow_node', func=raw_slow_func, timeout=0.05
+  )
 
   wf = Workflow(
       name='test_workflow',
@@ -128,3 +132,35 @@ async def test_node_no_timeout():
   by_node = _output_by_node(events)
 
   assert ('my_no_timeout_node', 'done') in by_node
+
+
+@pytest.mark.asyncio
+async def test_node_timeout_with_retry():
+  """A timed-out node should be retried if retry_config is set."""
+  run_count = 0
+
+  @node(
+      timeout=0.05,
+      retry_config=RetryConfig(max_attempts=3, initial_delay=0.0, jitter=0.0),
+  )
+  async def node_a():
+    nonlocal run_count
+    run_count += 1
+    if run_count == 1:
+      await asyncio.sleep(1.0)
+    return 'success'
+
+  wf = Workflow(
+      name='test_workflow',
+      edges=[
+          (START, node_a),
+      ],
+  )
+  events, _, _ = await _run_workflow(wf)
+
+  by_node = _output_by_node(events)
+  # Verify that the final result was successfully obtained.
+  assert ('node_a', 'success') in by_node
+
+  # Verify that the node was actually executed more than once (i.e., retried).
+  assert run_count == 2, f"Expected run_count == 2, got {run_count}"
