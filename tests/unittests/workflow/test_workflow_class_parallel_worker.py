@@ -20,13 +20,11 @@ from google.adk.agents.context import Context
 from google.adk.apps.app import App
 from google.adk.apps.app import ResumabilityConfig
 from google.adk.events.event import Event
-from google.adk.events.request_input import RequestInput
 from google.adk.workflow import BaseNode
 from google.adk.workflow import START
 from google.adk.workflow._node import node
 from google.adk.workflow._parallel_worker import _ParallelWorker as ParallelWorker
 from google.adk.workflow._workflow_class import Workflow
-from google.adk.workflow._errors import DynamicNodeFailError
 from google.adk.workflow.utils._workflow_hitl_utils import get_request_input_interrupt_ids
 from google.adk.workflow.utils._workflow_hitl_utils import has_request_input_function_call
 from google.genai import types
@@ -103,9 +101,12 @@ class _WorkerNode(BaseNode):
 
 
 @pytest.mark.asyncio
-async def test_parallel_worker_simple(request: pytest.FixtureRequest):
+async def test_parallel_worker_processes_list_ordered(
+    request: pytest.FixtureRequest,
+):
   """ParallelWorker processes a list of items and returns ordered results."""
-  # Use delays to ensure deterministic output order of children
+  # Given a workflow with a producer and a parallel worker.
+  # Delays are used to ensure deterministic output order and prevent race conditions in event ordering.
   items = [{'val': 'item1', 'delay': 0}, {'val': 'item2', 'delay': 0.1}]
   node_a = _ProducerNode(items=items, name='NodeA')
   worker = ParallelWorker(_WorkerNode(name='Worker'))
@@ -124,8 +125,13 @@ async def test_parallel_worker_simple(request: pytest.FixtureRequest):
   )
   runner = testing_utils.InMemoryRunner(app=app)
 
+  # When the workflow is run
   events = await runner.run_async(testing_utils.get_user_content('start'))
-  simplified_events = simplify_events_with_node(events, use_node_path=True, include_run_id=True)
+
+  # Then results should be ordered and match expected events
+  simplified_events = simplify_events_with_node(
+      events, use_node_path=True, include_run_id=True
+  )
 
   assert simplified_events == [
       (
@@ -139,7 +145,6 @@ async def test_parallel_worker_simple(request: pytest.FixtureRequest):
               'run_id': None,
           },
       ),
-      # Children outputs exactly reflecting sequential dynamic run iterations
       (
           'test_agent@1/Worker@1/Worker@1',
           {'node_name': 'Worker', 'output': 'item1_processed', 'run_id': None},
@@ -148,7 +153,6 @@ async def test_parallel_worker_simple(request: pytest.FixtureRequest):
           'test_agent@1/Worker@1/Worker@2',
           {'node_name': 'Worker', 'output': 'item2_processed', 'run_id': None},
       ),
-      # Parent output aggregator
       (
           'test_agent@1/Worker@1',
           {
@@ -161,8 +165,11 @@ async def test_parallel_worker_simple(request: pytest.FixtureRequest):
 
 
 @pytest.mark.asyncio
-async def test_parallel_worker_empty_input(request: pytest.FixtureRequest):
+async def test_parallel_worker_with_empty_input_returns_empty_list(
+    request: pytest.FixtureRequest,
+):
   """ParallelWorker with empty input returns an empty list."""
+  # Given a workflow with a producer yielding empty list
   items = []
   node_a = _ProducerNode(items=items, name='NodeA')
   worker = ParallelWorker(_WorkerNode(name='Worker'))
@@ -181,8 +188,13 @@ async def test_parallel_worker_empty_input(request: pytest.FixtureRequest):
   )
   runner = testing_utils.InMemoryRunner(app=app)
 
+  # When the workflow is run
   events = await runner.run_async(testing_utils.get_user_content('start'))
-  simplified_events = simplify_events_with_node(events, use_node_path=True, include_run_id=True)
+
+  # Then output aggregator should return empty list
+  simplified_events = simplify_events_with_node(
+      events, use_node_path=True, include_run_id=True
+  )
 
   assert simplified_events == [
       (
@@ -193,7 +205,6 @@ async def test_parallel_worker_empty_input(request: pytest.FixtureRequest):
               'run_id': None,
           },
       ),
-      # Parent output aggregator natively executes
       (
           'test_empty_agent@1/Worker@1',
           {
@@ -206,10 +217,11 @@ async def test_parallel_worker_empty_input(request: pytest.FixtureRequest):
 
 
 @pytest.mark.asyncio
-async def test_parallel_worker_single_item_input(
+async def test_parallel_worker_wraps_single_item_in_list(
     request: pytest.FixtureRequest,
 ):
   """ParallelWorker wraps a single non-list item into a one-element list."""
+  # Given a workflow with a producer yielding a single item (not a list)
   item = {'val': 'item1', 'delay': 0}
   node_a = _SingleItemProducerNode(item=item, name='NodeA')
   worker = ParallelWorker(_WorkerNode(name='Worker'))
@@ -228,8 +240,13 @@ async def test_parallel_worker_single_item_input(
   )
   runner = testing_utils.InMemoryRunner(app=app)
 
+  # When the workflow is run
   events = await runner.run_async(testing_utils.get_user_content('start'))
-  simplified_events = simplify_events_with_node(events, use_node_path=True, include_run_id=True)
+
+  # Then it should be wrapped and processed as a single-element list
+  simplified_events = simplify_events_with_node(
+      events, use_node_path=True, include_run_id=True
+  )
 
   assert simplified_events == [
       (
@@ -240,12 +257,10 @@ async def test_parallel_worker_single_item_input(
               'run_id': None,
           },
       ),
-      # Children outputs reflecting single standalone run element
       (
           'test_single_item_agent@1/Worker@1/Worker@1',
           {'node_name': 'Worker', 'output': 'item1_processed', 'run_id': None},
       ),
-      # Parent output aggregator natively executing
       (
           'test_single_item_agent@1/Worker@1',
           {
@@ -267,8 +282,11 @@ async def _worker_func(node_input: dict[str, Any]) -> AsyncGenerator[Any, None]:
 
 
 @pytest.mark.asyncio
-async def test_parallel_worker_with_function(request: pytest.FixtureRequest):
+async def test_parallel_worker_accepts_plain_function(
+    request: pytest.FixtureRequest,
+):
   """ParallelWorker accepts a plain function as the wrapped node."""
+  # Given a workflow with a producer and a parallel worker wrapping a function
   items = [{'val': 'item1', 'delay': 0}, {'val': 'item2', 'delay': 0.1}]
   node_a = _ProducerNode(items=items, name='NodeA')
   worker = ParallelWorker(_worker_func)
@@ -287,8 +305,13 @@ async def test_parallel_worker_with_function(request: pytest.FixtureRequest):
   )
   runner = testing_utils.InMemoryRunner(app=app)
 
+  # When the workflow is run
   events = await runner.run_async(testing_utils.get_user_content('start'))
-  simplified_events = simplify_events_with_node(events, use_node_path=True, include_run_id=True)
+
+  # Then it should process items correctly
+  simplified_events = simplify_events_with_node(
+      events, use_node_path=True, include_run_id=True
+  )
 
   assert simplified_events == [
       (
@@ -302,16 +325,22 @@ async def test_parallel_worker_with_function(request: pytest.FixtureRequest):
               'run_id': None,
           },
       ),
-      # Children outputs perfectly mapped sequentially
       (
           'test_agent@1/_worker_func@1/_worker_func@1',
-          {'node_name': '_worker_func', 'output': 'item1_processed', 'run_id': None},
+          {
+              'node_name': '_worker_func',
+              'output': 'item1_processed',
+              'run_id': None,
+          },
       ),
       (
           'test_agent@1/_worker_func@1/_worker_func@2',
-          {'node_name': '_worker_func', 'output': 'item2_processed', 'run_id': None},
+          {
+              'node_name': '_worker_func',
+              'output': 'item2_processed',
+              'run_id': None,
+          },
       ),
-      # Parent output aggregator natively executing
       (
           'test_agent@1/_worker_func@1',
           {
@@ -324,7 +353,9 @@ async def test_parallel_worker_with_function(request: pytest.FixtureRequest):
 
 
 @pytest.mark.asyncio
-async def test_parallel_worker_with_failure(request: pytest.FixtureRequest):
+async def test_parallel_worker_failure_propagates_and_cancels_others(
+    request: pytest.FixtureRequest,
+):
   """One worker failure cancels remaining workers and propagates the exception.
 
   Setup: 3 items — task-1 completes fast, task-2 fails after delay,
@@ -334,6 +365,7 @@ async def test_parallel_worker_with_failure(request: pytest.FixtureRequest):
     - task-2's ValueError propagates to the runner.
     - task-3 is cancelled (never finishes).
   """
+  # Given a worker that fails on task-2
   items = ['task-1', 'task-2', 'task-3']
   node_a = _ProducerNode(items=items, name='NodeA')
 
@@ -375,24 +407,22 @@ async def test_parallel_worker_with_failure(request: pytest.FixtureRequest):
 
   events = []
 
-  async for event in runner.runner.run_async(
-      user_id=runner.session.user_id,
-      session_id=runner.session.id,
-      new_message=testing_utils.get_user_content('start'),
-  ):
-    events.append(event)
-  # Assert that the error was captured in an event.
+  # When running the agent, expect it to raise the worker exception
+  with pytest.raises(ValueError, match='task-2 failed'):
+    async for event in runner.runner.run_async(
+        user_id=runner.session.user_id,
+        session_id=runner.session.id,
+        new_message=testing_utils.get_user_content('start'),
+    ):
+      events.append(event)
+
+  # Then assert that the error was captured in an event and state is correct
   assert any(
-      event.error_code == 'ValueError' and event.error_message == 'task-2 failed'
+      event.error_code == 'ValueError'
+      and event.error_message == 'task-2 failed'
       for event in events
   )
-
-  # task-1 finishes before the failure.
-  # task-2 fails.
-  # task-3 does not finish.
   assert tracker == {'task-1': True}
-
-  # task-3 should be cancelled.
   assert task_3_done_cancelled
 
   simplified_events = simplify_events_with_node(events)
@@ -452,7 +482,9 @@ class _HitlWorkerNode(BaseNode):
 
 @pytest.mark.asyncio
 @pytest.mark.xfail(reason='ctx.run_node needs barrier for parallel HITL')
-async def test_parallel_worker_hitl(request: pytest.FixtureRequest):
+async def test_parallel_worker_pauses_for_human_input(
+    request: pytest.FixtureRequest,
+):
   """Worker requesting input pauses the workflow; resume completes all workers.
 
   Setup: 2 items — item1 completes, item2 requests input.
@@ -463,8 +495,7 @@ async def test_parallel_worker_hitl(request: pytest.FixtureRequest):
     - Run 1: item1 output emitted, RequestInput for item2.
     - Run 2: item2 output emitted, parent returns full list.
   """
-  # Use ordered items to ensure event order
-  # The ask flag controls whether the worker requests input.
+  # Given a workflow with a worker that requests input for item2
   items = [{'val': 'item1', 'ask': False}, {'val': 'item2', 'ask': True}]
   node_a = _ProducerNode(items=items, name='NodeA')
   worker = ParallelWorker(_HitlWorkerNode(name='Worker'))
@@ -483,10 +514,10 @@ async def test_parallel_worker_hitl(request: pytest.FixtureRequest):
   )
   runner = testing_utils.InMemoryRunner(app=app)
 
-  # Run 1
+  # When the workflow is run for the first time
   events1 = await runner.run_async(testing_utils.get_user_content('start'))
 
-  # Check interruption
+  # Then item1 should complete and item2 should interrupt
   req_events = [e for e in events1 if has_request_input_function_call(e)]
   assert len(req_events) == 1
   interrupt_id = get_request_input_interrupt_ids(req_events[0])[0]
@@ -505,7 +536,6 @@ async def test_parallel_worker_hitl(request: pytest.FixtureRequest):
               ],
           },
       ),
-      # item1 finishes and emits output
       (
           'parallel_worker_hitl_agent',
           {'node_name': 'Worker', 'output': 'item1_processed'},
@@ -516,7 +546,7 @@ async def test_parallel_worker_hitl(request: pytest.FixtureRequest):
       ),
   ]
 
-  # Run 2: Resume
+  # When resuming with human input for item2
   user_input = types.Part(
       function_response=types.FunctionResponse(
           id=interrupt_id,
@@ -528,11 +558,9 @@ async def test_parallel_worker_hitl(request: pytest.FixtureRequest):
       new_message=testing_utils.UserContent(user_input),
       invocation_id=invocation_id,
   )
-  simplified_events2 = simplify_events_with_node(events2)
 
-  # Upon resume, ParallelWorker reruns tasks.
-  # item2 runs and emits output.
-  # Parent emits list.
+  # Then item2 should complete and the full list should be returned
+  simplified_events2 = simplify_events_with_node(events2)
 
   assert simplified_events2 == [
       (
@@ -580,8 +608,11 @@ class _AsyncWorkerNode(BaseNode):
 
 
 @pytest.mark.asyncio
-async def test_parallel_worker_out_of_order(request: pytest.FixtureRequest):
+async def test_parallel_worker_preserves_input_order_regardless_of_completion_order(
+    request: pytest.FixtureRequest,
+):
   """Final output list preserves input order regardless of worker completion order."""
+  # Given items and events to control completion order
   item1 = 'item1'
   item2 = 'item2'
   events_map = {
@@ -606,7 +637,7 @@ async def test_parallel_worker_out_of_order(request: pytest.FixtureRequest):
   )
   runner = testing_utils.InMemoryRunner(app=app)
 
-  # Start the runner in a background task so we can control events
+  # When running the workflow (starting in background)
   run_task = asyncio.create_task(
       runner.run_async(testing_utils.get_user_content('start'))
   )
@@ -623,12 +654,8 @@ async def test_parallel_worker_out_of_order(request: pytest.FixtureRequest):
 
   events = await run_task
 
+  # Then output should preserve input order
   simplified_events = simplify_events_with_node(events)
-
-  # Output should be:
-  # item2 output (finished first)
-  # item1 output (finished second)
-  # parent output (input order)
 
   assert simplified_events == [
       ('out_of_order_agent', {'node_name': 'NodeA', 'output': [item1, item2]}),
@@ -642,8 +669,11 @@ async def test_parallel_worker_out_of_order(request: pytest.FixtureRequest):
 
 
 @pytest.mark.asyncio
-async def test_parallel_worker_nested_agent(request: pytest.FixtureRequest):
+async def test_parallel_worker_can_wrap_nested_workflow(
+    request: pytest.FixtureRequest,
+):
   """Nested Workflow wrapped in ParallelWorker processes items through its graph."""
+  # Given a workflow wrapping a nested workflow in ParallelWorker
   items = ['item1', 'item2']
   node_a = _ProducerNode(items=items, name='NodeA')
 
@@ -671,7 +701,10 @@ async def test_parallel_worker_nested_agent(request: pytest.FixtureRequest):
   )
   runner = testing_utils.InMemoryRunner(app=app)
 
+  # When the workflow is run
   events = await runner.run_async(testing_utils.get_user_content('start'))
+
+  # Then results should be processed by the nested workflow
   simplified_events = simplify_events_with_node(events)
 
   assert simplified_events == [
@@ -682,7 +715,6 @@ async def test_parallel_worker_nested_agent(request: pytest.FixtureRequest):
               'output': ['item1', 'item2'],
           },
       ),
-      # Children outputs (nested workflow finalize events are deduplicated)
       (
           'nested_agent',
           {'node_name': 'worker_func', 'output': 'item1_processed'},
@@ -691,7 +723,6 @@ async def test_parallel_worker_nested_agent(request: pytest.FixtureRequest):
           'nested_agent',
           {'node_name': 'worker_func', 'output': 'item2_processed'},
       ),
-      # Parent output
       (
           'outer_agent',
           {
@@ -707,17 +738,16 @@ async def test_parallel_worker_nested_agent(request: pytest.FixtureRequest):
 
 @pytest.mark.asyncio
 @pytest.mark.xfail(reason='New Workflow has no parallel_worker field')
-async def test_workflow_agent_with_parallel_worker_flag(
+async def test_workflow_auto_wraps_parallel_worker_when_flag_set(
     request: pytest.FixtureRequest,
 ):
   """Workflow with parallel_worker=True auto-wraps in ParallelWorker."""
 
+  # Given a nested workflow with parallel_worker=True
   async def producer_func():
-    # Produces a list of items to be processed in parallel
     return ['item1', 'item2']
 
   async def worker_func(node_input: Any):
-    # Simulates work on a single item.
     return f'{node_input}_processed'
 
   nested_agent = Workflow(
@@ -739,8 +769,11 @@ async def test_workflow_agent_with_parallel_worker_flag(
       root_agent=outer_agent,
   )
   runner = testing_utils.InMemoryRunner(app=app)
+
+  # When the workflow is run
   events = await runner.run_async(testing_utils.get_user_content('start'))
 
+  # Then it should process items in parallel
   simplified_events = simplify_events_with_node(events)
 
   assert simplified_events == [
@@ -751,7 +784,6 @@ async def test_workflow_agent_with_parallel_worker_flag(
               'output': ['item1', 'item2'],
           },
       ),
-      # Children outputs (nested workflow finalize events are deduplicated)
       (
           'nested_agent',
           {'node_name': 'worker_func', 'output': 'item1_processed'},
@@ -760,7 +792,6 @@ async def test_workflow_agent_with_parallel_worker_flag(
           'nested_agent',
           {'node_name': 'worker_func', 'output': 'item2_processed'},
       ),
-      # Parent output
       (
           'outer_agent',
           {
@@ -775,8 +806,11 @@ async def test_workflow_agent_with_parallel_worker_flag(
 
 
 @pytest.mark.asyncio
-async def test_parallel_worker_max_concurrency(request: pytest.FixtureRequest):
+async def test_parallel_worker_limits_concurrency(
+    request: pytest.FixtureRequest,
+):
   """max_concurrency limits the number of concurrent workers at any time."""
+  # Given items and events to control concurrency
   items = ['item1', 'item2', 'item3', 'item4']
   started_events = {item: asyncio.Event() for item in items}
   finish_events = {item: asyncio.Event() for item in items}
@@ -815,9 +849,10 @@ async def test_parallel_worker_max_concurrency(request: pytest.FixtureRequest):
     ):
       events.append(event)
 
+  # When running the agent (starting in background)
   run_task = asyncio.create_task(_run_agent())
 
-  # Verify that initially only two workers are started.
+  # Then verify that initially only two workers are started
   await asyncio.gather(
       started_events['item1'].wait(),
       started_events['item2'].wait(),
@@ -828,33 +863,34 @@ async def test_parallel_worker_max_concurrency(request: pytest.FixtureRequest):
   assert not started_events['item3'].is_set()
   assert not started_events['item4'].is_set()
 
-  # Then signal second worker to finish.
+  # Signal second worker to finish
   finish_events['item2'].set()
 
-  # Check that the next worker (third one) is scheduled.
+  # Check that the next worker (third one) is scheduled
   await started_events['item3'].wait()
   assert started_events['item3'].is_set()
   assert not started_events['item4'].is_set()
 
-  # Then signal the third worker to be finished. Check 4th worker is scheduled.
+  # Signal the third worker to be finished. Check 4th worker is scheduled
   finish_events['item3'].set()
   await started_events['item4'].wait()
   assert started_events['item4'].is_set()
 
-  # Then finish all workers, and assert the workflow finishes.
+  # Finish all workers, and assert the workflow finishes
   finish_events['item1'].set()
   finish_events['item4'].set()
 
   await run_task
 
-  simplified_events = simplify_events_with_node(events, use_node_path=True, include_run_id=True)
+  simplified_events = simplify_events_with_node(
+      events, use_node_path=True, include_run_id=True
+  )
 
   assert simplified_events == [
       (
           'max_concurrency_agent@1/NodeA@1',
           {'node_name': 'NodeA', 'output': items, 'run_id': None},
       ),
-      # item2 finishes first, natively it held dynamic positional index @2
       (
           'max_concurrency_agent@1/_concurrency_worker_func@1/_concurrency_worker_func@2',
           {
@@ -863,7 +899,6 @@ async def test_parallel_worker_max_concurrency(request: pytest.FixtureRequest):
               'run_id': None,
           },
       ),
-      # then item3 finishes (scheduled after item2 finished -> index @3)
       (
           'max_concurrency_agent@1/_concurrency_worker_func@1/_concurrency_worker_func@3',
           {
@@ -872,7 +907,6 @@ async def test_parallel_worker_max_concurrency(request: pytest.FixtureRequest):
               'run_id': None,
           },
       ),
-      # then item1 finishes (held back but started first -> index @1)
       (
           'max_concurrency_agent@1/_concurrency_worker_func@1/_concurrency_worker_func@1',
           {
@@ -881,7 +915,6 @@ async def test_parallel_worker_max_concurrency(request: pytest.FixtureRequest):
               'run_id': None,
           },
       ),
-      # then item4 finishes (scheduled after item3 finished -> index @4)
       (
           'max_concurrency_agent@1/_concurrency_worker_func@1/_concurrency_worker_func@4',
           {
@@ -890,7 +923,6 @@ async def test_parallel_worker_max_concurrency(request: pytest.FixtureRequest):
               'run_id': None,
           },
       ),
-      # aggregator completes
       (
           'max_concurrency_agent@1/_concurrency_worker_func@1',
           {
@@ -909,7 +941,7 @@ async def test_parallel_worker_max_concurrency(request: pytest.FixtureRequest):
 
 @pytest.mark.asyncio
 @pytest.mark.skip(reason='Hangs: ctx.run_node needs barrier for parallel HITL')
-async def test_parallel_worker_max_concurrency_with_hitl(
+async def test_parallel_worker_hitl_respects_concurrency_limits(
     request: pytest.FixtureRequest,
 ):
   """HITL resume under max_concurrency schedules next worker after resolution.
@@ -925,6 +957,7 @@ async def test_parallel_worker_max_concurrency_with_hitl(
     - Run 2: item2 output, item3 RequestInput.
     - Run 3: item3 output, parent returns full list.
   """
+  # Given items and events to control concurrency and HITL
   items = [
       {'val': 'item1', 'ask': False},
       {'val': 'item2', 'ask': True},
@@ -973,12 +1006,12 @@ async def test_parallel_worker_max_concurrency_with_hitl(
 
   events = []
 
-  # Run 1: Start
+  # When running the agent for the first time
   run_task = asyncio.create_task(
       runner.run_async(testing_utils.get_user_content('start'))
   )
 
-  # Node 1 and Node 2 start. Node 2 is HITL and will yield RequestInput.
+  # Then Node 1 and Node 2 should start
   await asyncio.gather(
       started_events['item1'].wait(),
       started_events['item2'].wait(),
@@ -986,15 +1019,11 @@ async def test_parallel_worker_max_concurrency_with_hitl(
 
   assert started_events['item1'].is_set()
   assert started_events['item2'].is_set()
-  # Node 3 is not started because max_concurrency is 2 and nodes 1 and 2 are active
-  # (node 2 yields RequestInput shutting down the run, but node 3 was not yet scheduled).
   assert not started_events['item3'].is_set()
 
-  # Signal node 1 to finish. This is needed to let runner finish. Otherwise,
-  # the runner will never finish because there is still a pending task (node 1).
+  # Signal node 1 to finish
   finish_events['item1'].set()
 
-  # Output should contain a generic RequestInput for 2.
   events1 = await run_task
   events.extend(events1)
 
@@ -1023,7 +1052,7 @@ async def test_parallel_worker_max_concurrency_with_hitl(
       ),
   ]
 
-  # Run 2: Resume Node 2.
+  # When resuming Node 2
   user_input_2 = types.Part(
       function_response=types.FunctionResponse(
           id=interrupt_id_2,
@@ -1039,7 +1068,7 @@ async def test_parallel_worker_max_concurrency_with_hitl(
       )
   )
 
-  # wait for node 3 to start and yield RequestInput
+  # Then node 3 should start and yield RequestInput
   await asyncio.sleep(0.1)
   await started_events['item3'].wait()
   assert started_events['item3'].is_set()
@@ -1065,10 +1094,7 @@ async def test_parallel_worker_max_concurrency_with_hitl(
       ),
   ]
 
-  # Run 3: Signal Node 1 to finish, and Resume Node 3.
-  # We should use create_task for run_async and finish events like before
-  # so that asyncio doesn't hang.
-
+  # When resuming Node 3
   user_input_3 = types.Part(
       function_response=types.FunctionResponse(
           id=interrupt_id_3,
@@ -1087,9 +1113,9 @@ async def test_parallel_worker_max_concurrency_with_hitl(
   events3 = await run_task_3
   events.extend(events3)
 
+  # Then all should complete
   simplified_events3 = simplify_events_with_node(events3)
 
-  # The parent output should be the last event.
   assert simplified_events3 == [
       (
           'max_concurrency_hitl_agent',
