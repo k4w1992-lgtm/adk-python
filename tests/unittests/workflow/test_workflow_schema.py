@@ -543,18 +543,66 @@ async def test_start_node_with_str_input_schema():
   assert any(e.output == 'done' for e in data_events)
 
 
-@pytest.mark.xfail(reason='Input schema parsing not yet in new Workflow.')
 @pytest.mark.asyncio
 async def test_start_node_with_int_input_schema():
   """input_schema=int parses user text to int."""
-  assert False, 'TODO'
+
+  class _AssertingNode(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      assert node_input == 42
+      yield 'done'
+
+  node = _AssertingNode(name='node', input_schema=int)
+  wf = Workflow(name='wf', edges=[(START, node)])
+
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  msg = types.Content(parts=[types.Part(text='42')], role='user')
+  events = []
+
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg
+  ):
+    events.append(event)
+
+  data_events = [e for e in events if isinstance(e, Event) and e.output]
+  assert any(e.output == 'done' for e in data_events)
 
 
-@pytest.mark.xfail(reason='Input schema parsing not yet in new Workflow.')
 @pytest.mark.asyncio
 async def test_start_node_with_int_list_input_schema():
   """input_schema=list[int] parses JSON list."""
-  assert False, 'TODO'
+
+  class _AssertingNode(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      assert node_input == [1, 2, 3]
+      yield 'done'
+
+  node = _AssertingNode(name='node', input_schema=list[int])
+  wf = Workflow(name='wf', edges=[(START, node)])
+
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  msg = types.Content(parts=[types.Part(text='[1, 2, 3]')], role='user')
+  events = []
+
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg
+  ):
+    events.append(event)
+
+  data_events = [e for e in events if isinstance(e, Event) and e.output]
+  assert any(e.output == 'done' for e in data_events)
 
 
 @pytest.mark.asyncio
