@@ -47,12 +47,6 @@ class SimpleAgent(BaseAgent):
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    reason=(
-        'BaseAgent needs to set ctx.event_author in _run_impl once it extends'
-        ' BaseNode'
-    )
-)
 async def test_run_async_with_agent_nodes(request: pytest.FixtureRequest):
   """BaseAgent nodes emit content events through the workflow."""
   agent_a = SimpleAgent(name='AgentA', message='Hello')
