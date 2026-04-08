@@ -3,7 +3,11 @@
   "appName": "retry",
   "userId": "user",
   "mocks": {
-    "random.random": [0.5, 0.5, 0.8]
+    "random.random": [
+      0.5,
+      0.5,
+      0.8
+    ]
   },
   "state": {
     "__session_metadata__": {
@@ -32,7 +36,7 @@
       "content": {
         "parts": [
           {
-            "text": "Getting weather... attempt 0"
+            "text": "Getting weather... attempt 1"
           }
         ],
         "role": "user"
@@ -62,7 +66,7 @@
       "content": {
         "parts": [
           {
-            "text": "Getting weather... attempt 1"
+            "text": "Getting weather... attempt 2"
           }
         ],
         "role": "user"
@@ -92,7 +96,7 @@
       "content": {
         "parts": [
           {
-            "text": "Getting weather... attempt 2"
+            "text": "Getting weather... attempt 3"
           }
         ],
         "role": "user"
