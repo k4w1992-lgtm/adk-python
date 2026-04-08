@@ -28,7 +28,6 @@ from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.invocation_context import InvocationContext as BaseInvocationContext
 from google.adk.apps.app import ResumabilityConfig
 from google.adk.events.event import Event
-from google.adk.events.event import Event as AdkEvent
 from google.adk.events.request_input import RequestInput
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.workflow import BaseNode
@@ -78,7 +77,7 @@ class TestingNode(BaseNode):
   received_inputs: List[Any] = Field(default_factory=list)
 
   @override
-  async def run(
+  async def _run_impl(
       self,
       *,
       ctx: Context,
@@ -109,14 +108,14 @@ class TestingNodeWithIntermediateContent(BaseNode):
   route: Optional[str] = None
 
   @override
-  async def run(
+  async def _run_impl(
       self,
       *,
       ctx: Context,
       node_input: Any,
   ) -> AsyncGenerator[Any, None]:
     for content in self.intermediate_content:
-      yield AdkEvent(
+      yield Event(
           author=self.name,
           invocation_id=ctx.invocation_id,
           content=content,
@@ -137,7 +136,7 @@ class InputCapturingNode(BaseNode):
   received_inputs: List[Any] = Field(default_factory=list)
 
   @override
-  async def run(
+  async def _run_impl(
       self,
       *,
       ctx: Context,
@@ -155,12 +154,10 @@ class RequestInputNode(BaseNode):
   model_config = ConfigDict(arbitrary_types_allowed=True)
 
   message: str = Field(default='')
-  response_schema: dict[str, Any] = Field(
-      default_factory=lambda: {'type': 'string'}
-  )
+  response_schema: Optional[dict[str, Any]] = None
 
   @override
-  async def run(
+  async def _run_impl(
       self,
       *,
       ctx: Context,
@@ -202,7 +199,7 @@ def _build_node_name_map(events: list[Event]) -> dict[str, str]:
 
 
 def simplify_event_with_node(
-    event: AdkEvent,
+    event: Event,
     node_name_map: dict[str, str] | None = None,
     include_state_delta: bool = False,
     include_run_id: bool = False,
@@ -260,7 +257,7 @@ def simplify_event_with_node(
 
 
 def simplify_events_with_node(
-    events: list[AdkEvent],
+    events: list[Event],
     *,
     include_state_delta: bool = False,
     include_run_id: bool = False,
@@ -313,7 +310,7 @@ def simplify_events_with_node(
 
 
 def simplify_events_with_node_and_agent_state(
-    events: list[AdkEvent],
+    events: list[Event],
     *,
     include_state_delta: bool = False,
     include_inputs_and_triggers: bool = False,

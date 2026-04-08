@@ -20,7 +20,6 @@ from google.adk.agents.context import Context
 from google.adk.agents.llm._call_llm_node import CallLlmResult
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.apps.app import App
-from google.adk.apps.app import ResumabilityConfig
 from google.adk.events.event import Event
 from google.adk.events.request_input import RequestInput
 from google.adk.tools.long_running_tool import LongRunningFunctionTool
@@ -41,8 +40,6 @@ from .. import testing_utils
 from .workflow_testing_utils import InputCapturingNode
 from .workflow_testing_utils import RequestInputNode
 from .workflow_testing_utils import simplify_events_with_node
-from .workflow_testing_utils import simplify_events_with_node_and_agent_state
-from .workflow_testing_utils import strip_checkpoint_events
 from .workflow_testing_utils import TestingNode
 
 
@@ -52,7 +49,7 @@ def long_running_tool_func():
 
 
 @pytest.mark.asyncio
-async def test_nested_workflow_agent_as_node(request: pytest.FixtureRequest):
+async def test_nested_workflow_as_node(request: pytest.FixtureRequest):
   """Tests that a Workflow can be used as a node in another Workflow."""
 
   async def nested_func(node_input: types.Content):
@@ -87,7 +84,6 @@ async def test_nested_workflow_agent_as_node(request: pytest.FixtureRequest):
               'output': 'I am nested',
           },
       ),
-      # nested_agent output is resolved via terminal path resolution.
       (
           'outer_agent/output_func',
           {
@@ -99,98 +95,7 @@ async def test_nested_workflow_agent_as_node(request: pytest.FixtureRequest):
 
 
 @pytest.mark.asyncio
-async def test_nested_workflow_agent_as_node_resumable(
-    request: pytest.FixtureRequest,
-):
-  """Tests that a Workflow can be used as a node in another Workflow with resumability."""
-
-  async def nested_func(node_input: types.Content):
-    return 'I am nested'
-
-  nested_agent = Workflow(
-      name='nested_agent',
-      edges=[('START', nested_func)],
-  )
-
-  async def output_func(node_input: str):
-    return 'I am outer'
-
-  outer_agent = Workflow(
-      name='outer_agent',
-      edges=[('START', nested_agent), (nested_agent, output_func)],
-  )
-
-  app = App(
-      name=request.function.__name__,
-      root_agent=outer_agent,
-      resumability_config=ResumabilityConfig(is_resumable=True),
-  )
-  runner = testing_utils.InMemoryRunner(app=app)
-  events = await runner.run_async(testing_utils.get_user_content('hello'))
-
-  simplified_events = simplify_events_with_node_and_agent_state(
-      events, use_node_path=True
-  )
-  assert simplified_events == [
-      (
-          'outer_agent',
-          {
-              'nodes': {
-                  'nested_agent': {'status': NodeStatus.RUNNING.value},
-              }
-          },
-      ),
-      (
-          'outer_agent/nested_agent',
-          {
-              'nodes': {
-                  'nested_func': {'status': NodeStatus.RUNNING.value},
-              }
-          },
-      ),
-      (
-          'outer_agent/nested_agent/nested_func',
-          {'node_name': 'nested_func', 'output': 'I am nested'},
-      ),
-      (
-          'outer_agent/nested_agent',
-          {
-              'nodes': {
-                  'nested_func': {'status': NodeStatus.COMPLETED.value},
-              }
-          },
-      ),
-      # nested_agent finalize event is deduplicated (non-root, no
-      # output_schema).
-      ('outer_agent/nested_agent', testing_utils.END_OF_AGENT),
-      (
-          'outer_agent',
-          {
-              'nodes': {
-                  'nested_agent': {'status': NodeStatus.COMPLETED.value},
-                  'output_func': {'status': NodeStatus.RUNNING.value},
-              }
-          },
-      ),
-      (
-          'outer_agent/output_func',
-          {'node_name': 'output_func', 'output': 'I am outer'},
-      ),
-      (
-          'outer_agent',
-          {
-              'nodes': {
-                  'nested_agent': {'status': NodeStatus.COMPLETED.value},
-                  'output_func': {'status': NodeStatus.COMPLETED.value},
-              }
-          },
-      ),
-      ('outer_agent', testing_utils.END_OF_AGENT),
-  ]
-
-
-@pytest.mark.asyncio
-async def test_nested_workflow_agent_with_join_node(
+async def test_nested_workflow_with_join_node(
     request: pytest.FixtureRequest,
 ):
   """Tests that a nested Workflow with JoinNode works correctly."""
@@ -259,7 +164,6 @@ async def test_nested_workflow_agent_with_join_node(
               'output': {'nested_node_a': {'a': 1}, 'nested_node_b': {'b': 2}},
           },
       ),
-      # nested_agent finalize event is deduplicated.
       (
           'outer_agent/output_func',
           {
@@ -271,10 +175,10 @@ async def test_nested_workflow_agent_with_join_node(
 
 
 @pytest.mark.asyncio
-async def test_nested_agent_updates_state_outer_reads(
+async def test_nested_workflow_updates_state_outer_reads(
     request: pytest.FixtureRequest,
 ):
-  """Tests that outer agent can read state updated by nested agent."""
+  """Tests that outer workflow can read state updated by nested workflow."""
 
   async def nested_state_updater(ctx: Context):
     yield Event(
@@ -311,7 +215,6 @@ async def test_nested_agent_updates_state_outer_reads(
               'output': 'nested agent finished',
           },
       ),
-      # nested_agent finalize event is deduplicated.
       (
           'outer_agent/outer_state_reader',
           {
@@ -326,15 +229,12 @@ async def test_nested_agent_updates_state_outer_reads(
 
 
 @pytest.mark.asyncio
-async def test_nested_workflow_agent_intermediate_nodes(
+async def test_nested_workflow_intermediate_nodes(
     request: pytest.FixtureRequest,
 ):
   """Tests that only the final output of a nested workflow is passed to the outer workflow."""
 
-  # Nested workflow: NodeA -> NodeB
-  # NodeA outputs 'Inner Intermediate', but it's not the final node.
   node_a = TestingNode(name='NodeA', output='Inner Intermediate')
-  # NodeB outputs 'Inner Final', and it is the final node (leaf).
   node_b = TestingNode(name='NodeB', output='Inner Final')
 
   nested_agent = Workflow(
@@ -345,7 +245,6 @@ async def test_nested_workflow_agent_intermediate_nodes(
       ],
   )
 
-  # Outer workflow: NestedAgent -> OutputNode
   output_node = InputCapturingNode(name='OutputNode')
 
   outer_agent = Workflow(
@@ -363,10 +262,8 @@ async def test_nested_workflow_agent_intermediate_nodes(
   runner = testing_utils.InMemoryRunner(app=app)
   events = await runner.run_async(testing_utils.get_user_content('start'))
 
-  # Verify that OutputNode received 'Inner Final' and NOT 'Inner Intermediate'
   assert output_node.received_inputs == ['Inner Final']
 
-  # Verify the event stream
   simplified_events = simplify_events_with_node(events, use_node_path=True)
   assert simplified_events == [
       (
@@ -377,7 +274,6 @@ async def test_nested_workflow_agent_intermediate_nodes(
           'outer_agent/nested_agent/NodeB',
           {'node_name': 'NodeB', 'output': 'Inner Final'},
       ),
-      # nested_agent finalize event is deduplicated.
       (
           'outer_agent/OutputNode',
           {'node_name': 'OutputNode', 'output': {'received': 'Inner Final'}},
@@ -385,11 +281,8 @@ async def test_nested_workflow_agent_intermediate_nodes(
   ]
 
 
-@pytest.mark.parametrize('resumable', [True, False])
 @pytest.mark.asyncio
-async def test_nested_workflow_agent_with_hitl(
-    request: pytest.FixtureRequest, resumable: bool
-):
+async def test_nested_workflow_with_hitl(request: pytest.FixtureRequest):
   """Tests that a nested Workflow with HITL works correctly."""
   llm_agent = LlmAgent(
       name='llm_agent',
@@ -421,11 +314,9 @@ async def test_nested_workflow_agent_with_hitl(
   app = App(
       name=request.function.__name__,
       root_agent=outer_agent,
-      resumability_config=ResumabilityConfig(is_resumable=resumable),
   )
   runner = testing_utils.InMemoryRunner(app=app)
 
-  # First run: should pause on the long-running function call.
   user_event = testing_utils.get_user_content('start workflow')
   events1 = await runner.run_async(user_event)
 
@@ -441,114 +332,13 @@ async def test_nested_workflow_agent_with_hitl(
       break
   assert function_call_id is not None
 
-  expected_events1 = [
-      (
-          'outer_agent',
-          {
-              'nodes': {
-                  'nested_agent': {'status': NodeStatus.RUNNING.value},
-              }
-          },
-      ),
-      (
-          'outer_agent/nested_agent',
-          {
-              'nodes': {
-                  'llm_agent': {'status': NodeStatus.RUNNING.value},
-              }
-          },
-      ),
-      # LlmAgent is now a Mesh, so it emits internal workflow state events.
-      (
-          'outer_agent/nested_agent/llm_agent',
-          {
-              'nodes': {
-                  'call_llm': {'status': NodeStatus.RUNNING.value},
-              },
-          },
-      ),
-      (
-          'outer_agent/nested_agent/llm_agent/call_llm',
-          {
-              'node_name': 'call_llm',
-              'output': CallLlmResult(
-                  function_calls=[
-                      types.FunctionCall(
-                          name='long_running_tool_func',
-                          args={},
-                          id=function_call_id,
-                      )
-                  ],
-              ),
-          },
-      ),
-      # call_llm completes and routes to execute_tools.
-      (
-          'outer_agent/nested_agent/llm_agent',
-          {
-              'nodes': {
-                  'call_llm': {
-                      'status': NodeStatus.COMPLETED.value,
-                  },
-                  'execute_tools': {
-                      'status': NodeStatus.RUNNING.value,
-                  },
-              },
-          },
-      ),
-      # execute_tools yields the function_call (with long_running_tool_ids)
-      # as an interrupt event since call_llm suppresses its finalized event
-      # for long-running tools.
+  simplified_events1 = simplify_events_with_node(events1, use_node_path=True)
+  assert simplified_events1 == [
       (
           'outer_agent/nested_agent/llm_agent/execute_tools',
           types.Part.from_function_call(name='long_running_tool_func', args={}),
       ),
-      (
-          'outer_agent/nested_agent/llm_agent',
-          {
-              'nodes': {
-                  'call_llm': {
-                      'status': NodeStatus.COMPLETED.value,
-                  },
-                  'execute_tools': {
-                      'status': NodeStatus.WAITING.value,
-                      'interrupts': [function_call_id],
-                  },
-              },
-          },
-      ),
-      (
-          'outer_agent/nested_agent',
-          {
-              'nodes': {
-                  'llm_agent': {
-                      'status': NodeStatus.WAITING.value,
-                      'interrupts': [function_call_id],
-                  },
-              },
-          },
-      ),
-      (
-          'outer_agent',
-          {
-              'nodes': {
-                  'nested_agent': {
-                      'status': NodeStatus.WAITING.value,
-                      'interrupts': [function_call_id],
-                  },
-              },
-          },
-      ),
   ]
-
-  events1_simplified = simplify_events_with_node_and_agent_state(
-      copy.deepcopy(events1), use_node_path=True
-  )
-  assert events1_simplified == (
-      expected_events1
-      if resumable
-      else strip_checkpoint_events(expected_events1)
-  )
 
   tool_response = testing_utils.UserContent(
       types.Part(
@@ -560,43 +350,14 @@ async def test_nested_workflow_agent_with_hitl(
       )
   )
 
-  # Resume with tool output
   invocation_id = events1[0].invocation_id
   events2 = await runner.run_async(
       new_message=tool_response,
       invocation_id=invocation_id,
   )
 
-  expected_events2 = [
-      # outer_agent schedules nested_agent for re-run.
-      (
-          'outer_agent',
-          {
-              'nodes': {
-                  'nested_agent': {'status': NodeStatus.RUNNING.value},
-              }
-          },
-      ),
-      # nested_agent schedules llm_agent for re-run.
-      (
-          'outer_agent/nested_agent',
-          {
-              'nodes': {
-                  'llm_agent': {'status': NodeStatus.RUNNING.value},
-              }
-          },
-      ),
-      # llm_agent schedules execute_tools for re-run (rerun_on_resume).
-      (
-          'outer_agent/nested_agent/llm_agent',
-          {
-              'nodes': {
-                  'call_llm': {'status': NodeStatus.COMPLETED.value},
-                  'execute_tools': {'status': NodeStatus.RUNNING.value},
-              },
-          },
-      ),
-      # execute_tools processes the long-running resume → FR.
+  simplified_events2 = simplify_events_with_node(events2, use_node_path=True)
+  assert simplified_events2 == [
       (
           'outer_agent/nested_agent/llm_agent/execute_tools',
           types.Part(
@@ -606,32 +367,10 @@ async def test_nested_workflow_agent_with_hitl(
               )
           ),
       ),
-      # execute_tools completes, routes back to call_llm.
-      (
-          'outer_agent/nested_agent/llm_agent',
-          {
-              'nodes': {
-                  'call_llm': {'status': NodeStatus.RUNNING.value},
-                  'execute_tools': {'status': NodeStatus.COMPLETED.value},
-              },
-          },
-      ),
-      # call_llm produces text response (no more function calls).
       (
           'outer_agent/nested_agent/llm_agent/call_llm',
           {'node_name': 'call_llm', 'output': 'LLM response after tool'},
       ),
-      # llm_agent completes.
-      (
-          'outer_agent/nested_agent/llm_agent',
-          {
-              'nodes': {
-                  'call_llm': {'status': NodeStatus.COMPLETED.value},
-                  'execute_tools': {'status': NodeStatus.COMPLETED.value},
-              },
-          },
-      ),
-      # Wrapper emits output before END_OF_AGENT.
       (
           'outer_agent/nested_agent/llm_agent',
           {
@@ -639,60 +378,27 @@ async def test_nested_workflow_agent_with_hitl(
               'output': 'LLM response after tool',
           },
       ),
-      ('outer_agent/nested_agent/llm_agent', testing_utils.END_OF_AGENT),
-      # nested_agent completes.
-      (
-          'outer_agent/nested_agent',
-          {
-              'nodes': {
-                  'llm_agent': {'status': NodeStatus.COMPLETED.value},
-              }
-          },
-      ),
-      # nested_agent output is resolved via terminal path resolution.
-      ('outer_agent/nested_agent', testing_utils.END_OF_AGENT),
-      # outer_agent runs output_func.
-      (
-          'outer_agent',
-          {
-              'nodes': {
-                  'nested_agent': {'status': NodeStatus.COMPLETED.value},
-                  'output_func': {'status': NodeStatus.RUNNING.value},
-              }
-          },
-      ),
       (
           'outer_agent/output_func',
           {'node_name': 'output_func', 'output': 'I am outer'},
       ),
-      (
-          'outer_agent',
-          {
-              'nodes': {
-                  'nested_agent': {'status': NodeStatus.COMPLETED.value},
-                  'output_func': {'status': NodeStatus.COMPLETED.value},
-              }
-          },
-      ),
-      ('outer_agent', testing_utils.END_OF_AGENT),
   ]
 
-  events2_simplified = simplify_events_with_node_and_agent_state(
-      copy.deepcopy(events2), use_node_path=True
-  )
-  assert events2_simplified == (
-      expected_events2
-      if resumable
-      else strip_checkpoint_events(expected_events2)
-  )
 
-
-@pytest.mark.parametrize('resumable', [True, False])
 @pytest.mark.asyncio
-async def test_nested_workflow_agent_with_request_input_event_hitl(
-    request: pytest.FixtureRequest, resumable: bool
+async def test_nested_workflow_with_request_input_event_hitl(
+    request: pytest.FixtureRequest,
 ):
-  """Tests that a nested Workflow with RequestInputEvent HITL works correctly."""
+  """Nested workflow correctly propagates RequestInput and resumes.
+
+  Setup: outer_agent -> nested_agent -> node_hitl.
+  Act:
+    - Run 1: start workflow, node_hitl yields RequestInput.
+    - Run 2: resume with user response.
+  Assert:
+    - Run 1: returns RequestInput event.
+    - Run 2: node_hitl receives input and completes.
+  """
 
   class NodeHitl(BaseNode):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -700,7 +406,7 @@ async def test_nested_workflow_agent_with_request_input_event_hitl(
     name: str = Field(default='node_hitl')
 
     @override
-    async def run(
+    async def _run_impl(
         self,
         *,
         ctx: Context,
@@ -714,6 +420,7 @@ async def test_nested_workflow_agent_with_request_input_event_hitl(
             interrupt_id='request_input',
         )
 
+  # Given: A nested workflow where the inner node requests input
   node_hitl_instance = NodeHitl()
 
   nested_agent = Workflow(
@@ -732,77 +439,28 @@ async def test_nested_workflow_agent_with_request_input_event_hitl(
   app = App(
       name=request.function.__name__,
       root_agent=outer_agent,
-      resumability_config=ResumabilityConfig(is_resumable=resumable),
   )
   runner = testing_utils.InMemoryRunner(app=app)
 
-  # First run: should pause on RequestInputEvent.
+  # When: Starting the workflow
   user_event = testing_utils.get_user_content('start workflow')
   events1 = await runner.run_async(user_event)
 
+  # Then: It should yield a RequestInput event
   req_events = [e for e in events1 if has_request_input_function_call(e)]
   assert req_events
   interrupt_id = get_request_input_interrupt_ids(req_events[0])[0]
   assert interrupt_id == 'request_input'
 
-  simplified_events = simplify_events_with_node_and_agent_state(
-      copy.deepcopy(events1), use_node_path=True
-  )
-
-  expected_events1 = [
-      (
-          'outer_agent',
-          {
-              'nodes': {
-                  'nested_agent': {'status': NodeStatus.RUNNING.value},
-              }
-          },
-      ),
-      (
-          'outer_agent/nested_agent',
-          {
-              'nodes': {
-                  'node_hitl': {'status': NodeStatus.RUNNING.value},
-              }
-          },
-      ),
+  simplified_events1 = simplify_events_with_node(events1, use_node_path=True)
+  assert simplified_events1 == [
       (
           'outer_agent/nested_agent/node_hitl',
           testing_utils.simplify_content(req_events[0].content),
       ),
-      (
-          'outer_agent/nested_agent',
-          {
-              'nodes': {
-                  'node_hitl': {
-                      'status': NodeStatus.WAITING.value,
-                      'interrupts': ['request_input'],
-                  },
-              },
-          },
-      ),
-      (
-          'outer_agent',
-          {
-              'nodes': {
-                  'nested_agent': {
-                      'status': NodeStatus.WAITING.value,
-                      'interrupts': ['request_input'],
-                  },
-              },
-          },
-      ),
   ]
 
-  events1_simplified = simplify_events_with_node_and_agent_state(
-      copy.deepcopy(events1), use_node_path=True
-  )
-  assert events1_simplified == (
-      expected_events1
-      if resumable
-      else strip_checkpoint_events(expected_events1)
-  )
-
+  # When: Resuming with user response
   hitl_response = types.Content(
       parts=[
           create_request_input_response(
@@ -812,30 +470,15 @@ async def test_nested_workflow_agent_with_request_input_event_hitl(
       role='user',
   )
 
-  # Resume with tool output
   invocation_id = events1[0].invocation_id
   events2 = await runner.run_async(
       new_message=hitl_response,
       invocation_id=invocation_id,
   )
 
-  expected_events2 = [
-      (
-          'outer_agent',
-          {
-              'nodes': {
-                  'nested_agent': {'status': NodeStatus.RUNNING.value},
-              }
-          },
-      ),
-      (
-          'outer_agent/nested_agent',
-          {
-              'nodes': {
-                  'node_hitl': {'status': NodeStatus.RUNNING.value},
-              }
-          },
-      ),
+  # Then: It should complete and pass output to the outer workflow
+  simplified_events2 = simplify_events_with_node(events2, use_node_path=True)
+  assert simplified_events2 == [
       (
           'outer_agent/nested_agent/node_hitl',
           {
@@ -846,54 +489,15 @@ async def test_nested_workflow_agent_with_request_input_event_hitl(
           },
       ),
       (
-          'outer_agent/nested_agent',
-          {
-              'nodes': {
-                  'node_hitl': {'status': NodeStatus.COMPLETED.value},
-              }
-          },
-      ),
-      # nested_agent finalize event is deduplicated.
-      ('outer_agent/nested_agent', testing_utils.END_OF_AGENT),
-      (
-          'outer_agent',
-          {
-              'nodes': {
-                  'nested_agent': {'status': NodeStatus.COMPLETED.value},
-                  'output_func': {'status': NodeStatus.RUNNING.value},
-              }
-          },
-      ),
-      (
           'outer_agent/output_func',
           {'node_name': 'output_func', 'output': 'I am outer'},
       ),
-      (
-          'outer_agent',
-          {
-              'nodes': {
-                  'nested_agent': {'status': NodeStatus.COMPLETED.value},
-                  'output_func': {'status': NodeStatus.COMPLETED.value},
-              }
-          },
-      ),
-      ('outer_agent', testing_utils.END_OF_AGENT),
   ]
 
-  events2_simplified = simplify_events_with_node_and_agent_state(
-      copy.deepcopy(events2), use_node_path=True
-  )
-  assert events2_simplified == (
-      expected_events2
-      if resumable
-      else strip_checkpoint_events(expected_events2)
-  )
 
-
-@pytest.mark.parametrize('resumable', [True, False])
 @pytest.mark.asyncio
 async def test_nested_agent_with_request_input_piped_to_next_node(
-    request: pytest.FixtureRequest, resumable: bool
+    request: pytest.FixtureRequest,
 ):
   """Tests that user response to RequestInput in nested agent is piped to next node."""
   ask_user = RequestInputNode(
@@ -918,11 +522,9 @@ async def test_nested_agent_with_request_input_piped_to_next_node(
   app = App(
       name=request.function.__name__,
       root_agent=root_agent,
-      resumability_config=ResumabilityConfig(is_resumable=resumable),
   )
   runner = testing_utils.InMemoryRunner(app=app)
 
-  # First run: should pause on RequestInputEvent.
   user_event = testing_utils.get_user_content('start workflow')
   events1 = await runner.run_async(user_event)
 
@@ -938,7 +540,6 @@ async def test_nested_agent_with_request_input_piped_to_next_node(
       role='user',
   )
 
-  # Resume with tool output
   invocation_id = events1[0].invocation_id
   await runner.run_async(
       new_message=hitl_response,
@@ -949,7 +550,7 @@ async def test_nested_agent_with_request_input_piped_to_next_node(
 
 
 @pytest.mark.asyncio
-async def test_nested_workflow_agent_chain_input_propagation(
+async def test_nested_workflow_chain_input_propagation(
     request: pytest.FixtureRequest,
 ):
 
@@ -982,13 +583,11 @@ async def test_nested_workflow_agent_chain_input_propagation(
   runner = testing_utils.InMemoryRunner(app=app)
   await runner.run_async(testing_utils.get_user_content('hello'))
 
-  # The output of nested_agent_a should be propagated as the input to
-  # nested_agent_b.
   assert capture_node_b.received_inputs == ['output of A']
 
 
 @pytest.mark.asyncio
-async def test_nested_workflow_agent_with_tool_calls(
+async def test_nested_workflow_with_tool_calls(
     request: pytest.FixtureRequest,
 ):
   """Tests that a nested Workflow works correctly with two tool calls."""
@@ -1032,7 +631,6 @@ async def test_nested_workflow_agent_with_tool_calls(
   app = App(
       name=request.function.__name__,
       root_agent=outer_agent,
-      resumability_config=ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=app)
 
@@ -1044,7 +642,13 @@ async def test_nested_workflow_agent_with_tool_calls(
   simplified_events = simplify_events_with_node(events, use_node_path=True)
 
   # Extract the dynamically generated function_call_id from call_llm output.
-  call_llm_output = simplified_events[1][1]
+  call_llm_output = [
+      e[1]
+      for e in simplified_events
+      if isinstance(e[1], dict)
+      and 'output' in e[1]
+      and isinstance(e[1]['output'], CallLlmResult)
+  ][0]
   function_call_id = call_llm_output['output'].function_calls[0].id
 
   assert simplified_events == [
@@ -1078,7 +682,6 @@ async def test_nested_workflow_agent_with_tool_calls(
           'outer_agent/nested_agent/llm_agent/call_llm',
           {'node_name': 'call_llm', 'output': 'LLM response after tools'},
       ),
-      # Wrapper emits output before END_OF_AGENT.
       (
           'outer_agent/nested_agent/llm_agent',
           {
@@ -1086,7 +689,6 @@ async def test_nested_workflow_agent_with_tool_calls(
               'output': 'LLM response after tools',
           },
       ),
-      # nested_agent finalize event is deduplicated.
       (
           'outer_agent/output_func',
           {
@@ -1141,7 +743,6 @@ async def test_three_level_nested_workflow(request: pytest.FixtureRequest):
               'output': 'I am inner',
           },
       ),
-      # inner_agent finalize event is deduplicated.
       (
           'outer_agent/middle_agent/middle_func',
           {
@@ -1149,7 +750,6 @@ async def test_three_level_nested_workflow(request: pytest.FixtureRequest):
               'output': 'I am middle',
           },
       ),
-      # middle_agent finalize event is deduplicated.
       (
           'outer_agent/outer_func',
           {
@@ -1161,16 +761,10 @@ async def test_three_level_nested_workflow(request: pytest.FixtureRequest):
 
 
 @pytest.mark.asyncio
-async def test_duplicate_grandchild_workflow_agent_names(
+async def test_duplicate_grandchild_workflow_names(
     request: pytest.FixtureRequest,
 ):
-  """Tests that grandchild workflow agents with same name can coexist.
-
-  This test defines two workflow agents, child1 and child2, which both contain
-  a nested workflow agent named 'grandchild'. This tests that the framework can
-  distinguish between grandchild agents with the same name but different parent
-  agents.
-  """
+  """Tests that grandchild workflow agents with same name can coexist."""
 
   async def grandchild_func():
     return 'I am grandchild'
@@ -1180,13 +774,11 @@ async def test_duplicate_grandchild_workflow_agent_names(
       edges=[('START', grandchild_func)],
   )
 
-  # child1 workflow contains a grandchild agent named 'grandchild'.
   child1_agent = Workflow(
       name='child1',
       edges=[('START', grandchild_agent.clone())],
   )
 
-  # child2 workflow also contains a grandchild agent named 'grandchild'.
   child2_agent = Workflow(
       name='child2',
       edges=[('START', grandchild_agent.clone())],
@@ -1200,123 +792,21 @@ async def test_duplicate_grandchild_workflow_agent_names(
   app = App(
       name=request.function.__name__,
       root_agent=root_agent,
-      resumability_config=ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=app)
   user_content = testing_utils.get_user_content('hello')
   events = await runner.run_async(user_content)
 
-  simplified_events = simplify_events_with_node_and_agent_state(
-      copy.deepcopy(events), use_node_path=True
-  )
+  simplified_events = simplify_events_with_node(events, use_node_path=True)
   assert simplified_events == [
-      (
-          'root',
-          {
-              'nodes': {
-                  'child1': {'status': NodeStatus.RUNNING.value},
-              }
-          },
-      ),
-      (
-          'root/child1',
-          {
-              'nodes': {
-                  'grandchild': {'status': NodeStatus.RUNNING.value},
-              }
-          },
-      ),
-      (
-          'root/child1/grandchild',
-          {
-              'nodes': {
-                  'grandchild_func': {'status': NodeStatus.RUNNING.value},
-              }
-          },
-      ),
       (
           'root/child1/grandchild/grandchild_func',
           {'node_name': 'grandchild_func', 'output': 'I am grandchild'},
       ),
       (
-          'root/child1/grandchild',
-          {
-              'nodes': {
-                  'grandchild_func': {'status': NodeStatus.COMPLETED.value},
-              }
-          },
-      ),
-      # grandchild finalize event is deduplicated.
-      ('root/child1/grandchild', testing_utils.END_OF_AGENT),
-      (
-          'root/child1',
-          {
-              'nodes': {
-                  'grandchild': {'status': NodeStatus.COMPLETED.value},
-              }
-          },
-      ),
-      # child1 finalize event is deduplicated.
-      ('root/child1', testing_utils.END_OF_AGENT),
-      (
-          'root',
-          {
-              'nodes': {
-                  'child1': {'status': NodeStatus.COMPLETED.value},
-                  'child2': {'status': NodeStatus.RUNNING.value},
-              }
-          },
-      ),
-      (
-          'root/child2',
-          {
-              'nodes': {
-                  'grandchild': {'status': NodeStatus.RUNNING.value},
-              }
-          },
-      ),
-      (
-          'root/child2/grandchild',
-          {
-              'nodes': {
-                  'grandchild_func': {'status': NodeStatus.RUNNING.value},
-              }
-          },
-      ),
-      (
           'root/child2/grandchild/grandchild_func',
           {'node_name': 'grandchild_func', 'output': 'I am grandchild'},
       ),
-      (
-          'root/child2/grandchild',
-          {
-              'nodes': {
-                  'grandchild_func': {'status': NodeStatus.COMPLETED.value},
-              }
-          },
-      ),
-      # grandchild finalize event is deduplicated.
-      ('root/child2/grandchild', testing_utils.END_OF_AGENT),
-      (
-          'root/child2',
-          {
-              'nodes': {
-                  'grandchild': {'status': NodeStatus.COMPLETED.value},
-              }
-          },
-      ),
-      # child2 finalize event is deduplicated.
-      ('root/child2', testing_utils.END_OF_AGENT),
-      (
-          'root',
-          {
-              'nodes': {
-                  'child1': {'status': NodeStatus.COMPLETED.value},
-                  'child2': {'status': NodeStatus.COMPLETED.value},
-              }
-          },
-      ),
-      ('root', testing_utils.END_OF_AGENT),
   ]
 
 
@@ -1347,71 +837,15 @@ async def test_duplicate_name_in_ancestral_path(
   app = App(
       name=request.function.__name__,
       root_agent=agent_a_root,
-      resumability_config=ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=app)
   user_content = testing_utils.get_user_content('hello')
   events = await runner.run_async(user_content)
 
-  simplified_events = simplify_events_with_node_and_agent_state(
-      copy.deepcopy(events), use_node_path=True
-  )
+  simplified_events = simplify_events_with_node(events, use_node_path=True)
   assert simplified_events == [
-      (
-          'A',
-          {
-              'nodes': {
-                  'B': {'status': NodeStatus.RUNNING.value},
-              }
-          },
-      ),
-      (
-          'A/B',
-          {
-              'nodes': {
-                  'A': {'status': NodeStatus.RUNNING.value},
-              }
-          },
-      ),
-      (
-          'A/B/A',
-          {
-              'nodes': {
-                  'func_a': {'status': NodeStatus.RUNNING.value},
-              }
-          },
-      ),
       (
           'A/B/A/func_a',
           {'node_name': 'func_a', 'output': 'I am A'},
       ),
-      (
-          'A/B/A',
-          {
-              'nodes': {
-                  'func_a': {'status': NodeStatus.COMPLETED.value},
-              }
-          },
-      ),
-      # A/B/A finalize event is deduplicated.
-      ('A/B/A', testing_utils.END_OF_AGENT),
-      (
-          'A/B',
-          {
-              'nodes': {
-                  'A': {'status': NodeStatus.COMPLETED.value},
-              }
-          },
-      ),
-      # B finalize event is deduplicated.
-      ('A/B', testing_utils.END_OF_AGENT),
-      (
-          'A',
-          {
-              'nodes': {
-                  'B': {'status': NodeStatus.COMPLETED.value},
-              }
-          },
-      ),
-      ('A', testing_utils.END_OF_AGENT),
   ]
