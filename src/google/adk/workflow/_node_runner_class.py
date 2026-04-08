@@ -268,10 +268,13 @@ class NodeRunner:
 
   async def _run_node_loop(self, ctx: Context, node_input: Any) -> None:
     """Iterate node.run(), track events in context, and enqueue them."""
+    from ..utils.context_utils import Aclosing
+
     logger.info("node %s execute loop start.", ctx.node_path)
-    async for event in self._node.run(ctx=ctx, node_input=node_input):
-      self._track_event_in_context(event, ctx)
-      await self._enqueue_event(event, ctx)
+    async with Aclosing(self._node.run(ctx=ctx, node_input=node_input)) as agen:
+      async for event in agen:
+        self._track_event_in_context(event, ctx)
+        await self._enqueue_event(event, ctx)
     logger.info("node %s execute loop end.", ctx.node_path)
 
   async def _run_node_loop_with_timeout(

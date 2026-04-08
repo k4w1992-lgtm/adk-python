@@ -112,14 +112,18 @@ async def test_tracer_start_as_current_span(
     #   its inner delegation with Aclosing.
     # - call_llm, execute_tools: live in agents/llm/ (outside
     #   workflow/) but are workflow-internal node functions.
+    # - _run_node_async, _consume_event_queue: live in runners.py
+    #   but are part of the new workflow node runtime path.
     if coro.__name__ in (
         'use_inference_span',
         '_use_native_generate_content_span',
         'run_async',
+        '_run_node_async',
+        '_consume_event_queue',
         'run_node_impl',
         'call_llm',
         'execute_tools',
-    ) or 'workflow' in getattr(coro.ag_code, 'co_filename', ''):
+    ):
       firstiter(coro)
       return
     assert any(
@@ -146,7 +150,6 @@ async def test_tracer_start_as_current_span(
       'execute_tool some_tool',
       'generate_content mock',
       'generate_content mock',
-      'invocation',
       'invoke_agent some_root_agent',
   ]
 
@@ -181,6 +184,7 @@ async def test_exception_preserves_attributes(
 
   # Assert
   spans = span_exporter.get_finished_spans()
+
   assert len(spans) > 1
   assert all(
       span.attributes is not None and len(span.attributes) > 0

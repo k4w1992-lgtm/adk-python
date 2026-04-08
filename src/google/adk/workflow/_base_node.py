@@ -159,19 +159,21 @@ class BaseNode(BaseModel):
     """
     from ..events.event import Event
     from ..events.request_input import RequestInput
+    from ..utils.context_utils import Aclosing
 
     node_input = self._validate_input_data(node_input)
-    async for item in self._run_impl(ctx=ctx, node_input=node_input):
-      if item is None:
-        continue
-      if isinstance(item, Event):
-        yield item
-      elif isinstance(item, RequestInput):
-        from .utils._workflow_hitl_utils import create_request_input_event
+    async with Aclosing(self._run_impl(ctx=ctx, node_input=node_input)) as agen:
+      async for item in agen:
+        if item is None:
+          continue
+        if isinstance(item, Event):
+          yield item
+        elif isinstance(item, RequestInput):
+          from .utils._workflow_hitl_utils import create_request_input_event
 
-        yield create_request_input_event(item)
-      else:
-        yield Event(output=item)
+          yield create_request_input_event(item)
+        else:
+          yield Event(output=item)
 
   async def _run_impl(
       self,
