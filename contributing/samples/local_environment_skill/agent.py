@@ -54,7 +54,10 @@ def get_wind_speed(location: str) -> str:
   return f"The wind speed in {location} is 10 mph."
 
 
-BASE_INSTRUCTION = "You are a helpful AI assistant that can use the local environment to execute commands and file I/O."
+BASE_INSTRUCTION = (
+    "You are a helpful AI assistant that can use the local environment to"
+    " execute commands and file I/O."
+)
 
 SKILL_USAGE_INSTRUCTION = """\
 [SKILLS ACCESS]
@@ -76,11 +79,15 @@ Failure to check the `skills/` directory before stating you cannot help is unacc
 root_agent = Agent(
     model="gemini-2.5-pro",
     name="local_environment_skill_agent",
-    description="An agent that uses local environment tools to load and use skills.",
+    description=(
+        "An agent that uses local environment tools to load and use skills."
+    ),
     instruction=f"{BASE_INSTRUCTION}\n\n{SKILL_USAGE_INSTRUCTION}",
     tools=[
         EnvironmentToolset(
-            environment=LocalEnvironment(working_dir=pathlib.Path(__file__).parent),
+            environment=LocalEnvironment(
+                working_dir=pathlib.Path(__file__).parent
+            ),
         ),
         GetTimezoneTool(),
         get_wind_speed,
