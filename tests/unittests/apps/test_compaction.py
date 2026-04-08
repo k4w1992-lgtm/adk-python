@@ -996,7 +996,7 @@ class TestCompaction(unittest.IsolatedAsyncioTestCase):
     self.assertEqual(appended_event.actions.compaction.start_timestamp, 1.0)
     self.assertEqual(appended_event.actions.compaction.end_timestamp, 1.0)
 
-    result_contents = contents._get_contents(None, events + [appended_event])
+    result_contents = _contents._get_contents(None, events + [appended_event])
     self.assertEqual(result_contents[0].parts[0].text, 'Summary safe prefix')
     self.assertEqual(
         result_contents[1].parts[0].function_call.name,
@@ -1081,7 +1081,7 @@ class TestCompaction(unittest.IsolatedAsyncioTestCase):
     self.assertEqual(appended_event.actions.compaction.start_timestamp, 1.0)
     self.assertEqual(appended_event.actions.compaction.end_timestamp, 1.0)
 
-    result_contents = contents._get_contents(None, events + [appended_event])
+    result_contents = _contents._get_contents(None, events + [appended_event])
     self.assertEqual(result_contents[0].parts[0].text, 'Summary safe prefix')
     self.assertEqual(
         result_contents[1].parts[0].function_call.name,
