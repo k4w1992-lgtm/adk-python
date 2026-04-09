@@ -28,6 +28,7 @@ from google.adk.events.event import Event
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.sessions.session import Session
 from google.adk.tools.long_running_tool import LongRunningFunctionTool
+from google.adk.tools.tool_context import ToolContext
 from google.adk.workflow import Edge
 from google.adk.workflow import START
 from google.adk.workflow import Workflow
@@ -219,8 +220,8 @@ async def test_workflow_pause_and_resume_tool_confirmation(
     - Run 1: Workflow pauses and yields confirmation request.
     - Run 2: Workflow resumes and completes with LLM response.
   """
-  from google.adk.tools.function_tool import FunctionTool
   from google.adk.flows.llm_flows.functions import REQUEST_CONFIRMATION_FUNCTION_CALL_NAME
+  from google.adk.tools.function_tool import FunctionTool
 
   # Given a tool that requires confirmation and a mock model
   def _simple_tool_func():
@@ -297,6 +298,104 @@ async def test_workflow_pause_and_resume_tool_confirmation(
   ]
 
   assert any('LLM response after confirmation' in t for t in content_texts)
+
+
+@pytest.mark.asyncio
+async def test_workflow_pause_and_resume_auth_node(
+    request: pytest.FixtureRequest,
+):
+  """Workflow pauses on missing credentials and resumes when provided.
+
+  Setup: Workflow with a single node requiring auth.
+  Act:
+    - Run 1: Start workflow without credentials.
+    - Run 2: Provide credentials via FunctionResponse.
+  Assert:
+    - Run 1: Workflow returns adk_request_credential request.
+    - Run 2: Workflow completes and yields event with credential.
+  """
+  from fastapi.openapi.models import APIKey
+  from fastapi.openapi.models import APIKeyIn
+  from google.adk.auth.auth_credential import AuthCredential
+  from google.adk.auth.auth_credential import AuthCredentialTypes
+  from google.adk.auth.auth_tool import AuthConfig
+  from google.adk.workflow import FunctionNode
+
+  # Given a workflow with a node requiring auth
+  auth_config = AuthConfig(
+      auth_scheme=APIKey(**{'in': APIKeyIn.header, 'name': 'X-Api-Key'}),
+      credential_key='my_key',
+  )
+
+  def fetch_weather(ctx):
+    cred = ctx.get_auth_response(auth_config)
+    api_key = cred.api_key if cred else 'unknown'
+    from google.adk import Event
+    yield Event(message=f"authed with {api_key}")
+
+  node_a = FunctionNode(fetch_weather, auth_config=auth_config, rerun_on_resume=True)
+
+  wf = Workflow(
+      name='test_workflow_auth_node',
+      edges=[(START, node_a)],
+  )
+
+  app = App(
+      name=request.function.__name__,
+      root_agent=wf,
+  )
+  runner = testing_utils.InMemoryRunner(app=app)
+
+  # When the workflow is started without credentials
+  events1 = await runner.run_async(testing_utils.get_user_content('start'))
+
+  # Then it should pause and request credentials
+  auth_fc_events = [
+      e for e in events1
+      if e.content
+      and e.content.parts
+      and e.content.parts[0].function_call
+      and e.content.parts[0].function_call.name == "adk_request_credential"
+  ]
+  assert len(auth_fc_events) == 1
+  auth_fc_id = auth_fc_events[0].content.parts[0].function_call.id
+  invocation_id = events1[0].invocation_id
+
+  # When the user provides the credentials
+  auth_response = AuthConfig(
+      auth_scheme=auth_config.auth_scheme,
+      credential_key=auth_config.credential_key,
+      exchanged_auth_credential=AuthCredential(
+          auth_type=AuthCredentialTypes.API_KEY,
+          api_key="secret_key",
+      ),
+  )
+
+  user_credential_response = testing_utils.UserContent(
+      types.Part(
+          function_response=types.FunctionResponse(
+              id=auth_fc_id,
+              name="adk_request_credential",
+              response=auth_response.model_dump(exclude_none=True, by_alias=True),
+          ),
+      ),
+  )
+
+  # When the workflow is resumed
+  events2 = await runner.run_async(
+      new_message=user_credential_response,
+      invocation_id=invocation_id,
+  )
+
+  # Then the workflow should resume and complete
+  content_texts = [
+      p.text
+      for e in events2
+      if e.content and e.content.parts
+      for p in e.content.parts
+      if p.text
+  ]
+  assert any('authed with secret_key' in t for t in content_texts)
 
 
 @pytest.mark.asyncio
