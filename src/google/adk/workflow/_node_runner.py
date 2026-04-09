@@ -440,8 +440,6 @@ async def _node_runner(
         ):
           if not event.node_info.source_node_name:
             event.node_info.source_node_name = _source_node_name
-          if not event.node_info.parent_run_id:
-            event.node_info.parent_run_id = _parent_run_id
 
         if isinstance(event, Event) and event.output is not None:
           has_output = True

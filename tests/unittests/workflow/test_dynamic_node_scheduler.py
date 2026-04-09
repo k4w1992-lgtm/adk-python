@@ -80,7 +80,6 @@ def _make_event(
   event.partial = False
   event.node_info = MagicMock(spec=NodeInfo)
   event.node_info.path = path
-  event.node_info.run_id = run_id
   event.node_info.output_for = output_for
   event.long_running_tool_ids = set(interrupt_ids) if interrupt_ids else None
   event.content = None
