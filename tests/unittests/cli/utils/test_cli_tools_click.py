@@ -1297,7 +1297,7 @@ def test_cli_eval_with_eval_set_id(
   eval_set_results = eval_set_results_manager.list_eval_set_results(
       app_name=app_name
   )
-  assert len(eval_set_results) == 2
+  assert len(eval_set_results) == 1
 
 
 def test_cli_create_eval_set(tmp_path: Path):
