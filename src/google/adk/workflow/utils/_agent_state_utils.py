@@ -43,7 +43,7 @@ def reconstruct_state_from_events(
   Pass 2: Scan non-user events for workflow node activity:
   - Data outputs (event.output) → node produced output
   - Interrupt IDs (event.long_running_tool_ids) → node was interrupted
-  - Dynamic metadata (source_node_name, parent_run_id) → node was
+  - Dynamic metadata (parent_run_id) → node was
     dynamically scheduled
 
   For each tracked node, cross-reference its interrupt IDs against the
@@ -149,8 +149,6 @@ def reconstruct_state_from_events(
     if event.long_running_tool_ids:
       tracker.interrupt_ids.update(event.long_running_tool_ids)
 
-    if event.node_info.source_node_name:
-      tracker.source_node_name = event.node_info.source_node_name
     if event.node_info.parent_run_id:
       tracker.parent_run_id = event.node_info.parent_run_id
 
@@ -181,7 +179,6 @@ def reconstruct_state_from_events(
           run_id=tracker.run_id,
           interrupts=list(unresolved),
           resume_inputs=resume_inputs,
-          source_node_name=tracker.source_node_name,
           parent_run_id=tracker.parent_run_id,
       )
       has_interrupted = True
@@ -189,7 +186,6 @@ def reconstruct_state_from_events(
       nodes[node_name] = NodeState(
           status=NodeStatus.COMPLETED,
           run_id=tracker.run_id,
-          source_node_name=tracker.source_node_name,
           parent_run_id=tracker.parent_run_id,
       )
 
@@ -280,7 +276,6 @@ class _NodeTracker:
       'run_id',
       'has_output',
       'interrupt_ids',
-      'source_node_name',
       'parent_run_id',
       'data_values',
   )
@@ -289,6 +284,5 @@ class _NodeTracker:
     self.run_id: str | None = None
     self.has_output: bool = False
     self.interrupt_ids: set[str] = set()
-    self.source_node_name: str | None = None
     self.parent_run_id: str | None = None
     self.data_values: list = []

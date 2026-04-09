@@ -62,6 +62,3 @@ class NodeState(BaseModel):
   parent_run_id: Optional[str] = None
   """The run ID of the parent node which dynamically
   scheduled this node run."""
-
-  source_node_name: Optional[str] = None
-  """The original node definition which was dynamically scheduled."""

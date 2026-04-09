@@ -356,7 +356,6 @@ class DynamicNodeScheduler:
           status=NodeStatus.RUNNING,
           input=node_input,
           run_id=run_id,
-          source_node_name=node.name,
           parent_run_id=ctx.run_id,
       )
       run = DynamicNodeRun(state=state)

@@ -48,10 +48,6 @@ class NodeInfo(BaseModel):
   path will be "A/B". Agent state event will have path as "A".
   """
 
-  source_node_name: str | None = None
-  """The original node definition name for a dynamically scheduled
-  node. Used to reconstruct dynamic node state from session events."""
-
   output_for: list[str] | None = None
   """Node paths whose output this event represents.
 
