@@ -126,12 +126,15 @@ class BaseNode(BaseModel):
   def _validate_input_data(self, data: Any) -> Any:
     """Validates data against input_schema if set."""
     if self.input_schema and isinstance(data, types.Content):
-      text = "".join(part.text for part in data.parts if part.text)
+      # Extract text from Content (e.g. user input from START node).
+      text = ''.join(part.text for part in data.parts if part.text)
       if self.input_schema is str:
         return text
+      # If schema is defined, try to parse the text as JSON.
       try:
         return TypeAdapter(self.input_schema).validate_json(text)
       except Exception:
+        # Fallback to validate_python if it's a raw string matching the schema.
         try:
           return TypeAdapter(self.input_schema).validate_python(text)
         except Exception:
@@ -140,7 +143,27 @@ class BaseNode(BaseModel):
 
   def _validate_output_data(self, data: Any) -> Any:
     """Validates data against output_schema if set."""
-    return self._validate_schema(data, self.output_schema)
+    if not self.output_schema:
+      return data
+
+    # 1. Try standard validation first
+    try:
+      return self._validate_schema(data, self.output_schema)
+    except Exception as e:
+      # 2. If failed, try to parse JSON ONLY if it's Content
+      if isinstance(data, types.Content):
+        text = ''.join(part.text for part in data.parts if part.text)
+        if self.output_schema is str:
+          return text
+        if text.strip():
+          try:
+            validated = TypeAdapter(self.output_schema).validate_json(text)
+            return self._to_serializable(validated)
+          except Exception:
+            pass
+
+      # 3. If not Content or parsing failed, re-raise original error
+      raise e
 
   @staticmethod
   def _to_serializable(data: Any) -> Any:

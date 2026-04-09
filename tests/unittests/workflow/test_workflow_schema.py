@@ -668,3 +668,106 @@ async def test_start_node_receives_parsed_user_content_with_schema():
 
   data_events = [e for e in events if isinstance(e, Event) and e.output]
   assert any(e.output == 'done' for e in data_events)
+
+
+@pytest.mark.asyncio
+async def test_workflow_with_invalid_output_schema():
+  """Workflow raises ValidationError if terminal output doesn't match output_schema."""
+
+  from pydantic import ValidationError
+
+  class _MyModel(BaseModel):
+    name: str
+
+  class _MyNode(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      yield {'age': 10}
+
+  node = _MyNode(name='node')
+  wf = Workflow(name='wf', edges=[(START, node)], output_schema=_MyModel)
+
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  msg = types.Content(parts=[types.Part(text='hello')], role='user')
+
+  with pytest.raises(ValidationError):
+    async for event in runner.run_async(
+        user_id='u', session_id=session.id, new_message=msg
+    ):
+      pass
+
+
+@pytest.mark.asyncio
+async def test_node_returns_content_json_parsed():
+  """Node output as types.Content containing JSON is parsed if output_schema is defined."""
+
+  class _MyModel(BaseModel):
+    name: str
+    age: int
+
+  class _MyNode(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      yield self._validate_output_data(
+          types.Content(parts=[types.Part(text='{"name": "Alice", "age": 30}')])
+      )
+
+  node = _MyNode(name='node', output_schema=_MyModel)
+  wf = Workflow(name='wf', edges=[(START, node)])
+
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  msg = types.Content(parts=[types.Part(text='hello')], role='user')
+  events = []
+
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg
+  ):
+    events.append(event)
+
+  data_events = [e for e in events if isinstance(e, Event) and e.output]
+
+  assert len(data_events) == 1
+  assert data_events[0].output == {'name': 'Alice', 'age': 30}
+
+
+@pytest.mark.asyncio
+async def test_node_returns_raw_string_not_parsed():
+  """Node output as raw JSON string is NOT parsed if output_schema is defined."""
+  from pydantic import ValidationError
+
+  class _MyModel(BaseModel):
+    name: str
+    age: int
+
+  class _MyNode(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      # This should fail validation because it's a string, not a dict/model
+      yield self._validate_output_data('{"name": "Alice", "age": 30}')
+
+  node = _MyNode(name='node', output_schema=_MyModel)
+  wf = Workflow(name='wf', edges=[(START, node)])
+
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  msg = types.Content(parts=[types.Part(text='hello')], role='user')
+
+  with pytest.raises(ValidationError):
+    async for _ in runner.run_async(
+        user_id='u', session_id=session.id, new_message=msg
+    ):
+      pass
