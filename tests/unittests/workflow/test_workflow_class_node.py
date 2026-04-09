@@ -264,19 +264,12 @@ async def test_tool_node_state_delta():
 
   assert (
       "test_tool_node_state_delta@1/stateful_tool@1",
-      {"node_name": "stateful_tool", "output": {"status": "ok"}},
-  ) in [
-      (e[0], {"node_name": e[1]["node_name"], "output": e[1].get("output")})
-      for e in simplified
-  ]
+      {"output": {"status": "ok"}},
+  ) in [(e[0], {"output": e[1].get("output")}) for e in simplified]
 
   assert (
       "test_tool_node_state_delta@1/read_state@1",
       {
-          "node_name": "read_state",
           "output": "tool_key=tool_value, tool_count=10",
       },
-  ) in [
-      (e[0], {"node_name": e[1]["node_name"], "output": e[1].get("output")})
-      for e in simplified
-  ]
+  ) in [(e[0], {"output": e[1].get("output")}) for e in simplified]

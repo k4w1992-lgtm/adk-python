@@ -64,7 +64,6 @@ async def test_node_decorator(request: pytest.FixtureRequest):
       (
           "test_agent@1/decorated_node@1",
           {
-              "node_name": "decorated_node",
               "output": "Hello from decorated_func",
           },
       ),
@@ -122,35 +121,30 @@ async def test_node_parallel_worker_execution(request: pytest.FixtureRequest):
       (
           "test_agent@1/producer_func@1",
           {
-              "node_name": "producer_func",
               "output": [1, 2, 3],
           },
       ),
       (
           "test_agent@1/my_func@1/my_func@1",
           {
-              "node_name": "my_func",
               "output": 2,
           },
       ),
       (
           "test_agent@1/my_func@1/my_func@2",
           {
-              "node_name": "my_func",
               "output": 4,
           },
       ),
       (
           "test_agent@1/my_func@1/my_func@3",
           {
-              "node_name": "my_func",
               "output": 6,
           },
       ),
       (
           "test_agent@1/my_func@1",
           {
-              "node_name": "my_func",
               "output": [2, 4, 6],
           },
       ),
@@ -275,7 +269,6 @@ async def test_tool_node_state_delta(request: pytest.FixtureRequest):
       (
           "test_tool_node_state_delta@1/stateful_tool@1",
           {
-              "node_name": "stateful_tool",
               "output": {"status": "ok"},
               "state_delta": {"tool_key": "tool_value", "tool_count": 10},
           },
@@ -283,7 +276,6 @@ async def test_tool_node_state_delta(request: pytest.FixtureRequest):
       (
           "test_tool_node_state_delta@1/read_state@1",
           {
-              "node_name": "read_state",
               "output": "tool_key=tool_value, tool_count=10",
           },
       ),
@@ -320,7 +312,6 @@ async def test_tool_node_state_delta_no_return(
       (
           "test_tool_node_state_delta_no_return@1/stateful_tool_no_return@1",
           {
-              "node_name": "stateful_tool_no_return",
               "output": None,
               "state_delta": {"silent_key": "silent_value"},
           },
@@ -328,7 +319,6 @@ async def test_tool_node_state_delta_no_return(
       (
           "test_tool_node_state_delta_no_return@1/read_state@1",
           {
-              "node_name": "read_state",
               "output": "silent_key=silent_value",
           },
       ),

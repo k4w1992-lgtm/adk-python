@@ -85,14 +85,12 @@ async def test_nested_workflow_as_node(request: pytest.FixtureRequest):
       (
           'outer_agent@1/nested_agent@1/nested_func@1',
           {
-              'node_name': 'nested_func',
               'output': 'I am nested',
           },
       ),
       (
           'outer_agent@1/output_func@1',
           {
-              'node_name': 'output_func',
               'output': 'I am outer',
           },
       ),
@@ -147,32 +145,30 @@ async def test_nested_workflow_with_join_node(
   events = await runner.run_async(testing_utils.get_user_content('hello'))
 
   simplified_events = simplify_events_with_node(events)
-  assert sorted(simplified_events[0:2], key=lambda x: x[1]['node_name']) == [
+  assert sorted(simplified_events[0:2], key=lambda x: x[0]) == [
       (
           'outer_agent@1/nested_agent@1/nested_node_a@1',
-          {'node_name': 'nested_node_a', 'output': {'a': 1}},
+          {'output': {'a': 1}},
       ),
       (
           'outer_agent@1/nested_agent@1/nested_node_c@1',
-          {'node_name': 'nested_node_c', 'output': {'c': 3}},
+          {'output': {'c': 3}},
       ),
   ]
   assert simplified_events[2:] == [
       (
           'outer_agent@1/nested_agent@1/nested_node_b@1',
-          {'node_name': 'nested_node_b', 'output': {'b': 2}},
+          {'output': {'b': 2}},
       ),
       (
           'outer_agent@1/nested_agent@1/nested_join@1',
           {
-              'node_name': 'nested_join',
               'output': {'nested_node_a': {'a': 1}, 'nested_node_b': {'b': 2}},
           },
       ),
       (
           'outer_agent@1/output_func@1',
           {
-              'node_name': 'output_func',
               'output': 'Joined output: a=1, b=2',
           },
       ),
@@ -216,14 +212,12 @@ async def test_nested_workflow_updates_state_outer_reads(
       (
           'outer_agent@1/nested_agent@1/nested_state_updater@1',
           {
-              'node_name': 'nested_state_updater',
               'output': 'nested agent finished',
           },
       ),
       (
           'outer_agent@1/outer_state_reader@1',
           {
-              'node_name': 'outer_state_reader',
               'output': (
                   'Nested agent output: nested agent finished, state value:'
                   ' my_value'
@@ -273,15 +267,15 @@ async def test_nested_workflow_intermediate_nodes(
   assert simplified_events == [
       (
           'outer_agent@1/nested_agent@1/NodeA@1',
-          {'node_name': 'NodeA', 'output': 'Inner Intermediate'},
+          {'output': 'Inner Intermediate'},
       ),
       (
           'outer_agent@1/nested_agent@1/NodeB@1',
-          {'node_name': 'NodeB', 'output': 'Inner Final'},
+          {'output': 'Inner Final'},
       ),
       (
           'outer_agent@1/OutputNode@1',
-          {'node_name': 'OutputNode', 'output': {'received': 'Inner Final'}},
+          {'output': {'received': 'Inner Final'}},
       ),
   ]
 
@@ -361,7 +355,7 @@ async def test_nested_workflow_with_hitl(request: pytest.FixtureRequest):
       ('outer_agent@1/nested_agent@1/llm_agent@1', 'LLM response after tool'),
       (
           'outer_agent@1/output_func@1',
-          {'node_name': 'output_func', 'output': 'I am outer'},
+          {'output': 'I am outer'},
       ),
   ]
 
@@ -463,7 +457,6 @@ async def test_nested_workflow_with_request_input_event_hitl(
       (
           'outer_agent@1/nested_agent@1/node_hitl@1',
           {
-              'node_name': 'node_hitl',
               'output': (
                   "Resumed with user input: {'response': 'user input for hitl'}"
               ),
@@ -471,7 +464,7 @@ async def test_nested_workflow_with_request_input_event_hitl(
       ),
       (
           'outer_agent@1/output_func@1',
-          {'node_name': 'output_func', 'output': 'I am outer'},
+          {'output': 'I am outer'},
       ),
   ]
 
@@ -648,7 +641,6 @@ async def test_nested_workflow_with_tool_calls(
       (
           'outer_agent@1/output_func@1',
           {
-              'node_name': 'output_func',
               'output': 'I am outer',
           },
       ),
@@ -695,21 +687,18 @@ async def test_three_level_nested_workflow(request: pytest.FixtureRequest):
       (
           'outer_agent@1/middle_agent@1/inner_agent@1/inner_func@1',
           {
-              'node_name': 'inner_func',
               'output': 'I am inner',
           },
       ),
       (
           'outer_agent@1/middle_agent@1/middle_func@1',
           {
-              'node_name': 'middle_func',
               'output': 'I am middle',
           },
       ),
       (
           'outer_agent@1/outer_func@1',
           {
-              'node_name': 'outer_func',
               'output': 'I am outer',
           },
       ),
@@ -760,11 +749,11 @@ async def test_duplicate_grandchild_workflow_names(
   assert simplified_events == [
       (
           'root@1/child1@1/grandchild@1/grandchild_func@1',
-          {'node_name': 'grandchild_func', 'output': 'I am grandchild'},
+          {'output': 'I am grandchild'},
       ),
       (
           'root@1/child2@1/grandchild@1/grandchild_func@1',
-          {'node_name': 'grandchild_func', 'output': 'I am grandchild'},
+          {'output': 'I am grandchild'},
       ),
   ]
 
@@ -805,7 +794,7 @@ async def test_duplicate_name_in_ancestral_path(
   assert simplified_events == [
       (
           'A@1/B@1/A@1/func_a@1',
-          {'node_name': 'func_a', 'output': 'I am A'},
+          {'output': 'I am A'},
       ),
   ]
 

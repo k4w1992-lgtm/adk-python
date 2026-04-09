@@ -435,7 +435,6 @@ async def test_workflow_request_input_resume(
       (
           'test_workflow_agent_input_schema@1/NodeB@1',
           {
-              'node_name': 'NodeB',
               'output': 'Received user details',
           },
       ),
@@ -654,7 +653,6 @@ async def test_workflow_rerun_on_resume(
       (
           'test_agent@1/NodeA@1',
           {
-              'node_name': 'NodeA',
               'output': {'approval': True},
           },
       ),
@@ -818,7 +816,6 @@ async def test_workflow_rerun_with_multiple_inputs(
       (
           'test_agent@1/NodeA@1',
           {
-              'node_name': 'NodeA',
               'output': {'input1': 'response 1', 'input2': 'response 2'},
           },
       ),

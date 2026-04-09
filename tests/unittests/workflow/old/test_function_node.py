@@ -107,31 +107,29 @@ async def test_various_function_nodes(request: pytest.FixtureRequest):
   assert simplify_events_with_node(events) == [
       (
           'test_workflow_agent_various_function_nodes@1/async_gen_func@1',
-          {'node_name': 'async_gen_func', 'output': 'Hello from AsyncGen'},
+          {'output': 'Hello from AsyncGen'},
       ),
       (
           'test_workflow_agent_various_function_nodes@1/sync_func_out@1',
-          {'node_name': 'sync_func_out', 'output': 'Hello from SyncFunc'},
+          {'output': 'Hello from SyncFunc'},
       ),
       (
           'test_workflow_agent_various_function_nodes@1/async_func_out@1',
-          {'node_name': 'async_func_out', 'output': 'Hello from AsyncFunc'},
+          {'output': 'Hello from AsyncFunc'},
       ),
       (
           'test_workflow_agent_various_function_nodes@1/sync_gen_func@1',
-          {'node_name': 'sync_gen_func', 'output': 'Hello from SyncGen'},
+          {'output': 'Hello from SyncGen'},
       ),
       (
           'test_workflow_agent_various_function_nodes@1/async_gen_func_raw_output@1',
           {
-              'node_name': 'async_gen_func_raw_output',
               'output': 'Hello from AsyncGenRawOutput',
           },
       ),
       (
           'test_workflow_agent_various_function_nodes@1/sync_gen_func_raw_output@1',
           {
-              'node_name': 'sync_gen_func_raw_output',
               'output': 'Hello from SyncGenRawOutput',
           },
       ),
@@ -165,7 +163,6 @@ async def test_function_node_state_injection(request: pytest.FixtureRequest):
       (
           'test_workflow_agent_state_injection@1/check_state_node_fn@1',
           {
-              'node_name': 'check_state_node_fn',
               'output': 'param1=value1, param2=default2',
           },
       ),
@@ -247,14 +244,12 @@ async def test_function_node_input_injection(request: pytest.FixtureRequest):
       (
           'test_workflow_agent_input_injection_dict@1/node1_fn@1',
           {
-              'node_name': 'node1_fn',
               'output': {'p1': 'value1_from_node_input', 'p2': 100},
           },
       ),
       (
           'test_workflow_agent_input_injection_dict@1/node2_fn@1',
           {
-              'node_name': 'node2_fn',
               'output': 'p1=value1_from_node_input, p2=100',
           },
       ),
@@ -293,14 +288,12 @@ async def test_function_node_input_injection_pydantic(
       (
           'test_workflow_agent_input_injection_pydantic@1/node1_fn@1',
           {
-              'node_name': 'node1_fn',
               'output': {'p1': 'value1_from_node_input', 'p2': 100},
           },
       ),
       (
           'test_workflow_agent_input_injection_pydantic@1/node2_fn@1',
           {
-              'node_name': 'node2_fn',
               'output': 'p1=value1_from_node_input, p2=100',
           },
       ),
@@ -361,14 +354,12 @@ async def test_function_node_input_list_no_item_type(
       (
           'test_workflow_agent_input_list_no_item_type@1/node1_fn@1',
           {
-              'node_name': 'node1_fn',
               'output': [1, 2],
           },
       ),
       (
           'test_workflow_agent_input_list_no_item_type@1/node2_fn@1',
           {
-              'node_name': 'node2_fn',
               'output': 'list=[1, 2]',
           },
       ),
@@ -406,12 +397,11 @@ async def test_function_node_input_and_state_injection(
   assert simplify_events_with_node(events) == [
       (
           'test_node_param_injection_single_and_state@1/nodea_fn@1',
-          {'node_name': 'nodea_fn', 'output': 'value_A'},
+          {'output': 'value_A'},
       ),
       (
           'test_node_param_injection_single_and_state@1/nodeb_fn@1',
           {
-              'node_name': 'nodeb_fn',
               'output': (
                   'node_input=value_A, p_state=value_from_state,'
                   ' p_default=default2'
@@ -450,7 +440,6 @@ async def test_function_node_state_injection_pydantic(
       (
           'test_workflow_agent_state_injection_pydantic@1/node2_fn@1',
           {
-              'node_name': 'node2_fn',
               'output': 'p1=value1_from_state, p2=200',
           },
       ),
@@ -534,7 +523,6 @@ async def test_function_node_hitl(request: pytest.FixtureRequest):
       (
           'test_workflow_agent_hitl@1/request_input_fn@1',
           {
-              'node_name': 'request_input_fn',
               'output': {'text': 'Hello from user'},
           },
       ),
@@ -550,7 +538,6 @@ async def test_function_node_hitl(request: pytest.FixtureRequest):
       (
           'test_workflow_agent_hitl@1/process_input_fn@1',
           {
-              'node_name': 'process_input_fn',
               'output': 'received: Hello from user',
           },
       ),
@@ -981,7 +968,6 @@ async def test_function_node_ctx_state_delta_sync(
       (
           'test_ctx_state_delta_sync@1/set_state_via_ctx@1',
           {
-              'node_name': 'set_state_via_ctx',
               'output': 'done',
               'state_delta': {'user_request': 'build a tracker app'},
           },
@@ -989,7 +975,6 @@ async def test_function_node_ctx_state_delta_sync(
       (
           'test_ctx_state_delta_sync@1/read_state@1',
           {
-              'node_name': 'read_state',
               'output': 'request=build a tracker app',
           },
       ),
@@ -1024,7 +1009,6 @@ async def test_function_node_ctx_state_delta_async(
       (
           'test_ctx_state_delta_async@1/set_state_via_ctx@1',
           {
-              'node_name': 'set_state_via_ctx',
               'output': 'set',
               'state_delta': {'counter': 42, 'name': 'test'},
           },
@@ -1032,7 +1016,6 @@ async def test_function_node_ctx_state_delta_async(
       (
           'test_ctx_state_delta_async@1/read_state@1',
           {
-              'node_name': 'read_state',
               'output': 'counter=42, name=test',
           },
       ),
@@ -1065,7 +1048,6 @@ async def test_function_node_ctx_state_delta_none_return(
       (
           'test_ctx_state_delta_none_return@1/set_state_return_none@1',
           {
-              'node_name': 'set_state_return_none',
               'state_delta': {'my_key': 'my_value'},
               'output': None,
           },
@@ -1073,7 +1055,6 @@ async def test_function_node_ctx_state_delta_none_return(
       (
           'test_ctx_state_delta_none_return@1/read_state@1',
           {
-              'node_name': 'read_state',
               'output': 'my_key=my_value',
           },
       ),
@@ -1110,7 +1091,6 @@ async def test_function_node_ctx_state_delta_with_event_return(
       (
           'test_ctx_state_delta_event_return@1/set_state_return_event@1',
           {
-              'node_name': 'set_state_return_event',
               'output': 'result',
               'state_delta': {
                   'from_event': 'event_value',
@@ -1121,7 +1101,6 @@ async def test_function_node_ctx_state_delta_with_event_return(
       (
           'test_ctx_state_delta_event_return@1/read_state@1',
           {
-              'node_name': 'read_state',
               'output': 'from_ctx=ctx_value, from_event=event_value',
           },
       ),
@@ -1160,7 +1139,6 @@ async def test_function_node_ctx_state_delta_generator(
       (
           'test_ctx_state_delta_generator@1/gen_with_state@1',
           {
-              'node_name': 'gen_with_state',
               'output': None,
               'state_delta': {'key1': 'value1'},
           },
@@ -1168,7 +1146,6 @@ async def test_function_node_ctx_state_delta_generator(
       (
           'test_ctx_state_delta_generator@1/gen_with_state@1',
           {
-              'node_name': 'gen_with_state',
               'output': 'done',
               'state_delta': {'key1': 'value1', 'key2': 'value2'},
           },
@@ -1176,7 +1153,6 @@ async def test_function_node_ctx_state_delta_generator(
       (
           'test_ctx_state_delta_generator@1/read_state@1',
           {
-              'node_name': 'read_state',
               'output': 'key1=value1, key2=value2',
           },
       ),
@@ -1705,11 +1681,11 @@ class TestParameterBindingNodeInput:
     assert simplify_events_with_node(events) == [
         (
             'test_bind_from_node_input@1/produce@1',
-            {'node_name': 'produce', 'output': producer_output},
+            {'output': producer_output},
         ),
         (
             'test_bind_from_node_input@1/add@1',
-            {'node_name': 'add', 'output': expected_output},
+            {'output': expected_output},
         ),
     ]
 
@@ -1773,11 +1749,11 @@ class TestParameterBindingNodeInput:
     assert simplify_events_with_node(events) == [
         (
             'test_bind_node_input_ctx@1/produce@1',
-            {'node_name': 'produce', 'output': {'name': 'Alice'}},
+            {'output': {'name': 'Alice'}},
         ),
         (
             'test_bind_node_input_ctx@1/greet@1',
-            {'node_name': 'greet', 'output': 'Hello, Alice!'},
+            {'output': 'Hello, Alice!'},
         ),
     ]
 

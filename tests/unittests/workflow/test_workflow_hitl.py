@@ -443,7 +443,7 @@ async def test_workflow_request_input_resume(
   expected_events2 = [
       (
           'test_workflow_agent_input_schema@1/NodeA_input@1',
-          {'output': {'age': 30, 'name': 'John'}, 'node_name': 'NodeA_input'},
+          {'output': {'age': 30, 'name': 'John'}},
       ),
       (
           'test_workflow_agent_input_schema',
@@ -459,7 +459,6 @@ async def test_workflow_request_input_resume(
       (
           'test_workflow_agent_input_schema@1/NodeB@1',
           {
-              'node_name': 'NodeB',
               'output': 'Received user details',
           },
       ),
@@ -482,9 +481,7 @@ async def test_workflow_request_input_resume(
     expected_non_resumable = [
         e
         for e in expected_events2
-        if not (
-            isinstance(e[1], dict) and e[1].get('node_name') == 'NodeA_input'
-        )
+        if not (e[0].split('/')[-1].split('@')[0] == 'NodeA_input')
     ]
     expected_non_resumable = workflow_testing_utils.strip_checkpoint_events(
         expected_non_resumable
@@ -547,7 +544,7 @@ async def test_workflow_allows_mixing_output_and_request_input(
   assert len(simplified) == 2
   assert simplified[0] == (
       'test_agent@1/NodeA@1',
-      {'node_name': 'NodeA', 'output': 'output 1'},
+      {'output': 'output 1'},
   )
   assert simplified[1][0] == 'test_agent@1/NodeA@1'
   assert simplified[1][1].function_call.name == 'adk_request_input'
@@ -663,7 +660,6 @@ async def test_workflow_rerun_on_resume(
       (
           'test_agent@1/NodeA@1',
           {
-              'node_name': 'NodeA',
               'output': {'approval': True},
           },
       ),
@@ -869,7 +865,6 @@ async def test_workflow_rerun_with_multiple_inputs(
       (
           'test_agent@1/NodeA@1',
           {
-              'node_name': 'NodeA',
               'output': {'input1': 'response 1', 'input2': 'response 2'},
           },
       ),

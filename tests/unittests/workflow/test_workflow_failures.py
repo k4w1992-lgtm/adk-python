@@ -144,15 +144,15 @@ async def test_retry_on_matching_exception(request: pytest.FixtureRequest):
   assert simplify_events_with_node(events) == [
       (
           'test_workflow_agent_retry@1/NodeA@1',
-          {'node_name': 'NodeA', 'output': 'Executing A'},
+          {'output': 'Executing A'},
       ),
       (
           'test_workflow_agent_retry@1/FlakyNode@1',
-          {'node_name': 'FlakyNode', 'output': 'Executing B'},
+          {'output': 'Executing B'},
       ),
       (
           'test_workflow_agent_retry@1/NodeC@1',
-          {'node_name': 'NodeC', 'output': 'Executing C'},
+          {'output': 'Executing C'},
       ),
   ]
   flaky_node_in_agent = next(
@@ -204,7 +204,7 @@ async def test_no_retry_on_non_matching_exception(
       ('user', 'start'),
       (
           'test_workflow_agent_no_retry@1/NodeA@1',
-          {'node_name': 'NodeA', 'output': 'Executing A'},
+          {'output': 'Executing A'},
       ),
   ]
 
@@ -245,11 +245,11 @@ async def test_retry_on_all_exceptions_if_not_specified(
   assert simplify_events_with_node(events) == [
       (
           'test_workflow_agent_retry_all@1/NodeA@1',
-          {'node_name': 'NodeA', 'output': 'Executing A'},
+          {'output': 'Executing A'},
       ),
       (
           'test_workflow_agent_retry_all@1/FlakyNode@1',
-          {'node_name': 'FlakyNode', 'output': 'Executing B'},
+          {'output': 'Executing B'},
       ),
   ]
 
@@ -291,15 +291,15 @@ async def test_attempt_count_populated_correctly(
   assert simplify_events_with_node(events) == [
       (
           'test_retry_count_populated_correctly@1/NodeA@1',
-          {'node_name': 'NodeA', 'output': 'Executing A'},
+          {'output': 'Executing A'},
       ),
       (
           'test_retry_count_populated_correctly@1/FlakyNode@1',
-          {'node_name': 'FlakyNode', 'output': 'Executing B'},
+          {'output': 'Executing B'},
       ),
       (
           'test_retry_count_populated_correctly@1/NodeC@1',
-          {'node_name': 'NodeC', 'output': 'Executing C'},
+          {'output': 'Executing C'},
       ),
   ]
   flaky_node_in_agent = next(
@@ -353,7 +353,7 @@ async def test_retry_max_attempts_exceeded(
       ('user', 'start'),
       (
           'test_workflow_agent_max_attempts@1/NodeA@1',
-          {'node_name': 'NodeA', 'output': 'Executing A'},
+          {'output': 'Executing A'},
       ),
   ]
 
@@ -394,7 +394,7 @@ async def test_fails_without_retry_config(
       ('user', 'start'),
       (
           'test_workflow_agent_fails_without_retry_config@1/NodeA@1',
-          {'node_name': 'NodeA', 'output': 'Executing A'},
+          {'output': 'Executing A'},
       ),
   ]
 
@@ -432,11 +432,11 @@ async def test_retries_with_empty_retry_config(
   assert simplify_events_with_node(events) == [
       (
           'test_workflow_agent_retries_with_empty_retry_config@1/NodeA@1',
-          {'node_name': 'NodeA', 'output': 'Executing A'},
+          {'output': 'Executing A'},
       ),
       (
           'test_workflow_agent_retries_with_empty_retry_config@1/FlakyNode@1',
-          {'node_name': 'FlakyNode', 'output': 'Executing B'},
+          {'output': 'Executing B'},
       ),
   ]
 
@@ -484,15 +484,15 @@ async def test_retry_with_delay(request: pytest.FixtureRequest):
   assert simplify_events_with_node(events) == [
       (
           'test_workflow_agent_retry_delay@1/NodeA@1',
-          {'node_name': 'NodeA', 'output': 'Executing A'},
+          {'output': 'Executing A'},
       ),
       (
           'test_workflow_agent_retry_delay@1/FlakyNode@1',
-          {'node_name': 'FlakyNode', 'output': 'Executing B'},
+          {'output': 'Executing B'},
       ),
       (
           'test_workflow_agent_retry_delay@1/NodeC@1',
-          {'node_name': 'NodeC', 'output': 'Executing C'},
+          {'output': 'Executing C'},
       ),
   ]
 
@@ -541,15 +541,15 @@ async def test_retry_with_backoff_and_jitter(request: pytest.FixtureRequest):
   assert simplify_events_with_node(events) == [
       (
           'test_workflow_agent_retry_backoff@1/NodeA@1',
-          {'node_name': 'NodeA', 'output': 'Executing A'},
+          {'output': 'Executing A'},
       ),
       (
           'test_workflow_agent_retry_backoff@1/FlakyNode@1',
-          {'node_name': 'FlakyNode', 'output': 'Executing B'},
+          {'output': 'Executing B'},
       ),
       (
           'test_workflow_agent_retry_backoff@1/NodeC@1',
-          {'node_name': 'NodeC', 'output': 'Executing C'},
+          {'output': 'Executing C'},
       ),
   ]
 
@@ -600,15 +600,15 @@ async def test_retry_with_jitter(request: pytest.FixtureRequest):
   assert simplify_events_with_node(events) == [
       (
           'test_workflow_agent_retry_jitter@1/NodeA@1',
-          {'node_name': 'NodeA', 'output': 'Executing A'},
+          {'output': 'Executing A'},
       ),
       (
           'test_workflow_agent_retry_jitter@1/FlakyNode@1',
-          {'node_name': 'FlakyNode', 'output': 'Executing B'},
+          {'output': 'Executing B'},
       ),
       (
           'test_workflow_agent_retry_jitter@1/NodeC@1',
-          {'node_name': 'NodeC', 'output': 'Executing C'},
+          {'output': 'Executing C'},
       ),
   ]
 
@@ -649,15 +649,15 @@ async def test_retry_with_exception_classes(request: pytest.FixtureRequest):
   assert simplify_events_with_node(events) == [
       (
           'test_retry_exception_classes@1/NodeA@1',
-          {'node_name': 'NodeA', 'output': 'Executing A'},
+          {'output': 'Executing A'},
       ),
       (
           'test_retry_exception_classes@1/FlakyNode@1',
-          {'node_name': 'FlakyNode', 'output': 'Executing B'},
+          {'output': 'Executing B'},
       ),
       (
           'test_retry_exception_classes@1/NodeC@1',
-          {'node_name': 'NodeC', 'output': 'Executing C'},
+          {'output': 'Executing C'},
       ),
   ]
 
@@ -698,15 +698,15 @@ async def test_retry_with_mixed_exception_types(request: pytest.FixtureRequest):
   assert simplify_events_with_node(events) == [
       (
           'test_retry_mixed_exceptions@1/NodeA@1',
-          {'node_name': 'NodeA', 'output': 'Executing A'},
+          {'output': 'Executing A'},
       ),
       (
           'test_retry_mixed_exceptions@1/FlakyNode@1',
-          {'node_name': 'FlakyNode', 'output': 'Executing B'},
+          {'output': 'Executing B'},
       ),
       (
           'test_retry_mixed_exceptions@1/NodeC@1',
-          {'node_name': 'NodeC', 'output': 'Executing C'},
+          {'output': 'Executing C'},
       ),
   ]
 
@@ -1037,7 +1037,7 @@ async def test_error_event_emitted_on_each_retry(
   assert simplify_events_with_node(events) == [
       (
           'test_error_event_retry@1/FlakyNode@1',
-          {'node_name': 'FlakyNode', 'output': 'Success'},
+          {'output': 'Success'},
       ),
   ]
 

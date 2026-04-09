@@ -215,14 +215,7 @@ def simplify_event_with_node(
     if event.content:
       return simplify_content(event.content)
 
-    node_name = node_name_map.get(event.node_name, event.node_name)
-    if '@' in node_name and not node_name_map:
-      node_name = node_name.split('@')[0]
-    # Strip auto-generated dynamic execution run IDs (e.g. '_df777d0eea46e20')
-    # or explicit counter numeric indices (e.g. '__0') to allow assertions
-    # to match unadorned base agent definition names uniformly.
-    node_name, _ = _split_name_and_run_id(node_name)
-    simplified_event = {'node_name': node_name}
+    simplified_event = {}
 
     # Also simplify event.output if it contains Content.
     # The tests assume that Content found in event data should be simplified

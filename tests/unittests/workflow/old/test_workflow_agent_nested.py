@@ -83,7 +83,6 @@ async def test_nested_workflow_agent_as_node(request: pytest.FixtureRequest):
       (
           'outer_agent/nested_agent/nested_func',
           {
-              'node_name': 'nested_func',
               'output': 'I am nested',
           },
       ),
@@ -91,7 +90,6 @@ async def test_nested_workflow_agent_as_node(request: pytest.FixtureRequest):
       (
           'outer_agent/output_func',
           {
-              'node_name': 'output_func',
               'output': 'I am outer',
           },
       ),
@@ -148,7 +146,7 @@ async def test_nested_workflow_agent_as_node_resumable(
       ),
       (
           'outer_agent/nested_agent/nested_func',
-          {'node_name': 'nested_func', 'output': 'I am nested'},
+          {'output': 'I am nested'},
       ),
       (
           'outer_agent/nested_agent',
@@ -172,7 +170,7 @@ async def test_nested_workflow_agent_as_node_resumable(
       ),
       (
           'outer_agent/output_func',
-          {'node_name': 'output_func', 'output': 'I am outer'},
+          {'output': 'I am outer'},
       ),
       (
           'outer_agent',
@@ -235,25 +233,24 @@ async def test_nested_workflow_agent_with_join_node(
   events = await runner.run_async(testing_utils.get_user_content('hello'))
 
   simplified_events = simplify_events_with_node(events)
-  assert sorted(simplified_events[0:2], key=lambda x: x[1]['node_name']) == [
+  assert sorted(simplified_events[0:2], key=lambda x: x[0]) == [
       (
           'outer_agent/nested_agent/nested_node_a',
-          {'node_name': 'nested_node_a', 'output': {'a': 1}},
+          {'output': {'a': 1}},
       ),
       (
           'outer_agent/nested_agent/nested_node_c',
-          {'node_name': 'nested_node_c', 'output': {'c': 3}},
+          {'output': {'c': 3}},
       ),
   ]
   assert simplified_events[2:] == [
       (
           'outer_agent/nested_agent/nested_node_b',
-          {'node_name': 'nested_node_b', 'output': {'b': 2}},
+          {'output': {'b': 2}},
       ),
       (
           'outer_agent/nested_agent/nested_join',
           {
-              'node_name': 'nested_join',
               'output': {'nested_node_a': {'a': 1}, 'nested_node_b': {'b': 2}},
           },
       ),
@@ -261,7 +258,6 @@ async def test_nested_workflow_agent_with_join_node(
       (
           'outer_agent/output_func',
           {
-              'node_name': 'output_func',
               'output': 'Joined output: a=1, b=2',
           },
       ),
@@ -305,7 +301,6 @@ async def test_nested_agent_updates_state_outer_reads(
       (
           'outer_agent/nested_agent/nested_state_updater',
           {
-              'node_name': 'nested_state_updater',
               'output': 'nested agent finished',
           },
       ),
@@ -313,7 +308,6 @@ async def test_nested_agent_updates_state_outer_reads(
       (
           'outer_agent/outer_state_reader',
           {
-              'node_name': 'outer_state_reader',
               'output': (
                   'Nested agent output: nested agent finished, state value:'
                   ' my_value'
@@ -369,16 +363,16 @@ async def test_nested_workflow_agent_intermediate_nodes(
   assert simplified_events == [
       (
           'outer_agent/nested_agent/NodeA',
-          {'node_name': 'NodeA', 'output': 'Inner Intermediate'},
+          {'output': 'Inner Intermediate'},
       ),
       (
           'outer_agent/nested_agent/NodeB',
-          {'node_name': 'NodeB', 'output': 'Inner Final'},
+          {'output': 'Inner Final'},
       ),
       # nested_agent finalize event is deduplicated.
       (
           'outer_agent/OutputNode',
-          {'node_name': 'OutputNode', 'output': {'received': 'Inner Final'}},
+          {'output': {'received': 'Inner Final'}},
       ),
   ]
 
@@ -468,7 +462,6 @@ async def test_nested_workflow_agent_with_hitl(
       (
           'outer_agent/nested_agent/llm_agent/call_llm',
           {
-              'node_name': 'call_llm',
               'output': CallLlmResult(
                   function_calls=[
                       types.FunctionCall(
@@ -617,7 +610,7 @@ async def test_nested_workflow_agent_with_hitl(
       # call_llm produces text response (no more function calls).
       (
           'outer_agent/nested_agent/llm_agent/call_llm',
-          {'node_name': 'call_llm', 'output': 'LLM response after tool'},
+          {'output': 'LLM response after tool'},
       ),
       # llm_agent completes.
       (
@@ -633,7 +626,6 @@ async def test_nested_workflow_agent_with_hitl(
       (
           'outer_agent/nested_agent/llm_agent',
           {
-              'node_name': 'llm_agent',
               'output': 'LLM response after tool',
           },
       ),
@@ -661,7 +653,7 @@ async def test_nested_workflow_agent_with_hitl(
       ),
       (
           'outer_agent/output_func',
-          {'node_name': 'output_func', 'output': 'I am outer'},
+          {'output': 'I am outer'},
       ),
       (
           'outer_agent',
@@ -837,7 +829,6 @@ async def test_nested_workflow_agent_with_request_input_event_hitl(
       (
           'outer_agent/nested_agent/node_hitl',
           {
-              'node_name': 'node_hitl',
               'output': (
                   "Resumed with user input: {'response': 'user input for hitl'}"
               ),
@@ -864,7 +855,7 @@ async def test_nested_workflow_agent_with_request_input_event_hitl(
       ),
       (
           'outer_agent/output_func',
-          {'node_name': 'output_func', 'output': 'I am outer'},
+          {'output': 'I am outer'},
       ),
       (
           'outer_agent',
@@ -1053,7 +1044,6 @@ async def test_nested_workflow_agent_with_tool_calls(
       (
           'outer_agent/nested_agent/llm_agent/call_llm',
           {
-              'node_name': 'call_llm',
               'output': CallLlmResult(
                   function_calls=[
                       types.FunctionCall(
@@ -1074,13 +1064,12 @@ async def test_nested_workflow_agent_with_tool_calls(
       ),
       (
           'outer_agent/nested_agent/llm_agent/call_llm',
-          {'node_name': 'call_llm', 'output': 'LLM response after tools'},
+          {'output': 'LLM response after tools'},
       ),
       # Wrapper emits output before END_OF_AGENT.
       (
           'outer_agent/nested_agent/llm_agent',
           {
-              'node_name': 'llm_agent',
               'output': 'LLM response after tools',
           },
       ),
@@ -1088,7 +1077,6 @@ async def test_nested_workflow_agent_with_tool_calls(
       (
           'outer_agent/output_func',
           {
-              'node_name': 'output_func',
               'output': 'I am outer',
           },
       ),
@@ -1135,7 +1123,6 @@ async def test_three_level_nested_workflow(request: pytest.FixtureRequest):
       (
           'outer_agent/middle_agent/inner_agent/inner_func',
           {
-              'node_name': 'inner_func',
               'output': 'I am inner',
           },
       ),
@@ -1143,7 +1130,6 @@ async def test_three_level_nested_workflow(request: pytest.FixtureRequest):
       (
           'outer_agent/middle_agent/middle_func',
           {
-              'node_name': 'middle_func',
               'output': 'I am middle',
           },
       ),
@@ -1151,7 +1137,6 @@ async def test_three_level_nested_workflow(request: pytest.FixtureRequest):
       (
           'outer_agent/outer_func',
           {
-              'node_name': 'outer_func',
               'output': 'I am outer',
           },
       ),
@@ -1234,7 +1219,7 @@ async def test_duplicate_grandchild_workflow_agent_names(
       ),
       (
           'root/child1/grandchild/grandchild_func',
-          {'node_name': 'grandchild_func', 'output': 'I am grandchild'},
+          {'output': 'I am grandchild'},
       ),
       (
           'root/child1/grandchild',
@@ -1283,7 +1268,7 @@ async def test_duplicate_grandchild_workflow_agent_names(
       ),
       (
           'root/child2/grandchild/grandchild_func',
-          {'node_name': 'grandchild_func', 'output': 'I am grandchild'},
+          {'output': 'I am grandchild'},
       ),
       (
           'root/child2/grandchild',
@@ -1381,7 +1366,7 @@ async def test_duplicate_name_in_ancestral_path(
       ),
       (
           'A/B/A/func_a',
-          {'node_name': 'func_a', 'output': 'I am A'},
+          {'output': 'I am A'},
       ),
       (
           'A/B/A',

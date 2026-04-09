@@ -69,8 +69,8 @@ async def test_run_async_with_edge_routes(request: pytest.FixtureRequest):
   runner = testing_utils.InMemoryRunner(app=app)
   events_b = await runner.run_async(testing_utils.get_user_content('start'))
   assert simplify_events_with_node(events_b) == [
-      ('test_workflow_agent@1/NodeA@1', {'node_name': 'NodeA', 'output': 'A'}),
-      ('test_workflow_agent@1/NodeB@1', {'node_name': 'NodeB', 'output': 'B'}),
+      ('test_workflow_agent@1/NodeA@1', {'output': 'A'}),
+      ('test_workflow_agent@1/NodeB@1', {'output': 'B'}),
   ]
 
   # Test case for route_c
@@ -79,8 +79,8 @@ async def test_run_async_with_edge_routes(request: pytest.FixtureRequest):
   runner_c = testing_utils.InMemoryRunner(app=app_c)
   events_c = await runner_c.run_async(testing_utils.get_user_content('start'))
   assert simplify_events_with_node(events_c) == [
-      ('test_workflow_agent@1/NodeA@1', {'node_name': 'NodeA', 'output': 'A'}),
-      ('test_workflow_agent@1/NodeC@1', {'node_name': 'NodeC', 'output': 'C'}),
+      ('test_workflow_agent@1/NodeA@1', {'output': 'A'}),
+      ('test_workflow_agent@1/NodeC@1', {'output': 'C'}),
   ]
 
 
@@ -103,11 +103,11 @@ async def test_output_route_int(request: pytest.FixtureRequest):
   assert simplify_events_with_node(events) == [
       (
           'test_workflow_agent_route_int@1/NodeA@1',
-          {'node_name': 'NodeA', 'output': None},
+          {'output': None},
       ),
       (
           'test_workflow_agent_route_int@1/NodeB@1',
-          {'node_name': 'NodeB', 'output': 'B'},
+          {'output': 'B'},
       ),
   ]
 
@@ -131,11 +131,11 @@ async def test_output_route_bool(request: pytest.FixtureRequest):
   assert simplify_events_with_node(events) == [
       (
           'test_workflow_agent_route_bool@1/NodeA@1',
-          {'node_name': 'NodeA', 'output': None},
+          {'output': None},
       ),
       (
           'test_workflow_agent_route_bool@1/NodeB@1',
-          {'node_name': 'NodeB', 'output': 'B'},
+          {'output': 'B'},
       ),
   ]
 
@@ -171,11 +171,11 @@ async def test_output_route_no_data(request: pytest.FixtureRequest):
   assert simplify_events_with_node(events) == [
       (
           'test_workflow_agent_route_no_data@1/NodeA@1',
-          {'node_name': 'NodeA', 'output': None},
+          {'output': None},
       ),
       (
           'test_workflow_agent_route_no_data@1/NodeB@1',
-          {'node_name': 'NodeB', 'output': 'B'},
+          {'output': 'B'},
       ),
   ]
 
@@ -220,7 +220,7 @@ async def test_run_async_with_list_of_routes(request: pytest.FixtureRequest):
   assert len(simplified_events) == 3
   assert simplified_events[0] == (
       'test_workflow_agent_list_routes@1/NodeA@1',
-      {'node_name': 'NodeA', 'output': 'A'},
+      {'output': 'A'},
   )
 
   # Check that the other two events are from NodeB and NodeC, in any order.
@@ -228,11 +228,11 @@ async def test_run_async_with_list_of_routes(request: pytest.FixtureRequest):
   expected_other_events = [
       (
           'test_workflow_agent_list_routes@1/NodeB@1',
-          {'node_name': 'NodeB', 'output': 'B'},
+          {'output': 'B'},
       ),
       (
           'test_workflow_agent_list_routes@1/NodeC@1',
-          {'node_name': 'NodeC', 'output': 'C'},
+          {'output': 'C'},
       ),
   ]
   assert len(other_events) == len(expected_other_events)
@@ -281,7 +281,7 @@ async def test_run_async_with_default_route(request: pytest.FixtureRequest):
   assert len(simplified_events) == 3
   assert simplified_events[0] == (
       'test_workflow_agent_default_route@1/NodeA@1',
-      {'node_name': 'NodeA', 'output': 'A'},
+      {'output': 'A'},
   )
 
   # Check that NodeC (default route) and NodeD (untagged) are triggered.
@@ -289,11 +289,11 @@ async def test_run_async_with_default_route(request: pytest.FixtureRequest):
   expected_other_events = [
       (
           'test_workflow_agent_default_route@1/NodeC@1',
-          {'node_name': 'NodeC', 'output': 'C'},
+          {'output': 'C'},
       ),
       (
           'test_workflow_agent_default_route@1/NodeD@1',
-          {'node_name': 'NodeD', 'output': 'D'},
+          {'output': 'D'},
       ),
   ]
   assert len(other_events) == len(expected_other_events)
@@ -338,11 +338,11 @@ async def test_run_async_default_route_not_triggered_if_match(
   assert simplified_events == [
       (
           'test_workflow_agent_default_route_not_triggered@1/NodeA@1',
-          {'node_name': 'NodeA', 'output': 'A'},
+          {'output': 'A'},
       ),
       (
           'test_workflow_agent_default_route_not_triggered@1/NodeB@1',
-          {'node_name': 'NodeB', 'output': 'B'},
+          {'output': 'B'},
       ),
   ]
 
@@ -387,7 +387,7 @@ async def test_run_async_with_untagged_edges(request: pytest.FixtureRequest):
   assert len(simplified_events) == 3
   assert simplified_events[0] == (
       'test_workflow_agent_untagged_edges@1/NodeA@1',
-      {'node_name': 'NodeA', 'output': 'A'},
+      {'output': 'A'},
   )
 
   # Check that NodeB and NodeD are triggered.
@@ -395,11 +395,11 @@ async def test_run_async_with_untagged_edges(request: pytest.FixtureRequest):
   expected_other_events = [
       (
           'test_workflow_agent_untagged_edges@1/NodeB@1',
-          {'node_name': 'NodeB', 'output': 'B'},
+          {'output': 'B'},
       ),
       (
           'test_workflow_agent_untagged_edges@1/NodeD@1',
-          {'node_name': 'NodeD', 'output': 'D'},
+          {'output': 'D'},
       ),
   ]
   assert len(other_events) == len(expected_other_events)
@@ -437,11 +437,10 @@ async def test_edge_with_multiple_routes(
   runner = testing_utils.InMemoryRunner(app=app)
   events = await runner.run_async(testing_utils.get_user_content('start'))
   assert simplify_events_with_node(events) == [
-      ('test_multi_route@1/Router@1', {'node_name': 'Router', 'output': 'R'}),
+      ('test_multi_route@1/Router@1', {'output': 'R'}),
       (
           f'test_multi_route@1/{expected_target}@1',
           {
-              'node_name': expected_target,
               'output': 'T' if expected_target == 'Target' else 'O',
           },
       ),
@@ -474,11 +473,11 @@ async def test_routing_map_with_default_route(
   assert simplify_events_with_node(events) == [
       (
           'test_routing_map_default@1/NodeA@1',
-          {'node_name': 'NodeA', 'output': 'A'},
+          {'output': 'A'},
       ),
       (
           'test_routing_map_default@1/NodeC@1',
-          {'node_name': 'NodeC', 'output': 'C'},
+          {'output': 'C'},
       ),
   ]
 
@@ -509,15 +508,15 @@ async def test_routing_map_mixed_with_other_formats(
   assert simplify_events_with_node(events) == [
       (
           'test_routing_map_mixed@1/NodeA@1',
-          {'node_name': 'NodeA', 'output': 'A'},
+          {'output': 'A'},
       ),
       (
           'test_routing_map_mixed@1/NodeB@1',
-          {'node_name': 'NodeB', 'output': 'B'},
+          {'output': 'B'},
       ),
       (
           'test_routing_map_mixed@1/NodeD@1',
-          {'node_name': 'NodeD', 'output': 'D'},
+          {'output': 'D'},
       ),
   ]
 
@@ -558,24 +557,24 @@ async def test_routing_map_fan_out_runs_both_targets(
   assert len(outputs) == 4
   assert outputs[0] == (
       'test_routing_map_fan_out@1/NodeA@1',
-      {'node_name': 'NodeA', 'output': 'A'},
+      {'output': 'A'},
   )
 
   # Gate should be last
   assert outputs[-1] == (
       'test_routing_map_fan_out@1/Gate@1',
-      {'node_name': 'Gate', 'output': {'NodeB': 'B', 'NodeC': 'C'}},
+      {'output': {'NodeB': 'B', 'NodeC': 'C'}},
   )
 
   other = outputs[1:3]
   expected = [
       (
           'test_routing_map_fan_out@1/NodeB@1',
-          {'node_name': 'NodeB', 'output': 'B'},
+          {'output': 'B'},
       ),
       (
           'test_routing_map_fan_out@1/NodeC@1',
-          {'node_name': 'NodeC', 'output': 'C'},
+          {'output': 'C'},
       ),
   ]
   assert len(other) == len(expected)
@@ -603,7 +602,7 @@ async def test_fan_in_with_route(request: pytest.FixtureRequest):
   simplified = simplify_events_with_node(events)
 
   # 'c' should receive from both 'a' and 'b' and run twice.
-  c_events = [e for e in simplified if e[1].get('node_name') == 'c']
+  c_events = [e for e in simplified if e[0].split('/')[-1].split('@')[0] == 'c']
   assert len(c_events) == 2
 
 
