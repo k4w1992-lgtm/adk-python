@@ -535,12 +535,6 @@ class Workflow(BaseNode):
     output, interrupt IDs, and resolved IDs (from FR events). Then
     derives NodeState per child.
 
-    Status priority:
-      WAITING — has unresolved interrupt IDs
-      COMPLETED — has output
-      PENDING — all interrupts resolved, no output (re-run)
-      WAITING — wait_for_output node triggered but no output yet
-
     TODO (next CL): Restore node_input via edge walking.
     """
     logger.info('node %s rehydrate start.', ctx.node_path)
@@ -554,93 +548,12 @@ class Workflow(BaseNode):
     nodes_to_trigger: list[tuple[str, Any, str | None]] = []
 
     for child_name, child in children.items():
-      unresolved = child.interrupt_ids - child.resolved_ids
-      existing_evt_run_id = child.run_id
-
-      run_counter = int(existing_evt_run_id) if existing_evt_run_id else 0
-      if unresolved:
-        node = self._get_static_node_by_name(child_name)
-        if node.rerun_on_resume and child.resolved_ids:
-          # Partial resume: child can handle partial resolution
-          # internally (e.g., nested Workflow dispatches resolved
-          # grandchildren). Re-run with resolved responses; the
-          # child will re-interrupt with the remaining IDs.
-          nodes[child_name] = NodeState(
-              status=NodeStatus.PENDING,
-              resume_inputs=child.resolved_responses,
-              run_id=existing_evt_run_id,
-              run_counter=run_counter,
-          )
-        else:
-          # Child can't handle partial resume, or nothing resolved
-          # yet. Stay WAITING until all interrupts are resolved.
-          nodes[child_name] = NodeState(
-              status=NodeStatus.WAITING,
-              interrupts=list(unresolved),
-              run_id=existing_evt_run_id,
-              run_counter=run_counter,
-          )
-      elif child.route is not None:
-        # Node produced a route in a previous run. Trigger downstream to populate
-        # node_inputs for downstream nodes that might be resuming in this run.
-        # (Needed until we implement edge walking to restore inputs).
-        nodes[child_name] = NodeState(
-            status=NodeStatus.COMPLETED,
-            run_id=existing_evt_run_id,
-            run_counter=run_counter,
-        )
-        if child.output is not None:
-          node_outputs[child_name] = child.output
-        # Mark that we need to trigger downstream for this node
-        nodes_to_trigger.append((child_name, child.output, child.route))
-      elif child.output is not None:
-        # Node's all interrupts are resolved and had output in previous run.
-        nodes[child_name] = NodeState(
-            status=NodeStatus.COMPLETED,
-            run_id=existing_evt_run_id,
-            run_counter=run_counter,
-        )
-        node_outputs[child_name] = child.output
-      elif child.interrupt_ids:
-        # Node had interrupts, all resolved, no output yet.
-        node = self._get_static_node_by_name(child_name)
-        if not node.rerun_on_resume:
-          nodes[child_name] = NodeState(
-              status=NodeStatus.COMPLETED,
-              run_id=existing_evt_run_id,
-              run_counter=run_counter,
-          )
-          node_outputs[child_name] = self._extract_resume_output(child, ctx)
-          # Mark that we need to trigger downstream for this node
-          nodes_to_trigger.append((child_name, node_outputs[child_name], None))
-        else:
-          nodes[child_name] = NodeState(
-              status=NodeStatus.PENDING,
-              resume_inputs=child.resolved_responses,
-              run_id=existing_evt_run_id,
-              run_counter=run_counter,
-          )
-      if child_name not in nodes:
-        is_wait_for_output = False
-        try:
-          node = self._get_static_node_by_name(child_name)
-          is_wait_for_output = node.wait_for_output
-        except ValueError:
-          pass
-
-        # For nodes with events but no output:
-        # If wait_for_output is True, they are still WAITING for output.
-        # Otherwise, they are considered COMPLETED (e.g., side-effect nodes).
-        status = (
-            NodeStatus.WAITING
-            if is_wait_for_output and child.output is None
-            else NodeStatus.COMPLETED
-        )
-        nodes[child_name] = NodeState(
-            status=status,
-            run_id=existing_evt_run_id,
-            run_counter=run_counter,
-        )
+      node_state, output, trigger = self._infer_node_state(child_name, child, ctx)
+      nodes[child_name] = node_state
+      if output is not None:
+        node_outputs[child_name] = output
+      if trigger is not None:
+        nodes_to_trigger.append(trigger)
 
     # wait_for_output nodes that were triggered but produced no output
     self._add_wait_for_output_nodes(nodes, children)
@@ -650,7 +563,10 @@ class Workflow(BaseNode):
 
     # Trigger downstream for nodes that were completed during resume
     for child_name, output, route in nodes_to_trigger:
-      self._buffer_downstream_triggers(loop_state, child_name, output, route)
+      self._buffer_downstream_triggers(
+          loop_state, child_name, output, route=route
+      )
+
     # Gather all active interrupts from waiting nodes.
     loop_state.interrupt_ids = {
         interrupt_id
@@ -660,6 +576,116 @@ class Workflow(BaseNode):
     }
 
     logger.info('node %s rehydrate end.', ctx.node_path)
+
+  def _infer_node_state(
+      self,
+      child_name: str,
+      child: _ChildScanState,
+      ctx: Context,
+  ) -> tuple[NodeState, Any | None, tuple[str, Any, str | None] | None]:
+    """Infer NodeState for a child node based on its scanned events.
+
+    Status priority:
+      WAITING — has unresolved interrupt IDs
+      COMPLETED — has output
+      PENDING — all interrupts resolved, no output (re-run)
+      WAITING — wait_for_output node triggered but no output yet
+    """
+    unresolved = child.interrupt_ids - child.resolved_ids
+    existing_evt_run_id = child.run_id
+    run_counter = int(existing_evt_run_id) if existing_evt_run_id else 0
+
+    node_output = None
+    trigger = None
+
+    # Case 1: Node has unresolved interrupts.
+    if unresolved:
+      node = self._get_static_node_by_name(child_name)
+      # Case 1a: Partial resume. Node supports re-run and some interrupts resolved.
+      # We re-run it with resolved responses so it can proceed or re-interrupt.
+      if node.rerun_on_resume and child.resolved_ids:
+        node_state = NodeState(
+            status=NodeStatus.PENDING,
+            resume_inputs=child.resolved_responses,
+            run_id=existing_evt_run_id,
+            run_counter=run_counter,
+        )
+      # Case 1b: No interrupts resolved yet, or node does not support re-run.
+      # Stay WAITING until all interrupts are resolved.
+      else:
+        node_state = NodeState(
+            status=NodeStatus.WAITING,
+            interrupts=list(unresolved),
+            run_id=existing_evt_run_id,
+            run_counter=run_counter,
+        )
+    # Case 2: Node produced a route in a previous run.
+    # It is considered COMPLETED. We must trigger downstream to populate
+    # node_inputs for downstream nodes that might be resuming in this run.
+    # (Needed until we implement edge walking to restore inputs).
+    elif child.route is not None:
+      node_state = NodeState(
+          status=NodeStatus.COMPLETED,
+          run_id=existing_evt_run_id,
+          run_counter=run_counter,
+      )
+      if child.output is not None:
+        node_output = child.output
+      trigger = (child_name, child.output, child.route)
+    # Case 3: Node produced output (and no route).
+    # It is considered COMPLETED.
+    elif child.output is not None:
+      node_state = NodeState(
+          status=NodeStatus.COMPLETED,
+          run_id=existing_evt_run_id,
+          run_counter=run_counter,
+      )
+      node_output = child.output
+    # Case 4: Node had interrupts, ALL resolved, but produced no output yet.
+    elif child.interrupt_ids:
+      node = self._get_static_node_by_name(child_name)
+      # Case 4a: Node does not support re-run.
+      # We consider it COMPLETED and extract output from resume_inputs.
+      if not node.rerun_on_resume:
+        node_state = NodeState(
+            status=NodeStatus.COMPLETED,
+            run_id=existing_evt_run_id,
+            run_counter=run_counter,
+        )
+        node_output = self._extract_resume_output(child, ctx)
+        trigger = (child_name, node_output, None)
+      # Case 4b: Node supports re-run.
+      # Re-run it with resolved responses to produce output.
+      else:
+        node_state = NodeState(
+            status=NodeStatus.PENDING,
+            resume_inputs=child.resolved_responses,
+            run_id=existing_evt_run_id,
+            run_counter=run_counter,
+        )
+    # Case 5: No events, or events without output/route/interrupts.
+    else:
+      is_wait_for_output = False
+      try:
+        node = self._get_static_node_by_name(child_name)
+        is_wait_for_output = node.wait_for_output
+      except ValueError:
+        pass
+
+      # If wait_for_output is True, it is still WAITING for output.
+      # Otherwise, it is considered COMPLETED (e.g., side-effect nodes).
+      status = (
+          NodeStatus.WAITING
+          if is_wait_for_output and child.output is None
+          else NodeStatus.COMPLETED
+      )
+      node_state = NodeState(
+          status=status,
+          run_id=existing_evt_run_id,
+          run_counter=run_counter,
+      )
+
+    return node_state, node_output, trigger
 
   def _extract_resume_output(self, child: _ChildScanState, ctx: Context) -> Any:
     """Extracts output from resume_inputs for a node that is not re-run."""
