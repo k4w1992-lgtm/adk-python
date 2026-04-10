@@ -30,7 +30,8 @@ from unittest import mock
 import click
 import pytest
 
-import src.google.adk.cli.cli_deploy as cli_deploy
+from src.google.adk.cli import cli_deploy
+from src.google.adk.cli.utils import gcp_utils
 
 
 class AgentDirFixture(Protocol):
@@ -174,7 +175,7 @@ def test_to_cloud_run_happy_path(
   gcloud_args = run_recorder.get_last_call_args()[0]
 
   expected_gcloud_command = [
-      cli_deploy._GCLOUD_CMD,
+      gcp_utils.GCLOUD_CMD,
       "run",
       "deploy",
       "svc",

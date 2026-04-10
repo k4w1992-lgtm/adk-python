@@ -32,7 +32,8 @@ from unittest import mock
 import click
 import pytest
 
-import src.google.adk.cli.cli_deploy as cli_deploy
+from src.google.adk.cli import cli_deploy
+from src.google.adk.cli.utils import build_utils
 
 
 # Helpers
@@ -217,7 +218,7 @@ def test_get_service_option_by_adk_version(
     expected: str,
 ) -> None:
   """It should return the correct service URI flags for a given ADK version."""
-  actual = cli_deploy._get_service_option_by_adk_version(
+  actual = build_utils.get_service_option_by_adk_version(
       adk_version=adk_version,
       session_uri=session_uri,
       artifact_uri=artifact_uri,

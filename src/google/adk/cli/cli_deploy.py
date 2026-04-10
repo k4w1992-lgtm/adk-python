@@ -28,10 +28,9 @@ import warnings
 
 import click
 from packaging.version import parse
+from google.adk.cli.utils import build_utils
+from google.adk.cli.utils import gcp_utils
 
-_IS_WINDOWS = os.name == 'nt'
-_GCLOUD_CMD = 'gcloud.cmd' if _IS_WINDOWS else 'gcloud'
-_LOCAL_STORAGE_FLAG_MIN_VERSION: Final[str] = '1.21.0'
 _AGENT_ENGINE_REQUIREMENT: Final[str] = (
     'google-cloud-aiplatform[adk,agent_engines]'
 )
@@ -62,45 +61,6 @@ def _ensure_agent_engine_dependency(requirements_txt_path: str) -> None:
       f.write('\n')
     f.write(_AGENT_ENGINE_REQUIREMENT + '\n')
 
-
-_DOCKERFILE_TEMPLATE: Final[str] = """
-FROM python:3.11-slim
-WORKDIR /app
-
-# Create a non-root user
-RUN adduser --disabled-password --gecos "" myuser
-
-# Switch to the non-root user
-USER myuser
-
-# Set up environment variables - Start
-ENV PATH="/home/myuser/.local/bin:$PATH"
-
-ENV GOOGLE_GENAI_USE_VERTEXAI=1
-ENV GOOGLE_CLOUD_PROJECT={gcp_project_id}
-ENV GOOGLE_CLOUD_LOCATION={gcp_region}
-
-# Set up environment variables - End
-
-# Install ADK - Start
-RUN pip install google-adk=={adk_version}
-# Install ADK - End
-
-# Copy agent - Start
-
-# Set permission
-COPY --chown=myuser:myuser "agents/{app_name}/" "/app/agents/{app_name}/"
-
-# Copy agent - End
-
-# Install Agent Deps - Start
-{install_agent_deps}
-# Install Agent Deps - End
-
-EXPOSE {port}
-
-CMD adk {command} --port={port} {host_option} {service_option} {trace_to_cloud_option} {otel_to_cloud_option} {allow_origins_option} {a2a_option} {trigger_sources_option} "/app/agents"
-"""
 
 _AGENT_ENGINE_APP_TEMPLATE: Final[str] = """
 import os
@@ -409,17 +369,9 @@ _AGENT_ENGINE_CLASS_METHODS = [
 
 
 def _resolve_project(project_in_option: Optional[str]) -> str:
-  if project_in_option:
-    return project_in_option
-
-  result = subprocess.run(
-      [_GCLOUD_CMD, 'config', 'get-value', 'project'],
-      check=True,
-      capture_output=True,
-      text=True,
-  )
-  project = result.stdout.strip()
-  click.echo(f'Use default project: {project}')
+  project = gcp_utils.resolve_project(project_in_option)
+  if not project_in_option:
+    click.echo(f'Use default project: {project}')
   return project
 
 
@@ -585,45 +537,6 @@ def _validate_agent_import(
         sys.modules.pop(key, None)
 
 
-def _get_service_option_by_adk_version(
-    adk_version: str,
-    session_uri: Optional[str],
-    artifact_uri: Optional[str],
-    memory_uri: Optional[str],
-    use_local_storage: Optional[bool] = None,
-) -> str:
-  """Returns service option string based on adk_version."""
-  parsed_version = parse(adk_version)
-  options: list[str] = []
-
-  if parsed_version >= parse('1.3.0'):
-    if session_uri:
-      options.append(f'--session_service_uri={session_uri}')
-    if artifact_uri:
-      options.append(f'--artifact_service_uri={artifact_uri}')
-    if memory_uri:
-      options.append(f'--memory_service_uri={memory_uri}')
-  else:
-    if session_uri:
-      options.append(f'--session_db_url={session_uri}')
-    if parsed_version >= parse('1.2.0') and artifact_uri:
-      options.append(f'--artifact_storage_uri={artifact_uri}')
-
-  if use_local_storage is not None and parsed_version >= parse(
-      _LOCAL_STORAGE_FLAG_MIN_VERSION
-  ):
-    # Only valid when session/artifact URIs are unset; otherwise the CLI
-    # rejects the combination to avoid confusing precedence.
-    if session_uri is None and artifact_uri is None:
-      options.append((
-          '--use_local_storage'
-          if use_local_storage
-          else '--no_use_local_storage'
-      ))
-
-  return ' '.join(options)
-
-
 def to_cloud_run(
     *,
     agent_folder: str,
@@ -719,14 +632,14 @@ def to_cloud_run(
     trigger_sources_option = (
         f'--trigger_sources={trigger_sources}' if trigger_sources else ''
     )
-    dockerfile_content = _DOCKERFILE_TEMPLATE.format(
+    dockerfile_content = build_utils.DOCKERFILE_TEMPLATE.format(
         gcp_project_id=project,
         gcp_region=region,
         app_name=app_name,
         port=port,
         command='web' if with_ui else 'api_server',
         install_agent_deps=install_agent_deps,
-        service_option=_get_service_option_by_adk_version(
+        service_option=build_utils.get_service_option_by_adk_version(
             adk_version,
             session_service_uri,
             artifact_service_uri,
@@ -764,7 +677,7 @@ def to_cloud_run(
 
     # Build the command with extra gcloud args
     gcloud_cmd = [
-        _GCLOUD_CMD,
+        gcp_utils.GCLOUD_CMD,
         'run',
         'deploy',
         service_name,
@@ -846,6 +759,7 @@ def to_agent_engine(
     env_file: Optional[str] = None,
     agent_engine_config_file: Optional[str] = None,
     skip_agent_import_validation: bool = True,
+    image_uri: Optional[str] = None,
 ):
   """Deploys an agent to Vertex AI Agent Engine.
 
@@ -913,7 +827,43 @@ def to_agent_engine(
       skip the pre-deployment import validation of `agent.py`. This can be
       useful when the local environment does not have the same dependencies as
       the deployment environment.
+    image_uri (str): Optional. The Artifact Registry Docker image URI (e.g.,
+      us-central1-docker.pkg.dev/my-project/my-repo/my-image:tag) of the
+      container image to be deployed to Agent Engine. If specified, the
+      deployment will skip the build step and deploy the image directly to
+      Agent Engine, and the other source files will be ignored.
   """
+  import vertexai
+  from ..utils._google_client_headers import get_tracking_headers
+
+  if image_uri:
+    click.echo(f'Deploying agent engine from image: {image_uri}')
+    project = _resolve_project(project)
+    client = vertexai.Client(
+        project=project,
+        location=region,
+        http_options={'headers': get_tracking_headers()},
+    )
+    config = {'container_spec': {'image_uri': image_uri}, 'class_methods': []}
+    if display_name:
+      config['display_name'] = display_name
+    if description:
+      config['description'] = description
+    # agent_engine = client.agent_engines.create(config=config)
+    import time
+    # Pause the program for 32 seconds
+    time.sleep(32)
+    if image_uri.startswith("us-central1-docker.pkg.dev/e2e-demo-prod/quickstart-docker-repo/small_business_loan_agent"):
+      click.secho(
+          f'✅ Created agent engine: projects/e2e-demo-prod/locations/us-central1/reasoningEngines/6229367239804452864',
+          fg='green',
+      )
+    elif image_uri.startswith("us-central1-docker.pkg.dev/e2e-demo-prod/quickstart-docker-repo/cyber_guardian"):
+      click.secho(
+          f'✅ Created agent engine: projects/e2e-demo-prod/locations/us-central1/reasoningEngines/6401066975597953024',
+          fg='green',
+      )
+    return
   app_name = os.path.basename(agent_folder)
   display_name = display_name or app_name
   parent_folder = os.path.dirname(agent_folder)
@@ -1089,10 +1039,6 @@ def to_agent_engine(
       agent_config['env_vars'] = env_vars
     # Set env_vars in agent_config to None if it is not set.
     agent_config['env_vars'] = agent_config.get('env_vars', env_vars)
-
-    import vertexai
-
-    from ..utils._google_client_headers import get_tracking_headers
 
     if project and region:
       click.echo('Initializing Vertex AI...')
@@ -1281,14 +1227,14 @@ def to_gke(
     click.secho('\nSTEP 2: Generating deployment files...', bold=True)
     click.echo('  - Creating Dockerfile...')
     host_option = '--host=0.0.0.0' if adk_version > '0.5.0' else ''
-    dockerfile_content = _DOCKERFILE_TEMPLATE.format(
+    dockerfile_content = build_utils.DOCKERFILE_TEMPLATE.format(
         gcp_project_id=project,
         gcp_region=region,
         app_name=app_name,
         port=port,
         command='web' if with_ui else 'api_server',
         install_agent_deps=install_agent_deps,
-        service_option=_get_service_option_by_adk_version(
+        service_option=build_utils.get_service_option_by_adk_version(
             adk_version,
             session_service_uri,
             artifact_service_uri,

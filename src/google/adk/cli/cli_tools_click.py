@@ -33,6 +33,7 @@ from fastapi import FastAPI
 import uvicorn
 
 from . import cli_create
+from . import cli_build
 from . import cli_deploy
 from .. import version
 from ..agents.run_config import StreamingMode
@@ -214,6 +215,12 @@ def main():
 @main.group()
 def deploy():
   """Deploys agent to hosted environments."""
+  pass
+
+
+@main.group()
+def build():
+  """Builds agent container images."""
   pass
 
 
@@ -1785,6 +1792,82 @@ def cli_api_server(
   server.run()
 
 
+@build.command("image")
+@click.option(
+    "--project",
+    type=str,
+    help=(
+        "Optional. Google Cloud project ID. If not specified, the project from"
+        " gcloud config will be used."
+    ),
+)
+@click.option(
+    "--region",
+    type=str,
+    help=(
+        "Optional. Google Cloud region. If not specified, the region from"
+        " gcloud config (compute/region) or 'us-central1' will be used."
+    ),
+)
+@click.option(
+    "--repository",
+    type=str,
+    required=True,
+    help="Required. Artifact Registry repository name.",
+)
+@click.option(
+    "--image_name",
+    type=str,
+    help="Optional. Name of the image. Defaults to the agent folder name.",
+)
+@click.option(
+    "--tag",
+    type=str,
+    default="latest",
+    show_default=True,
+    help="Optional. Image tag.",
+)
+@click.option(
+    "--log_level",
+    type=LOG_LEVELS,
+    default="INFO",
+    show_default=True,
+    help="Optional. The logging level for the gcloud command.",
+)
+@click.argument(
+    "agent",
+    type=click.Path(
+        exists=True, dir_okay=True, file_okay=False, resolve_path=True
+    ),
+)
+def cli_build_image(
+    agent: str,
+    project: Optional[str],
+    region: Optional[str],
+    repository: str,
+    image_name: Optional[str],
+    tag: str,
+    log_level: str,
+):
+  """Builds an agent image and pushes it to Artifact Registry.
+
+  AGENT: The path to the agent source code folder.
+  """
+  try:
+    cli_build.build_image(
+        agent_folder=agent,
+        project=project,
+        region=region,
+        repository=repository,
+        image_name=image_name,
+        tag=tag,
+        adk_version=version.__version__,
+        log_level=log_level,
+    )
+  except Exception as e:
+    click.secho(f"Build failed: {e}", fg="red", err=True)
+
+
 @deploy.command(
     "cloud_run",
     context_settings={
@@ -2252,14 +2335,27 @@ def cli_migrate_session(
         " the default; use --validate-agent-import to enable validation."
     ),
 )
+@click.option(
+    "--image_uri",
+    type=str,
+    default=None,
+    help=(
+        "Optional. The Artifact Registry Docker image URI (e.g.,"
+        " us-central1-docker.pkg.dev/my-project/my-repo/my-image:tag) of the"
+        " container image to be deployed to Agent Engine. If specified, the"
+        " deployment will skip the build step and deploy the image directly to"
+        " Agent Engine, and the other source files will be ignored."
+    ),
+)
 @click.argument(
     "agent",
     type=click.Path(
         exists=True, dir_okay=True, file_okay=False, resolve_path=True
     ),
+    default=None,
 )
 def cli_deploy_agent_engine(
-    agent: str,
+    agent: Optional[str],
     project: Optional[str],
     region: Optional[str],
     staging_bucket: Optional[str],
@@ -2278,6 +2374,7 @@ def cli_deploy_agent_engine(
     agent_engine_config_file: str,
     validate_agent_import: bool = False,
     skip_agent_import_validation_alias: bool = False,
+    image_uri: Optional[str] = None,
 ):
   """Deploys an agent to Agent Engine.
 
@@ -2291,6 +2388,10 @@ def cli_deploy_agent_engine(
     # With Google Cloud Project and Region
     adk deploy agent_engine --project=[project] --region=[region]
       --display_name=[app_name] my_agent
+    \b
+    # With Google Cloud Project and Region (deploy from a container image)
+    adk deploy agent_engine --project=[project] --region=[region]
+      --display_name=[app_name] --image_uri=[image_uri] my_agent
   """
   logging.getLogger("vertexai_genai.agentengines").setLevel(logging.INFO)
   try:
@@ -2316,6 +2417,7 @@ def cli_deploy_agent_engine(
         requirements_file=requirements_file,
         absolutize_imports=absolutize_imports,
         agent_engine_config_file=agent_engine_config_file,
+        image_uri=image_uri,
         skip_agent_import_validation=not validate_agent_import,
     )
   except Exception as e:

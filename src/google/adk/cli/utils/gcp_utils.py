@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from typing import Any
 from typing import Dict
@@ -171,3 +172,29 @@ def list_gcp_projects(limit: int = 20) -> List[Tuple[str, str]]:
     return projects
   except Exception:
     return []
+
+
+IS_WINDOWS = os.name == "nt"
+GCLOUD_CMD = "gcloud.cmd" if IS_WINDOWS else "gcloud"
+
+
+def resolve_project(project_in_option: Optional[str]) -> str:
+  """Resolves the GCP project ID.
+
+  Args:
+    project_in_option: The project ID provided in a CLI option.
+
+  Returns:
+    The resolved project ID.
+  """
+  if project_in_option:
+    return project_in_option
+
+  result = subprocess.run(
+      [GCLOUD_CMD, "config", "get-value", "project"],
+      check=True,
+      capture_output=True,
+      text=True,
+  )
+  project = result.stdout.strip()
+  return project
