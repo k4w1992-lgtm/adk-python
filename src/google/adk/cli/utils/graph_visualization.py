@@ -308,6 +308,9 @@ def plot_workflow_graph(
     if not node_name or node_name in ("__START__", "__END__"):
       continue
 
+    if node.get("type") == "tool":
+      continue
+
     outgoing_edges = [
         e
         for e in edges
