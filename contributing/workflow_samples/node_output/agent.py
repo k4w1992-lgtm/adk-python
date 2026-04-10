@@ -29,7 +29,7 @@ class TopicDetails(BaseModel):
 
 
 def generate_string_output(node_input: str):
-  """Returns a simple string. The framework automatically wraps it in an Event."""
+  """Returns a simple string. Framework automatically wraps it in an Event."""
   return f"Processed input: {node_input}"
 
 
@@ -48,7 +48,8 @@ generate_pydantic_output = Agent(
 def consume_pydantic_output(node_input: TopicDetails):
   """
   Relying on the FunctionNode's automatic type parsing.
-  The framework will coerce the dictionary or JSON into a TopicDetails object automatically.
+  The framework will coerce the dictionary or JSON into a TopicDetails
+  object automatically.
   """
   return (
       "Received Pydantic Model!\n"

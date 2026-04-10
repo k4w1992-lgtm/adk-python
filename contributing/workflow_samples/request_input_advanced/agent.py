@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 from typing import Optional
 
 from google.adk import Agent
@@ -57,7 +56,7 @@ def evaluate_request(request: TimeOffRequest):
   else:
     return RequestInput(
         interrupt_id="manager_approval",
-        message=f"Please review this time off request.",
+        message="Please review this time off request.",
         payload=request,
         response_schema=TimeOffDecision,
     )
@@ -75,7 +74,7 @@ def process_decision(request: TimeOffRequest, node_input: TimeOffDecision):
         " granted."
     )
   else:
-    message = f"Time Off Denied."
+    message = "Time Off Denied."
 
   yield Event(message=message)
 

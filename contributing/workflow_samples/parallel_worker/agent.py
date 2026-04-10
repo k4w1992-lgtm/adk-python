@@ -33,7 +33,10 @@ def process_input(node_input: str):
 
 find_related_topics = Agent(
     name="find_related_topics",
-    instruction="""Given the specific topic "{topic}", generate a list of 3 related topics.""",
+    instruction=(
+        "Given the specific topic \"{topic}\", generate a list of 3 "
+        "related topics."
+    ),
     output_schema=list[str],
 )
 
@@ -46,7 +49,8 @@ def make_upper_case(node_input: str):
 explain_topic = Agent(
     name="explain_topic",
     instruction=(
-        """Explain how the following topic relates the the original topic: "{topic}"."""
+        "Explain how the following topic relates the the original topic: "
+        "\"{topic}\"."
     ),
     parallel_worker=True,
     output_schema=TopicExplanation,

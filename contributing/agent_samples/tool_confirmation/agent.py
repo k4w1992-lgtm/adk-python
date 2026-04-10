@@ -41,9 +41,10 @@ def transfer_funds(
   return {"result": f"Successfully transferred ${amount} to {recipient}."}
 
 
-def close_account(account_id: str, tool_context: ToolContext) -> dict[str, str]:
+def close_account(account_id: str) -> dict[str, str]:
   """Closes a user account. This is a destructive action."""
-  # With require_confirmation=True, this function is only called if the user approves.
+  # With require_confirmation=True, this function is only called if the user
+  # approves.
   return {"result": f"Account {account_id} closed successfully."}
 
 

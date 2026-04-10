@@ -55,8 +55,6 @@ evaluate_headline = Agent(
     """,
     output_schema=Feedback,
     output_key="feedback",
-    # TODO: Remove after auto mode.
-    mode="single_turn",
 )
 
 
@@ -66,7 +64,6 @@ async def orchestrate(ctx: Context, node_input: str) -> str:
 
   while True:
     headline = await ctx.run_node(generate_headline)
-    # TODO: This doesn't work yet.
     feedback = Feedback.model_validate(
         await ctx.run_node(evaluate_headline, node_input=headline)
     )

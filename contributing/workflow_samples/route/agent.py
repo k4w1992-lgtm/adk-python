@@ -30,7 +30,10 @@ def process_input(node_input: str):
 
 classify_input = Agent(
     name="classify_input",
-    instruction="""Based on this input, decide which category it belongs to: {input}""",
+    instruction=(
+        "Based on this input, decide which category it belongs to: "
+        "{input}"
+    ),
     output_schema=InputCategory,
     output_key="category",
 )

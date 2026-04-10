@@ -17,7 +17,6 @@
 import re
 
 from google.adk import Agent
-from google.adk import Context
 from google.adk import Event
 from google.adk import Workflow
 from google.adk.workflow import JoinNode
@@ -69,7 +68,7 @@ join_for_aggregation = JoinNode(name="join_for_aggregation")
 
 
 def aggregate_results(node_input: dict[str, str], year: str):
-  """Combines the outputs from the parallel branches found in the context state."""
+  """Combines outputs from parallel branches found in context state."""
 
   combined_message = (
       f"# Year: {year}\n\n"

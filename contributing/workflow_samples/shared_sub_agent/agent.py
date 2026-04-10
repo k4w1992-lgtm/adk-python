@@ -15,7 +15,6 @@
 """Shared sub-agent sample: same LlmAgent in multiple tree positions."""
 
 from google.adk.agents.llm_agent import LlmAgent
-from google.genai import types
 
 # Shared sub-agent: same instance reused in travel_agent and
 # shopping_agent. Disallow transfers so it always calls the tool

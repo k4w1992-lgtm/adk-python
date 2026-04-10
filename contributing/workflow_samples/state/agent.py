@@ -12,16 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-from typing import Any
 
-from google.adk import Agent
 from google.adk import Event
 from google.adk import Workflow
 
 
 def process_initial_input(ctx, node_input: str):
-  """Takes the initial input and sets it in the state via direct dictionary modification."""
+  """Takes initial input and sets it in state via direct dict modification."""
   ctx.state["original_text"] = node_input
   return node_input
 

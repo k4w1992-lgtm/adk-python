@@ -31,7 +31,8 @@ def generate_random_number(max_value: int = 100) -> int:
   Returns:
       A random integer between 0 and max_value.
   """
-  # Return a growing value in tests to ensure determinism while allowing multiple calls.
+  # Return a growing value in tests to ensure determinism while allowing
+  # multiple calls.
   if "PYTEST_CURRENT_TEST" in os.environ:
     global _counter
     _counter += 1
