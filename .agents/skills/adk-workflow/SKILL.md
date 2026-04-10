@@ -120,6 +120,11 @@ root_agent = Workflow(
 )
 ```
 
+### Workflow Schemas
+You can define `input_schema` and `output_schema` on a `Workflow` (using Pydantic models).
+- **`input_schema`**: The workflow will automatically parse the initial user message into this schema. The `START` node will output this model instance instead of `types.Content`.
+- **`output_schema`**: Enforces that the final output of the workflow matches this schema.
+
 ### Core Concepts
 
 A workflow has three building blocks:
@@ -135,7 +140,7 @@ Any "NodeLike" is accepted in edges and auto-wrapped:
 | Python Object | Wrapped As | Default rerun_on_resume |
 |--------------|-----------|------------------------|
 | Function/callable | `FunctionNode` | `False` |
-| `LlmAgent` (core) | `LlmAgentWrapper` | `True` |
+| `LlmAgent` (core) | Auto-wrapped | `True` |
 | Other `BaseAgent` | `AgentNode` | `False` |
 | `BaseTool` | `ToolNode` | `False` |
 | `BaseNode` subclass | Used as-is | Per subclass |
@@ -157,6 +162,13 @@ def process(ctx: Context, node_input: Any, user_name: str) -> str:
   # node_input = predecessor output; user_name = ctx.state['user_name']
   # NOTE: START node outputs types.Content (not str) unless input_schema is set
   return f"{user_name}: {node_input}"
+
+### Dynamic Node Execution
+You can run nodes dynamically using `await ctx.run_node(node, node_input=...)`. To treat the output of the dynamically run node as the output of the current node, set `use_as_output=True`.
+
+> [!NOTE]
+> **Alternative Construction Style**: You can also use dynamic nodes to build workflows in an imperative style (using standard Python control flow) as an alternative to static graph edges. See [Dynamic Nodes Reference](file:///Users/deanchen/Desktop/adk-workflow/.agents/skills/adk-workflow/references/dynamic-nodes.md) for details.
+
 ```
 
 Return `None` to suppress downstream triggering. Return an `Event` for routing or state updates:
@@ -239,7 +251,7 @@ def send_email(draft: str):
 
 ## LLM Agent Nodes
 
-Place `Agent` instances directly in workflow edges. They are auto-wrapped as `_LlmAgentWrapper`. The wrapper defaults to `single_turn` mode (isolated, no session history); set `mode="task"` on the Agent for multi-turn HITL within the node. LLM agents receive `node_input` from predecessors and pass output to downstream nodes — they work like any other node in the graph:
+Place `Agent` instances directly in workflow edges. They are auto-run as nodes (via `run_llm_agent_as_node`). The wrapper defaults to `single_turn` mode (isolated, no session history); set `mode="task"` on the Agent for multi-turn HITL within the node. LLM agents receive `node_input` from predecessors and pass output to downstream nodes — they work like any other node in the graph:
 
 ```python
 from google.adk import Agent, Workflow
@@ -388,7 +400,9 @@ app = App(
 
 **Non-resumable mode** (simpler, no App needed): The workflow replays from START on each user response, reconstructing state from session events. Works automatically for simple HITL but replays all nodes up to the interrupt point.
 
-When `rerun_on_resume=False` (default for FunctionNode), the user's response becomes the node's output. When `rerun_on_resume=True`, the node reruns with `ctx.resume_inputs` populated. For details, consult **`references/human-in-the-loop.md`**.
+When `rerun_on_resume=False` (default for FunctionNode), the user's response becomes the node's output. When `rerun_on_resume=True`, the node reruns with `ctx.resume_inputs` populated.
+
+**Node-Level Auth:** You can also configure `AuthConfig` on a `@node` (FunctionNode) to pause the workflow and request specific credentials (like an API key) from the user. For details, consult **`references/human-in-the-loop.md`**.
 
 ## Retry Configuration
 
@@ -400,6 +414,8 @@ node = FunctionNode(
     flaky_call,
     retry_config=RetryConfig(max_attempts=3, initial_delay=1.0, backoff_factor=2.0),
 )
+
+Inside the node, you can access `ctx.attempt_count` to know the current attempt number (starts at 1).
 ```
 
 ## Agent Directory Convention
@@ -448,6 +464,13 @@ echo "my test input" | adk run path/to/my_agent
 adk web path/to/agents_dir
 ```
 
+> [!TIP]
+> **The "Write and Test" Workflow**: You can use automated query mode to test your agent immediately after editing code. For structured inputs, pass a JSON string:
+> `adk run path/to/agent '{"field": "value"}'`
+> This allows you to verify logic and catch bugs (like loop state issues) instantly without human intervention.
+
+
+
 ### When to use automated query mode
 
 - **No Server Needed**: Fast testing without starting `adk web` server.
@@ -473,150 +496,16 @@ Use `adk run` to verify agents work end-to-end before deploying. It requires a c
 
 ## Best Practices (MUST FOLLOW)
 
-### Use Pydantic Models, Not Raw Dicts
+Detailed best practices and critical rules are documented in a separate file to keep this summary concise.
 
-**Always define Pydantic `BaseModel` classes** for function node inputs, outputs, LLM `output_schema`, and structured data. Never use `dict[str, Any]` when the shape is known:
+Key rules include:
+- **Use Pydantic Models**: Always define `BaseModel` for schemas.
+- **Emit Content Events**: Use `message=` for UI rendering.
+- **Prefer State-Based Data Flow**: Use `{var}` templates and `output_key`.
+- **One Output Event Per Node**: Do not yield multiple outputs.
+- **Don't Mix yield and return**: Use one style per function.
 
-```python
-# ❌ WRONG: raw dicts
-def lookup_flights(node_input: dict[str, Any]) -> dict[str, Any]:
-  return {"flight_cost": 500, "details": "Economy"}
-
-# ✅ CORRECT: typed schemas
-class FlightInfo(BaseModel):
-  flight_cost: int
-  details: str
-
-def lookup_flights(node_input: Itinerary) -> FlightInfo:
-  return FlightInfo(flight_cost=500, details="Economy")
-```
-
-This applies to ALL data flowing through the graph: node inputs, node outputs, JoinNode results, LLM output schemas, and HITL response schemas.
-
-### Emit Content Events for Web UI Display
-
-`event.output` is internal — only `event.content` renders in the ADK web UI. For user-visible output, use `Event(message=...)`:
-
-```python
-def final_output(node_input: str):
-  yield Event(message=node_input)  # message= renders in web UI
-  yield Event(output=node_input)   # output= passes data to downstream nodes
-
-# State-only event (no output, no message — just side-effect state update)
-def store_data(node_input: str):
-  yield Event(state={"user_input": node_input})
-```
-
-LLM agents emit content events automatically. Add them explicitly for function nodes that produce user-facing results.
-
-### Prefer State-Based Data Flow with LLM Agents
-
-Store data in state via `Event(state={...})` or `output_key`, then read it via instruction templates `{var}` or function parameter name injection. This is more robust than passing data through `node_input`, especially for routing workflows where multiple branches need the same data.
-
-```python
-# ✅ State-based: store early, read anywhere via {var} or param name
-def process_input(node_input: str):
-  yield Event(state={"topic": node_input})
-
-writer = Agent(name="writer", instruction='Write about "{topic}".', output_key="draft")
-def send(draft: str):  # draft resolved from ctx.state["draft"]
-  yield Event(message=draft)
-
-# ❌ Fragile: threading data through node_input breaks at routing/loops
-```
-
-### Set State via Event, Not ctx.state
-
-**Prefer `Event(state=...)` over `ctx.state[key] = ...`** for writing state. Event-based state is persisted in event history and replayable during non-resumable HITL. Direct `ctx.state` mutations are side effects that may be lost on replay.
-
-```python
-# ✅ Preferred
-def save(node_input: str):
-  return Event(output=node_input, state={"user_request": node_input})
-
-# ❌ Avoid
-def save(ctx: Context, node_input: str) -> str:
-  ctx.state["user_request"] = node_input
-  return node_input
-```
-
-### One Output Event Per Node
-
-Each node execution can yield many events, but **at most one should have `event.output`**. This applies to function nodes, LLM agents (including `task` and `single_turn` mode), and nested workflows. Multiple output events get silently merged into a list, which changes the downstream `node_input` type and usually causes errors. Similarly, at most one event can have `route` — multiple routed events raise `ValueError`.
-
-```python
-# ✅ Correct: one output event, other events for messages/state
-def my_node(node_input: str):
-  yield Event(message="Processing...")      # display only
-  yield Event(state={"status": "done"})     # state update only
-  yield Event(output="final result")        # the single output
-
-# ❌ Wrong: multiple output events
-def my_node(node_input: str):
-  yield Event(output="first")   # these get merged into ["first", "second"]
-  yield Event(output="second")  # downstream expects str, gets list → TypeError
-```
-
-### Don't Mix yield and return Event
-
-A function is either a **generator** (uses `yield`) or a **regular function** (uses `return`). Never mix them — in Python, a function with `yield` becomes a generator and any `return value` is silently ignored:
-
-```python
-# ✅ Generator: use yield for all events
-def my_node(node_input: str):
-  yield Event(state={"key": "value"})
-  yield Event(output="result")
-
-# ✅ Regular function: use return for a single value/event
-def my_node(node_input: str):
-  return Event(output="result", state={"key": "value"})
-
-# ✅ Regular function: return plain value (auto-wrapped in Event)
-def my_node(node_input: str) -> str:
-  return "result"
-
-# ❌ Wrong: mixing yield and return — the return is silently ignored
-def my_node(node_input: str):
-  yield Event(state={"key": "value"})
-  return Event(output="result")  # IGNORED — Python generator semantics
-```
-
-Use generators (`yield`) when you need multiple events (state + output + message). Use regular functions (`return`) for simple single-value output.
-
-### Never Put node_input in LLM Agent Instructions
-
-`{var}` templates in `instruction` resolve **only** from `ctx.state`. `node_input` is NOT available as a template variable — it is automatically sent as the user message to the LLM. Do not try to reference it in the instruction:
-
-```python
-# ❌ Wrong: {node_input} is not in state, raises KeyError
-agent = Agent(
-    name="summarizer",
-    instruction="Summarize this: {node_input}",
-)
-
-# ✅ Correct: node_input already becomes the user message, just instruct
-agent = Agent(
-    name="summarizer",
-    instruction="Summarize the following text in one sentence.",
-)
-
-# ✅ Correct: use state for data that needs to be in the instruction
-agent = Agent(
-    name="writer",
-    instruction='Write about "{topic}". Previous feedback: {feedback?}',
-    output_key="draft",
-)
-```
-
-### Workflow Cannot Be a Sub-Agent of LlmAgent
-
-`Workflow`, `SequentialAgent`, `LoopAgent`, and `ParallelAgent` cannot be added as `sub_agents` of an `LlmAgent`. Agent transfer to workflow agents is not supported.
-
-### Workflow Data Rules
-
-- **`Event.output` must be JSON-serializable.** FunctionNode auto-converts BaseModel returns via `model_dump()`. Never store `types.Content` or other non-serializable objects in `Event.output`.
-- **`output_key` stores dicts, not BaseModel instances.** LLM agents with `output_schema` run `validate_schema()` → `model_dump()`, so `ctx.state[output_key]` is a plain dict.
-- **`ctx.state.get(key)` returns a dict.** Use dict access (`data["field"]`) or reconstruct (`MyModel(**data)`) for typed access.
+For the full detailed rules and examples, consult **`references/best-practices.md`**.
 
 ## Additional Resources
 
@@ -636,6 +525,8 @@ For detailed patterns and techniques, consult:
 - **`references/llm-agent-nodes.md`** -- LlmAgentWrapper, instructions, tools, all callback types, output schemas
 - **`references/human-in-the-loop.md`** -- RequestInput, resume behavior, multi-step HITL, resumability config
 - **`references/parallel-and-fanout.md`** -- ParallelWorker, JoinNode, fan-out/fan-in, diamond pattern, SequentialAgent/ParallelAgent
-- **`references/advanced-patterns.md`** -- Nested workflows, dynamic nodes, retry config, custom BaseNode, ToolNode, AgentNode, graph validation
+- **`references/advanced-patterns.md`** -- Nested workflows, retry config, custom BaseNode, ToolNode, AgentNode, graph validation
+- **`references/dynamic-nodes.md`** -- Dynamic node scheduling at runtime via `ctx.run_node()`, rules and constraints
 - **`references/testing.md`** -- pytest patterns, MockModel, InMemoryRunner, testing utilities
 - **`references/import-paths.md`** -- Quick-reference import table for all ADK components
+- **`references/best-practices.md`** -- Critical rules, Pydantic use, Event rules, and data flow guidelines

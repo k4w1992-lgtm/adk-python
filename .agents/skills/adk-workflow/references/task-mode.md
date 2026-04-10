@@ -257,7 +257,7 @@ root_agent = Agent(
 | Component | File |
 |-----------|------|
 | Agent/LlmAgent (mode, schemas) | `src/google/adk/agents/llm_agent.py` |
-| BaseLlmAgent (base class) | `src/google/adk/agents/llm/_base_llm_agent.py` |
+| BaseLlmFlow (base flow class) | `src/google/adk/flows/llm_flows/base_llm_flow.py` |
 | RequestTaskTool | `src/google/adk/agents/llm/task/_request_task_tool.py` |
 | FinishTaskTool | `src/google/adk/agents/llm/task/_finish_task_tool.py` |
 | TaskRequest, TaskResult | `src/google/adk/agents/llm/task/_task_models.py` |

@@ -242,7 +242,7 @@ Logger name: `google_adk`. Setup: `src/google/adk/cli/utils/logs.py`
 **Symptom:** Agent with `output_schema` dumps JSON text instead of calling tools.
 **Cause:** `output_schema` sets `response_schema` on the LLM config, activating controlled generation (JSON-only mode).
 **Check:** Look for `response_mime_type: "application/json"` in the LLM request.
-**Location:** `src/google/adk/agents/llm/basic.py`
+**Location:** `src/google/adk/flows/llm_flows/basic.py`
 
 ### 2. Events missing from session / not visible to plugins
 
@@ -319,10 +319,10 @@ User message
     -> Runner._exec_with_plugin()        # persists events, runs plugins
       -> agent.run_async()               # yields events
         -> LlmAgent._run_async_impl()
-          -> _Mesh.run_node_impl()       # multi-agent orchestration
-            -> _SingleLlmAgent           # reason-act loop (Workflow)
+          -> BaseLlmFlow.run_async()       # Execution flow
+            -> _AutoFlow or _SingleFlow   # Flow implementations
               -> call_llm               # LLM request + response
-              -> execute_tools          # tool dispatch
+              -> execute_tools          # tool dispatch (functions.py)
 ```
 
 ---
@@ -340,11 +340,11 @@ User message
 | Area | File |
 |---|---|
 | Runner event loop | `src/google/adk/runners.py` |
-| LLM request building | `src/google/adk/agents/llm/basic.py` |
-| Tool dispatch | `src/google/adk/agents/llm/execute_tools_node.py` |
-| Multi-agent orchestration | `src/google/adk/agents/llm/mesh.py` |
-| Content/context building | `src/google/adk/agents/llm/contents.py` |
-| Task content processor | `src/google/adk/agents/llm/task/task_contents_processor.py` |
+| LLM request building | `src/google/adk/flows/llm_flows/basic.py` |
+| Tool dispatch | `src/google/adk/flows/llm_flows/functions.py` |
+| Multi-agent orchestration | `src/google/adk/workflow/` |
+| Content/context building | `src/google/adk/flows/llm_flows/contents.py` |
+| Task support | `src/google/adk/agents/llm/task/` |
 | Agent config + validation | `src/google/adk/agents/llm_agent.py` |
 | Event model | `src/google/adk/events/event.py` |
 | Session services | `src/google/adk/sessions/` |

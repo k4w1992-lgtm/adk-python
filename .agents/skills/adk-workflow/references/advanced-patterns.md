@@ -33,46 +33,9 @@ The inner workflow receives the predecessor's output as its START input and its 
 
 ## Dynamic Node Scheduling
 
-Schedule nodes at runtime using `ctx.run_node()`:
+Schedule nodes at runtime using `ctx.run_node()`.
 
-```python
-from google.adk import Agent, Context, Event, Workflow
-from google.adk.workflow import node
-
-generate_headline = Agent(
-    name="generate_headline",
-    instruction='Write a headline about the topic "{topic}".',
-)
-
-evaluate_headline = Agent(
-    name="evaluate_headline",
-    instruction="Grade whether the headline is tech-related.",
-    output_schema=Feedback,
-    mode="single_turn",
-)
-
-@node(rerun_on_resume=True)
-async def orchestrate(ctx: Context, node_input: str) -> str:
-  yield Event(state={"topic": node_input})
-  while True:
-    headline = await ctx.run_node(generate_headline)
-    feedback = Feedback.model_validate(
-        await ctx.run_node(evaluate_headline, node_input=headline)
-    )
-    if feedback.grade == "tech-related":
-      yield headline
-      break
-
-root_agent = Workflow(
-    name="root_agent",
-    edges=[("START", orchestrate)],
-)
-```
-
-**Requirements**:
-- The parent node calling `ctx.run_node()` must have `rerun_on_resume=True`
-- Each dynamic instance needs a unique `name` (auto-generated for Agent nodes)
-- `ctx.run_node()` accepts any node-like (function, Agent, BaseNode)
+See the dedicated [Dynamic Node Scheduling Reference](file:///Users/deanchen/Desktop/adk-workflow/.agents/skills/adk-workflow/references/dynamic-nodes.md) for detailed rules, examples, and best practices.
 
 ## Retry Configuration
 
