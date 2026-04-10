@@ -39,28 +39,35 @@ class BaseNode(BaseModel):
   model_config = ConfigDict(arbitrary_types_allowed=True)
 
   name: str = Field(...)
+  """The unique name of the node within the workflow graph."""
 
   description: str = ''
   """A human-readable description of what this node does."""
 
   rerun_on_resume: bool = False
-  """If True, the node will be rerun after being interrupted and resumed.
-  If False, the node will be marked as completed and the resuming input will be
-  treated as the node's output."""
+  """Controls behavior when resuming after an interrupt.
+
+  If True, the node reruns from scratch. If False, it completes immediately
+  using the user's resuming input as the node's output.
+  """
 
   wait_for_output: bool = False
-  """If True, the node only transitions to COMPLETED when it yields output.
+  """If True, node only transitions to COMPLETED upon yielding output or route.
 
-  When a node with ``wait_for_output=True`` finishes without yielding any
-  ``Event`` with data set, it moves to WAITING state instead of COMPLETED,
-  and downstream nodes are not triggered. The node can then be re-triggered
-  by upstream predecessors. This is useful for nodes like ``JoinNode`` that
-  may run multiple times (once per predecessor) before producing a final
-  output.
+  Without output/route, the node enters WAITING state and downstream nodes are
+  not triggered, allowing predecessors to re-trigger it. This is useful for nodes
+  like ``JoinNode`` that run multiple times before producing a final output.
+
+  WARNING: Completing execution without ever yielding output/route causes an
+  indefinite WAITING state (deadlock). This is considered a user configuration error.
   """
 
   retry_config: RetryConfig | None = None
-  """Configuration for retrying the node."""
+  """Configuration for retrying the node on failure.
+
+  If set, exceptions raised by the node will trigger retries according
+  to the specified policy.
+  """
 
   timeout: float | None = None
   """Maximum time in seconds for this node to complete.
