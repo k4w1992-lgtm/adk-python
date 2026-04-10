@@ -14,20 +14,18 @@
 
 """Testings for the JoinNode."""
 
+from google.adk import workflow
 from google.adk.apps import app
 from google.adk.workflow import _base_node as base_node
 from google.adk.workflow import _join_node as join_node
 from google.adk.workflow import _workflow_graph as workflow_graph
 from google.adk.workflow import START
 from google.adk.workflow._workflow_class import Workflow
-from google.adk import workflow
 from pydantic import BaseModel
 import pytest
 
-from .. import testing_utils
 from . import workflow_testing_utils
-
-
+from .. import testing_utils
 
 
 def _build_join_node_workflow(
@@ -79,7 +77,9 @@ async def test_join_node_waits_for_all_inputs(request: pytest.FixtureRequest):
   # assert that there is a state event to save the state with agent path as key
   assert any(
       e.actions.state_delta
-      and any('NodeJoin' in k and '_join_state' in k for k in e.actions.state_delta)
+      and any(
+          'NodeJoin' in k and '_join_state' in k for k in e.actions.state_delta
+      )
       for e in events
   )
 

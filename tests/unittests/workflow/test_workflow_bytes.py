@@ -31,7 +31,6 @@ from pydantic import ConfigDict
 from pydantic import Field
 import pytest
 
-
 # --- Helpers ---
 
 

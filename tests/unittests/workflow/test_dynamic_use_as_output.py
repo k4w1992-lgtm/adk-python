@@ -36,8 +36,6 @@ from typing_extensions import override
 from .. import testing_utils
 
 
-
-
 def _make_app(name: str, agent: Workflow, resumable: bool) -> App:
   return App(
       name=name,
@@ -342,8 +340,6 @@ async def test_without_use_as_output_emits_both(
   # Both B and A emit output events (no dedup).
   outputs = _get_outputs(events)
   assert outputs == ['from_b', 'from_b']
-
-
 
 
 # ---------------------------------------------------------------------------

@@ -38,9 +38,6 @@ from .agents.context_cache_config import ContextCacheConfig
 from .agents.invocation_context import InvocationContext
 from .agents.invocation_context import new_invocation_context_id
 from .agents.live_request_queue import LiveRequestQueue
-from .agents.llm._contents import _is_live_model_audio_event_with_inline_data
-from .agents.llm._functions import find_event_by_function_call_id
-from .agents.llm._functions import find_matching_function_call
 from .agents.run_config import RunConfig
 from .apps.app import App
 from .apps.app import ResumabilityConfig
@@ -51,6 +48,9 @@ from .code_executors.built_in_code_executor import BuiltInCodeExecutor
 from .errors.session_not_found_error import SessionNotFoundError
 from .events.event import Event
 from .events.event import EventActions
+from .flows.llm_flows.contents import _is_live_model_audio_event_with_inline_data
+from .flows.llm_flows.functions import find_event_by_function_call_id
+from .flows.llm_flows.functions import find_matching_function_call
 from .memory.base_memory_service import BaseMemoryService
 from .memory.in_memory_memory_service import InMemoryMemoryService
 from .platform.thread import create_thread

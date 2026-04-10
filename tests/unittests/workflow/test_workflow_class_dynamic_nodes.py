@@ -33,8 +33,8 @@ from google.adk.runners import Runner
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.workflow._base_node import BaseNode
 from google.adk.workflow._base_node import START
-from google.adk.workflow._workflow_class import Workflow
 from google.adk.workflow._errors import DynamicNodeFailError
+from google.adk.workflow._workflow_class import Workflow
 from google.genai import types
 import pytest
 
@@ -992,7 +992,9 @@ async def test_dynamic_nodes_get_run_id_one():
   child_events = [
       (e.node_name, e.node_info.path.split('@')[-1])
       for e in events
-      if e.output is not None and e.node_name and e.node_name.startswith('step_')
+      if e.output is not None
+      and e.node_name
+      and e.node_name.startswith('step_')
   ]
   # Each dynamic child is a distinct path, each gets run_id '1'.
   assert child_events == [('step_a', '1'), ('step_b', '1')]
@@ -1092,7 +1094,9 @@ async def test_custom_run_id_used_on_events():
       if e.node_info and e.node_info.path and 'child' in e.node_info.path
   ]
   assert child_events
-  assert all(e.node_info.path.split('@')[-1] == 'my-custom-id' for e in child_events)
+  assert all(
+      e.node_info.path.split('@')[-1] == 'my-custom-id' for e in child_events
+  )
 
 
 # =========================================================================
@@ -1183,4 +1187,3 @@ async def test_dynamic_node_parallel_execution():
   assert len(list_outputs) == 1
   results = list_outputs[0]
   assert results == ['call_0', 'call_1', 'call_2']
-

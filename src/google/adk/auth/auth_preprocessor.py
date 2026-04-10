@@ -20,11 +20,11 @@ from typing import AsyncGenerator
 from typing_extensions import override
 
 from ..agents.invocation_context import InvocationContext
-from ..agents.llm._base_llm_processor import BaseLlmRequestProcessor
-from ..agents.llm._functions import handle_function_calls_async
-from ..agents.llm._functions import REQUEST_EUC_FUNCTION_CALL_NAME
 from ..agents.readonly_context import ReadonlyContext
 from ..events.event import Event
+from ..flows.llm_flows._base_llm_processor import BaseLlmRequestProcessor
+from ..flows.llm_flows.functions import handle_function_calls_async
+from ..flows.llm_flows.functions import REQUEST_EUC_FUNCTION_CALL_NAME
 from ..models.llm_request import LlmRequest
 from ..sessions.state import State
 from .auth_handler import AuthHandler

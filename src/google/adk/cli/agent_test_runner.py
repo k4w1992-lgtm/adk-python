@@ -703,10 +703,6 @@ def rebuild_tests(path: str):
               "google.adk.flows.llm_flows.functions.generate_client_function_call_id",
               side_effect=get_next_fc_id,
           ),
-          mock.patch(
-              "google.adk.agents.llm._functions.generate_client_function_call_id",
-              side_effect=get_next_fc_id,
-          ),
           mock.patch.dict(os.environ, {"PYTEST_CURRENT_TEST": "rebuild"}),
       ):
         random.seed(42)

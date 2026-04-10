@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import Optional
 
 from google.adk.agents.context import Context
+from google.adk.apps.app import App
 from google.adk.events.event import Event
 from google.adk.sessions.state import State
 from google.adk.sessions.state import StateSchemaError
@@ -28,12 +29,8 @@ from google.adk.workflow._workflow_class import Workflow
 from pydantic import BaseModel
 import pytest
 
-from google.adk.apps.app import App
 from .. import testing_utils
 from .workflow_testing_utils import create_parent_invocation_context
-
-
-
 
 # ── Schema models for testing ────────────────────────────────────────
 
@@ -55,7 +52,7 @@ class _NodeSchema(BaseModel):
 def test_state_rejects_unknown_key() -> None:
   """State with schema raises on unknown key."""
   state = State(value={}, delta={}, schema=_PipelineSchema)
-  with pytest.raises(StateSchemaError, match="bad_key"):
+  with pytest.raises(StateSchemaError, match='bad_key'):
     state['bad_key'] = 'value'
 
 
@@ -71,7 +68,7 @@ def test_state_accepts_declared_key() -> None:
 def test_state_rejects_wrong_type() -> None:
   """State with schema raises when value type doesn't match annotation."""
   state = State(value={}, delta={}, schema=_PipelineSchema)
-  with pytest.raises(StateSchemaError, match="counter"):
+  with pytest.raises(StateSchemaError, match='counter'):
     state['counter'] = 'not_an_int'
 
 
@@ -94,7 +91,7 @@ def test_state_allows_prefixed_keys() -> None:
 def test_state_update_validates_all_keys() -> None:
   """State.update validates each key-value pair."""
   state = State(value={}, delta={}, schema=_PipelineSchema)
-  with pytest.raises(StateSchemaError, match="unknown"):
+  with pytest.raises(StateSchemaError, match='unknown'):
     state.update({'counter': 1, 'unknown': 'x'})
 
 

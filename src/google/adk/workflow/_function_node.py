@@ -221,9 +221,7 @@ class FunctionNode(BaseNode):
     else:
       self._infer_schemas_for_state_mode(type_hints)
 
-  def _infer_schemas_for_state_mode(
-      self, type_hints: dict[str, Any]
-  ) -> None:
+  def _infer_schemas_for_state_mode(self, type_hints: dict[str, Any]) -> None:
     """Infers schemas from type hints in state binding mode.
 
     ``output_schema`` is inferred from the return type hint (unwrapping
@@ -269,10 +267,8 @@ class FunctionNode(BaseNode):
     built from function parameters (excluding the context parameter),
     ``output_schema`` from the return type hint.
     """
-    from ..tools._function_tool_declarations import (
-        _build_parameters_json_schema,
-        _build_response_json_schema,
-    )
+    from ..tools._function_tool_declarations import _build_parameters_json_schema
+    from ..tools._function_tool_declarations import _build_response_json_schema
 
     self.input_schema = _build_parameters_json_schema(
         func, ignore_params=[self._context_param_name]
@@ -281,9 +277,7 @@ class FunctionNode(BaseNode):
     if response_schema is not None:
       self.output_schema = response_schema
 
-  def _bind_parameters(
-      self, ctx: Context, node_input: Any
-  ) -> dict[str, Any]:
+  def _bind_parameters(self, ctx: Context, node_input: Any) -> dict[str, Any]:
     """Binds function parameters from the appropriate data source.
 
     In ``'node_input'`` mode, non-context parameters are looked up in the

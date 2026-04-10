@@ -458,7 +458,7 @@ class InvocationContext(BaseModel):
       self, function_response_event: Event
   ) -> Optional[Event]:
     """Finds the function call event in the current invocation that matches the function response id."""
-    from .llm._functions import find_event_by_function_call_id
+    from ..flows.llm_flows.functions import find_event_by_function_call_id
 
     function_responses = function_response_event.get_function_responses()
     if not function_responses:

@@ -17,7 +17,6 @@ from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 from google.adk.agents.base_agent import BaseAgent
-from google.adk.agents.llm import _contents
 from google.adk.apps.app import App
 from google.adk.apps.app import EventsCompactionConfig
 from google.adk.apps.compaction import _run_compaction_for_sliding_window
@@ -26,6 +25,7 @@ from google.adk.apps.llm_event_summarizer import LlmEventSummarizer
 from google.adk.events.event import Event
 from google.adk.events.event_actions import EventActions
 from google.adk.events.event_actions import EventCompaction
+from google.adk.flows.llm_flows import contents as _contents
 from google.adk.sessions.base_session_service import BaseSessionService
 from google.adk.sessions.session import Session
 from google.genai import types

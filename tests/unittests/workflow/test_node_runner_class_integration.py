@@ -24,15 +24,14 @@ from typing import AsyncGenerator
 from unittest.mock import AsyncMock
 from unittest.mock import MagicMock
 
+from google.adk.agents.base_agent import BaseAgent
 from google.adk.agents.context import Context
+from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events.event import Event
+from google.adk.sessions.in_memory_session_service import InMemorySessionService
+from google.adk.sessions.session import Session
 from google.adk.workflow._base_node import BaseNode
 from google.adk.workflow._node_runner_class import NodeRunner
-import pytest
-from google.adk.agents.invocation_context import InvocationContext
-from google.adk.agents.base_agent import BaseAgent
-from google.adk.sessions.session import Session
-from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.genai import types
 import pytest
 
@@ -159,16 +158,18 @@ def _make_ctx(invocation_id='inv-test', enqueue_events=None, node_path=''):
   """Create a minimal Context mock with IC."""
 
   mock_agent = MagicMock(spec=BaseAgent)
-  real_session = Session(id='test_session', app_name='test_app', user_id='test_user')
+  real_session = Session(
+      id='test_session', app_name='test_app', user_id='test_user'
+  )
   real_session_service = InMemorySessionService()
-  
+
   ic = InvocationContext(
       invocation_id=invocation_id,
       agent=mock_agent,
       session=real_session,
       session_service=real_session_service,
   )
-  
+
   collected = enqueue_events if enqueue_events is not None else []
 
   async def _enqueue(event):
@@ -525,7 +526,7 @@ async def test_node_input_schema_validation():
   result = await NodeRunner(node=node, parent_ctx=ctx).run(
       node_input={'name': 'Alice', 'age': 30}
   )
-  
+
   # _validate_schema converts model instances to dicts!
   assert isinstance(result.output, dict)
   assert result.output['name'] == 'Alice'

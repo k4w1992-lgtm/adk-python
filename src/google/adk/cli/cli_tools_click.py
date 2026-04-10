@@ -22,8 +22,8 @@ import hashlib
 import json
 import logging
 import os
-import sys
 from pathlib import Path
+import sys
 import tempfile
 import textwrap
 from typing import Optional
