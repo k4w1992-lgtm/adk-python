@@ -347,8 +347,7 @@ class InvocationContext(BaseModel):
     for event in self._get_events(current_invocation=True):
       # Use node_info.path if available (workflow events), otherwise fall
       # back to author (non-workflow events).
-      node_info = getattr(event, "node_info", None)
-      key = (node_info.path if node_info else "") or event.author
+      key = event.node_info.path or event.author
       if event.actions.end_of_agent:
         self.end_of_agents[key] = True
         # Delete agent_state when it is end

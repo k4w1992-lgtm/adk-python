@@ -89,7 +89,7 @@ def process_llm_agent_output(agent: Any, ctx: Context, event: Event) -> None:
       ''.join(
           p.text
           for p in event.content.parts
-          if getattr(p, 'text', None) and not getattr(p, 'thought', False)
+          if p.text and not p.thought
       )
       if event.content.parts
       else ''

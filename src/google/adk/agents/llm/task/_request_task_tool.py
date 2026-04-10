@@ -56,7 +56,6 @@ class RequestTaskTool(BaseTool):
         schema (``goal`` + ``background``) is used.
     """
     self._agent_name = task_agent.name
-    self._agent_mode = getattr(task_agent, 'mode', 'task')
     input_schema = task_agent.input_schema
     self.input_schema: type[BaseModel] = (
         input_schema if input_schema is not None else _DefaultTaskInput

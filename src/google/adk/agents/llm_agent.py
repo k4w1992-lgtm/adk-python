@@ -917,10 +917,14 @@ class LlmAgent(BaseAgent):
     """Provides a warning if multiple thinking configurations are found."""
     super().model_post_init(__context)
 
-    # Note: Using getattr to check both locations for thinking_config
-    if getattr(
-        self.generate_content_config, 'thinking_config', None
-    ) and getattr(self.planner, 'thinking_config', None):
+    from ..planners.built_in_planner import BuiltInPlanner
+
+    if (
+        self.generate_content_config is not None
+        and self.generate_content_config.thinking_config is not None
+        and isinstance(self.planner, BuiltInPlanner)
+        and self.planner.thinking_config is not None
+    ):
       warnings.warn(
           'Both `thinking_config` in `generate_content_config` and a '
           'planner with `thinking_config` are provided. The '
@@ -937,15 +941,13 @@ class LlmAgent(BaseAgent):
     # Add single-turn sub-agents as tools
     from ..tools.agent_tool import _SingleTurnAgentTool
 
-    if hasattr(self, 'sub_agents') and self.sub_agents:
+    if self.sub_agents:
       for sub_agent in self.sub_agents:
-        if (
-            hasattr(sub_agent, 'mode')
-            and getattr(sub_agent, 'mode', None) is None
-        ):
-          sub_agent.mode = 'chat'
-        if getattr(sub_agent, 'mode', None) == 'single_turn':
-          self.tools.append(_SingleTurnAgentTool(sub_agent))
+        if isinstance(sub_agent, LlmAgent):
+          if sub_agent.mode is None:
+            sub_agent.mode = 'chat'
+          if sub_agent.mode == 'single_turn':
+            self.tools.append(_SingleTurnAgentTool(sub_agent))
 
   @classmethod
   @experimental(FeatureName.AGENT_CONFIG)

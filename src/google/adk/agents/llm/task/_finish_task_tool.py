@@ -60,7 +60,7 @@ class FinishTaskTool(BaseTool):
         schema (a single ``result`` string) is used.
     """
     self._task_agent_name = task_agent.name
-    self._is_single_turn = getattr(task_agent, 'mode', 'task') == 'single_turn'
+    self._is_single_turn = task_agent.mode == 'single_turn'
 
     output_schema = task_agent.output_schema
     self.output_schema: SchemaType = (
