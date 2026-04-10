@@ -300,6 +300,7 @@ class Workflow(BaseNode):
       self, loop_state: _LoopState, node_input: Any
   ) -> None:
     """Seed triggers for START's direct successors."""
+    assert self.graph is not None
     start_edges = [
         e for e in self.graph.edges if e.from_node.name == START.name
     ]
@@ -395,6 +396,7 @@ class Workflow(BaseNode):
       trigger: Trigger,
   ) -> None:
     """Create NodeRunner and start asyncio task for a node."""
+    assert self.graph is not None
     node = self._get_static_node_by_name(node_name)
     is_terminal = node_name in self.graph._terminal_node_names
 
@@ -408,7 +410,7 @@ class Workflow(BaseNode):
         parent_ctx=ctx,
         run_id=run_id,
         triggered_by=trigger.triggered_by,
-        in_nodes={  # TODO: move to WorkflowGraph and add tests.
+        in_nodes={
             e.from_node.name
             for e in self.graph.edges
             if e.to_node.name == node_name
@@ -476,6 +478,7 @@ class Workflow(BaseNode):
       branch: str | None = None,
   ) -> None:
     """Find downstream edges and add triggers to the buffer."""
+    assert self.graph is not None
     next_nodes = _get_next_pending_nodes(
         node_name=node_name,
         routes_to_match=route,
@@ -720,6 +723,7 @@ class Workflow(BaseNode):
     A wait_for_output node "ran" if any predecessor exists in the
     known children or nodes dict (it would have been triggered).
     """
+    assert self.graph is not None
     known_names = set(children) | set(nodes)
     for graph_node in self.graph.nodes:
       if (
@@ -764,7 +768,7 @@ class Workflow(BaseNode):
 
     # Set terminal output on ctx so parent reads ctx.output.
     # Terminal nodes = no outgoing edges.
-    # TODO: Replace structural terminal detection with Event.output_for.
+    assert self.graph is not None
     terminal_outputs = [
         loop_state.node_outputs[name]
         for name in self.graph._terminal_node_names
@@ -783,6 +787,7 @@ class Workflow(BaseNode):
 
   def _has_terminal_output(self, loop_state: _LoopState) -> bool:
     """Check if any terminal node produced output."""
+    assert self.graph is not None
     return any(
         name in loop_state.node_outputs
         for name in self.graph._terminal_node_names
@@ -790,6 +795,7 @@ class Workflow(BaseNode):
 
   def _get_static_node_by_name(self, name: str) -> BaseNode:
     """Find a node in the graph by name."""
+    assert self.graph is not None
     for node in self.graph.nodes:
       if node.name == name:
         return node

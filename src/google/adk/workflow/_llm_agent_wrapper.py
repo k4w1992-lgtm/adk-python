@@ -67,7 +67,8 @@ def prepare_llm_agent_input(agent: Any, ctx: Context, node_input: Any) -> None:
   if node_input is not None and agent.mode == 'single_turn':
     agent_input = _node_input_to_content(node_input)
     user_event = Event(author='user', message=agent_input)
-    user_event.content.role = 'user'
+    if user_event.content is not None:
+      user_event.content.role = 'user'
     user_event.branch = ctx._invocation_context.branch
     ctx.session.events.append(user_event)
 

@@ -237,6 +237,11 @@ class DynamicNodeScheduler:
       logger.info('node %s schedule end: Awaiting existing task.', node_path)
       return await run.task
 
+    raise RuntimeError(
+        f'Dynamic node {node_path} is in state'
+        f' {run.state.status} with no task.'
+    )
+
   # --- Lazy scan ---
 
   def _rehydrate_from_events(self, ctx: Context, node_path: str) -> None:

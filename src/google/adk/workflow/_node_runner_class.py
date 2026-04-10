@@ -26,7 +26,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
-from types import SimpleNamespace
 from typing import Any
 from typing import TYPE_CHECKING
 
@@ -174,10 +173,11 @@ class NodeRunner:
       self, e: Exception, ctx: Context, attempt_count: int
   ) -> bool:
     """Checks if node should retry and sleeps if so."""
+    from ._node_state import NodeState
     from .utils._retry_utils import _get_retry_delay
     from .utils._retry_utils import _should_retry_node
 
-    node_state = SimpleNamespace(attempt_count=attempt_count)
+    node_state = NodeState(attempt_count=attempt_count)
 
     if not _should_retry_node(e, self._node.retry_config, node_state):
       return False

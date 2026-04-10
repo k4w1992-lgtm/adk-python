@@ -270,8 +270,11 @@ class FunctionNode(BaseNode):
     from ..tools._function_tool_declarations import _build_parameters_json_schema
     from ..tools._function_tool_declarations import _build_response_json_schema
 
+    ignore_params: list[str] = (
+        [self._context_param_name] if self._context_param_name else []
+    )
     self.input_schema = _build_parameters_json_schema(
-        func, ignore_params=[self._context_param_name]
+        func, ignore_params=ignore_params
     )
     response_schema = _build_response_json_schema(func)
     if response_schema is not None:

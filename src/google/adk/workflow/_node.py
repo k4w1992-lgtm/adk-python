@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 from typing import Any
+from typing import AsyncGenerator
 from typing import Callable
 from typing import overload
 from typing import TYPE_CHECKING
@@ -34,6 +35,7 @@ from ._retry_config import RetryConfig
 from .utils import _workflow_graph_utils as workflow_graph_utils
 
 if TYPE_CHECKING:
+  from ..agents.context import Context
   from ..auth.auth_tool import AuthConfig
 
 T = TypeVar("T", bound=Callable[..., Any])
@@ -166,9 +168,10 @@ class Node(base_node.BaseNode):
       # original (essential for LlmAgent and Workflow subclasses).
       worker_node = self.model_copy(update={"parallel_worker": False})
 
-      self._inner_node = parallel_worker_lib._ParallelWorker(worker_node)
+      inner = parallel_worker_lib._ParallelWorker(worker_node)
+      self._inner_node = inner
       # Synchronize rerun_on_resume with the inner node.
-      self.rerun_on_resume = self._inner_node.rerun_on_resume
+      self.rerun_on_resume = inner.rerun_on_resume
 
   @override
   def model_copy(

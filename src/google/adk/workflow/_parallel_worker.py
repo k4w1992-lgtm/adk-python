@@ -112,7 +112,8 @@ class _ParallelWorker(BaseNode):
             pending_tasks, return_when=asyncio.FIRST_COMPLETED
         )
         for task in done:
-          if task.exception():
+          exc = task.exception()
+          if exc is not None:
             # If a task failed, cancel all other pending tasks.
             for p_task in pending:
               p_task.cancel()
@@ -120,7 +121,7 @@ class _ParallelWorker(BaseNode):
             if pending:
               await asyncio.wait(pending)
             # Raise the exception from the failed task
-            raise task.exception()
+            raise exc
 
           index = getattr(task, '_worker_index')
           results[index] = task.result()

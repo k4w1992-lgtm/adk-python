@@ -39,6 +39,7 @@ from ._node_path_utils import is_descendant
 from ._node_path_utils import is_direct_child
 
 if TYPE_CHECKING:
+  from ...auth.auth_credential import AuthCredential
   from ...sessions.state import State
 
 REQUEST_INPUT_FUNCTION_CALL_NAME = 'adk_request_input'
@@ -236,7 +237,11 @@ def _build_credential_from_value(
   """
   from ...auth.auth_credential import AuthCredential
 
-  if auth_config.raw_auth_credential.auth_type == _AuthCredentialTypes.API_KEY:
+  raw_cred = auth_config.raw_auth_credential
+  if raw_cred is None:
+    return AuthCredential.model_validate(value)
+
+  if raw_cred.auth_type == _AuthCredentialTypes.API_KEY:
     return AuthCredential(
         auth_type=_AuthCredentialTypes.API_KEY,
         api_key=str(value),
@@ -351,7 +356,9 @@ def validate_resume_response(response_data: Any, schema: Any) -> Any:
       fields = {}
       for prop_name, prop_schema in properties.items():
         prop_type_str = prop_schema.get('type')
-        prop_type = type_mapping.get(prop_type_str, Any)
+        prop_type = (
+            type_mapping.get(prop_type_str, Any) if prop_type_str else Any
+        )
 
         if prop_name in required:
           fields[prop_name] = (prop_type, ...)
@@ -368,7 +375,7 @@ def validate_resume_response(response_data: Any, schema: Any) -> Any:
       except Exception as e:
         raise ValueError(f'Validation failed for object schema: {e}') from e
 
-    mapped_type = type_mapping.get(type_str)
+    mapped_type = type_mapping.get(type_str) if type_str else None
     if mapped_type:
       try:
         return TypeAdapter(mapped_type).validate_python(response_data)
