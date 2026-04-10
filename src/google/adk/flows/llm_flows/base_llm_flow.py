@@ -487,6 +487,9 @@ class BaseLlmFlow(ABC):
     if invocation_context.end_invocation:
       return
 
+    agent = invocation_context.agent
+    llm_request.model = agent.canonical_live_model.model
+
     llm = self.__get_llm(invocation_context)
     logger.debug(
         'Establishing live connection for agent: %s with llm request: %s',
@@ -835,11 +838,7 @@ class BaseLlmFlow(ABC):
     # Long running tool calls should have been handled before this point.
     # If there are still long running tool calls, it means the agent is paused
     # before, and its branch hasn't been resumed yet.
-    if (
-        invocation_context.is_resumable
-        and events
-        and len(events) > 1
-    ):
+    if invocation_context.is_resumable and events and len(events) > 1:
       pause = False
       if invocation_context.should_pause_invocation(events[-1]):
         pause = True
@@ -1392,6 +1391,9 @@ class BaseLlmFlow(ABC):
       )
       config['_adk_replay_indexes'] = replay_indexes
       return model
+
+    if invocation_context.live_request_queue is not None:
+      return agent.canonical_live_model
 
     if not hasattr(agent, 'canonical_model'):
       raise TypeError(

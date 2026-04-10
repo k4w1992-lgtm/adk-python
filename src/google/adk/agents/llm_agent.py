@@ -198,8 +198,14 @@ class LlmAgent(BaseAgent):
   DEFAULT_MODEL: ClassVar[str] = 'gemini-2.5-flash'
   """System default model used when no model is set on an agent."""
 
+  DEFAULT_LIVE_MODEL: ClassVar[str] = 'gemini-live-2.5-flash-native-audio'
+  """System default model used for live mode when no model is set on an agent."""
+
   _default_model: ClassVar[Union[str, BaseLlm]] = DEFAULT_MODEL
   """Current default model used when an agent has no model set."""
+
+  _default_live_model: ClassVar[Union[str, BaseLlm]] = DEFAULT_LIVE_MODEL
+  """Current default model used for live mode when an agent has no model set."""
 
   model: Union[str, BaseLlm] = ''
   """The model to use for the agent.
@@ -563,6 +569,24 @@ class LlmAgent(BaseAgent):
         ancestor_agent = ancestor_agent.parent_agent
       return self._resolve_default_model()
 
+  @property
+  def canonical_live_model(self) -> BaseLlm:
+    """The resolved self.model field as BaseLlm for live mode.
+
+    This method is only for use by Agent Development Kit.
+    """
+    if isinstance(self.model, BaseLlm):
+      return self.model
+    elif self.model:  # model is non-empty str
+      return LLMRegistry.new_llm(self.model)
+    else:  # find model from ancestors.
+      ancestor_agent = self.parent_agent
+      while ancestor_agent is not None:
+        if isinstance(ancestor_agent, LlmAgent):
+          return ancestor_agent.canonical_live_model
+        ancestor_agent = ancestor_agent.parent_agent
+      return self._resolve_default_live_model()
+
   @classmethod
   def set_default_model(cls, model: Union[str, BaseLlm]) -> None:
     """Overrides the default model used when an agent has no model set."""
@@ -579,6 +603,23 @@ class LlmAgent(BaseAgent):
     if isinstance(default_model, BaseLlm):
       return default_model
     return LLMRegistry.new_llm(default_model)
+
+  @classmethod
+  def set_default_live_model(cls, model: Union[str, BaseLlm]) -> None:
+    """Overrides the default model used for live mode when an agent has no model set."""
+    if not isinstance(model, (str, BaseLlm)):
+      raise TypeError('Default live model must be a model name or BaseLlm.')
+    if isinstance(model, str) and not model:
+      raise ValueError('Default live model must be a non-empty string.')
+    cls._default_live_model = model
+
+  @classmethod
+  def _resolve_default_live_model(cls) -> BaseLlm:
+    """Resolves the current default live model to a BaseLlm instance."""
+    default_live_model = cls._default_live_model
+    if isinstance(default_live_model, BaseLlm):
+      return default_live_model
+    return LLMRegistry.new_llm(default_live_model)
 
   async def canonical_instruction(
       self, ctx: ReadonlyContext

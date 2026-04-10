@@ -16,7 +16,8 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field
 from typing import TYPE_CHECKING
 
 from opentelemetry import context as context_api
@@ -32,8 +33,8 @@ from .tracing import tracer
 
 if TYPE_CHECKING:
   from ..agents.base_agent import BaseAgent
-  from ..workflow._workflow import Workflow
   from ..events.event import Event
+  from ..workflow._workflow import Workflow
 
 
 @dataclass(frozen=True)
