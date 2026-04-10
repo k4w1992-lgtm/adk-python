@@ -282,7 +282,7 @@ async def _handle_after_model_callback(
   # First run callbacks from the plugins.
   callback_response = (
       await invocation_context.plugin_manager.run_after_model_callback(
-          callback_context=CallbackContext(invocation_context),
+          callback_context=callback_context,
           llm_response=llm_response,
       )
   )
