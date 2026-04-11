@@ -122,7 +122,6 @@ async def create_workflow_context(
       invocation_context=invocation_context,
       node_path='test',
       run_id='test-execution',
-      local_events=[],
   )
 
 

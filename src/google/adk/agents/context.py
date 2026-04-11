@@ -65,63 +65,6 @@ if TYPE_CHECKING:
 # It returns a future that will resolve to the output of the node.
 
 
-class _SessionProxy:
-  """A proxy for the session that merges local events dynamically.
-
-  Needed for nodes which expect their events to be immediately available in
-  the session.
-
-  Reason:
-  - Workflow maintains an event queue.
-  - Running nodes append events to that queue, workflow pops that queue and emit
-    them back to client.
-  - In case of a nested workflow, the function response event is emitted by
-    client, which is then pushed & popped by the nested workflow.
-  - The parent workflow gets the event and emits to its queue.
-  - But before it can be yielded back to outer runner, the node inside the
-    nested workflow is yielded control and it starts to run.
-  - Since runner hasn't got the event yet, it hasn't appended to session.
-  """
-
-  def __init__(self, session: Session, local_events: list[Event]):
-    # We bypass Pydantic initialization as we are a proxy.
-    object.__setattr__(self, '_session', session)
-    object.__setattr__(self, '_local_events', local_events)
-
-  @property
-  def actual_session(self) -> Session:
-    return self._session
-
-  # Need to implement manual attribute getter to play nice with Pydantic.
-  def __getattribute__(self, name: str) -> Any:
-    if name == 'events':
-      session = object.__getattribute__(self, '_session')
-      local_events = object.__getattribute__(self, '_local_events')
-      session_events = session.events
-      session_event_ids = {event.id for event in session_events}
-      return session_events + [
-          event for event in local_events if event.id not in session_event_ids
-      ]
-
-    if name in (
-        '_session',
-        '_local_events',
-        'actual_session',
-        '__class__',
-        '__dict__',
-    ):
-      return object.__getattribute__(self, name)
-    return getattr(self._session, name)
-
-  def __setattr__(self, name: str, value: Any) -> None:
-    if name in ('_session', '_local_events'):
-      object.__setattr__(self, name, value)
-    elif name in ('events'):
-      raise AttributeError(f"Cannot set '{name}' on SessionProxy.")
-    else:
-      setattr(self._session, name, value)
-
-
 class Context(ReadonlyContext):
   """The context within an agent run.
 
@@ -141,7 +84,6 @@ class Context(ReadonlyContext):
       # Workflow-specific fields (optional)
       node_path: str = '',
       run_id: str = '',
-      local_events: list[Event] | None = None,
       triggered_by: str = '',
       in_nodes: set[str] | None = None,
       resume_inputs: dict[str, Any] | None = None,
@@ -164,7 +106,6 @@ class Context(ReadonlyContext):
       tool_confirmation: The tool confirmation of the current tool call.
       node_path: The path of the current node in the workflow graph.
       run_id: The execution ID of the current node.
-      local_events: Local events for session proxy (workflow only).
       triggered_by: The name of the node that triggered the current node.
       in_nodes: Names of predecessor nodes.
       resume_inputs: Inputs for resuming node, keyed by interrupt id.
@@ -201,7 +142,6 @@ class Context(ReadonlyContext):
     self._node_rerun_on_resume = node_rerun_on_resume
     self._child_run_counters: dict[str, int] = {}
     self._child_run_counter = 0
-    self._local_events = local_events if local_events is not None else []
     self._attempt_count = attempt_count
     self._output_delegated = False
     self._output_value: Any = None
@@ -220,13 +160,6 @@ class Context(ReadonlyContext):
     """
     self._error: Exception | None = None
     self._error_node_path: str = ''
-    # Use a session proxy when local_events are provided (workflow mode).
-    if local_events is not None:
-      self._session_proxy = _SessionProxy(
-          self._invocation_context.session, self._local_events
-      )
-    else:
-      self._session_proxy = None
 
   @property
   def function_call_id(self) -> str | None:
@@ -267,8 +200,6 @@ class Context(ReadonlyContext):
   @override
   def session(self) -> Session:
     """Returns the current session for this invocation."""
-    if self._session_proxy is not None:
-      return self._session_proxy
     return self._invocation_context.session
 
   # ============================================================================
