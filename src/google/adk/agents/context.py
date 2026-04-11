@@ -464,6 +464,7 @@ class Context(ReadonlyContext):
         built_node,
         node_input,
         use_as_output=use_as_output,
+        is_parallel=is_parallel,
     )
     return result.output
 
@@ -503,6 +504,7 @@ class Context(ReadonlyContext):
       *,
       use_as_output: bool = False,
       run_id: str | None = None,
+      is_parallel: bool = False,
   ) -> Context:
     """Run a node directly via NodeRunner without an orchestrator."""
     from ..workflow._node_runner_class import NodeRunner
@@ -514,6 +516,7 @@ class Context(ReadonlyContext):
         additional_output_for_ancestor=(
             self.node_path if use_as_output else None
         ),
+        is_parallel=is_parallel,
     )
     return await runner.run(node_input=node_input)
 
