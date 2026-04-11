@@ -102,19 +102,6 @@ class _InputCapturingNode(BaseNode):
     yield {'received': node_input}
 
 
-class _ContextCapturingNode(BaseNode):
-  """Captures ctx fields for later assertion."""
-
-  model_config = ConfigDict(arbitrary_types_allowed=True)
-  captured_triggered_by: list[str] = Field(default_factory=list)
-
-  async def _run_impl(
-      self, *, ctx: Context, node_input: Any
-  ) -> AsyncGenerator[Any, None]:
-    self.captured_triggered_by.append(ctx.triggered_by)
-    yield node_input
-
-
 class _IntermediateContentNode(BaseNode):
   """Yields intermediate content events before output."""
 
@@ -824,32 +811,6 @@ async def test_start_node_receives_user_content():
 
   assert len(a.received_inputs) == 1
   assert a.received_inputs[0].parts[0].text == 'hello'
-
-
-# 16. test_triggered_by_fan_in
-@pytest.mark.asyncio
-async def test_triggered_by_set_correctly():
-  """ctx.triggered_by reflects the predecessor (asymmetric fan-in).
-
-  Maps to: test_triggered_by_fan_in in test_workflow_agent.py.
-  """
-  a = _OutputNode(name='NodeA', value='A')
-  b = _OutputNode(name='NodeB', value='B')
-  c = _OutputNode(name='NodeC', value='C')
-  x = _ContextCapturingNode(name='NodeX')
-  wf = Workflow(
-      name='wf',
-      edges=[
-          (START, a),
-          (START, b),
-          (a, x),
-          (b, c, x),
-      ],
-  )
-
-  events, _, _ = await _run_workflow(wf)
-
-  assert Counter(x.captured_triggered_by) == Counter(['NodeA', 'NodeC'])
 
 
 # 18. test_wait_for_output_suppresses_trigger
@@ -1973,7 +1934,9 @@ async def test_route_without_output_triggers_downstream_on_resume():
     - Turn 1: NodeB was triggered (indicated by interrupt).
     - Turn 2: NodeB runs and produces output (proving it was triggered).
   """
+
   class _TestRouteNode(BaseNode):
+
     async def _run_impl(
         self, *, ctx: Context, node_input: Any
     ) -> AsyncGenerator[Any, None]:
@@ -2143,7 +2106,9 @@ async def test_route_and_output_triggers_downstream_on_resume():
     - Turn 1: NodeB was triggered (indicated by interrupt).
     - Turn 2: NodeB runs and produces output (proving it was triggered).
   """
+
   class _RouteAndOutputNode(BaseNode):
+
     async def _run_impl(
         self, *, ctx: Context, node_input: Any
     ) -> AsyncGenerator[Any, None]:

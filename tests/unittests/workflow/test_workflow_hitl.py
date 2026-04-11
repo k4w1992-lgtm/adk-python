@@ -37,11 +37,11 @@ from google.adk.workflow import node
 from google.adk.workflow import START
 from google.adk.workflow._node_status import NodeStatus
 from google.adk.workflow._workflow import Workflow
+from google.adk.workflow.utils._rehydration_utils import _wrap_response
 from google.adk.workflow.utils._workflow_hitl_utils import create_request_input_response
 from google.adk.workflow.utils._workflow_hitl_utils import get_request_input_interrupt_ids
 from google.adk.workflow.utils._workflow_hitl_utils import REQUEST_CREDENTIAL_FUNCTION_CALL_NAME
 from google.adk.workflow.utils._workflow_hitl_utils import REQUEST_INPUT_FUNCTION_CALL_NAME
-from google.adk.workflow.utils._rehydration_utils import _wrap_response
 from google.genai import types
 from pydantic import BaseModel
 from pydantic import ConfigDict
@@ -1298,6 +1298,7 @@ async def test_request_input_rerun_with_same_interrupt_id(
   interrupt appear "already resolved", causing the workflow to
   restart from scratch instead of resuming.
   """
+
   @node(rerun_on_resume=True)
   def review(ctx: Context):
     resume = ctx.resume_inputs.get('review')
@@ -1401,7 +1402,9 @@ async def test_function_node_auth_config(
     received_cred = ctx.get_auth_response(auth_config)
     return {'result': 'authed'}
 
-  node_a = FunctionNode(func=do_work, auth_config=auth_config, rerun_on_resume=True)
+  node_a = FunctionNode(
+      func=do_work, auth_config=auth_config, rerun_on_resume=True
+  )
   node_b = InputCapturingNode(name='NodeB')
   app = App(
       name=request.function.__name__,
@@ -1467,6 +1470,7 @@ async def test_second_auth_node_skips_auth_when_credential_exists(
   from google.adk.auth.auth_credential import AuthCredential
   from google.adk.auth.auth_credential import AuthCredentialTypes
   from google.adk.auth.auth_tool import AuthConfig
+
   auth_config = AuthConfig(
       auth_scheme=APIKey(**{'in': APIKeyIn.header, 'name': 'X-Api-Key'}),
       raw_auth_credential=AuthCredential(
@@ -1550,14 +1554,12 @@ class _InputCapturingRerunNode(BaseNode):
 
   rerun_on_resume: bool = Field(default=True)
   captured_inputs: list[Any] = Field(default_factory=list)
-  captured_triggered_by: list[str] = Field(default_factory=list)
 
   @override
   async def _run_impl(
       self, *, ctx: Context, node_input: Any
   ) -> AsyncGenerator[Any, None]:
     self.captured_inputs.append(node_input)
-    self.captured_triggered_by.append(ctx.triggered_by)
 
     if resume_input := ctx.resume_inputs.get('approval'):
       yield Event(output={'approved': resume_input})
@@ -1611,7 +1613,6 @@ async def test_resume_preserves_node_input(
   # First run should have received NodeA's output.
   assert len(node_b.captured_inputs) == 1
   assert node_b.captured_inputs[0] == 'output_from_a'
-  assert node_b.captured_triggered_by[0] == 'NodeA'
 
   # Run 2: resume with approval.
   events2 = await runner.run_async(
@@ -1624,7 +1625,6 @@ async def test_resume_preserves_node_input(
   # Second run (rerun on resume) should also receive NodeA's output.
   assert len(node_b.captured_inputs) == 2
   assert node_b.captured_inputs[1] == 'output_from_a'
-  assert node_b.captured_triggered_by[1] == 'NodeA'
 
   # NodeC should have received NodeB's output.
   assert len(node_c.received_inputs) == 1
@@ -1670,7 +1670,6 @@ async def test_resume_preserves_input_from_start(
 
   # First run: triggered_by should be START.
   assert len(node_a.captured_inputs) == 1
-  assert node_a.captured_triggered_by[0] == '__START__'
 
   # Run 2: resume.
   await runner.run_async(
@@ -1682,7 +1681,6 @@ async def test_resume_preserves_input_from_start(
 
   # Second run: triggered_by should still be START.
   assert len(node_a.captured_inputs) == 2
-  assert node_a.captured_triggered_by[1] == '__START__'
 
 
 @pytest.mark.parametrize(
@@ -1738,7 +1736,6 @@ async def test_resume_fan_in_both_predecessors_completed(
   # First run: C's input should come from one of its predecessors.
   assert len(node_c.captured_inputs) >= 1
   assert node_c.captured_inputs[0] in ('output_from_a', 'output_from_b')
-  assert node_c.captured_triggered_by[0] in ('NodeA', 'NodeB')
 
   # Run 2: resume with approval.
   events2 = await runner.run_async(
@@ -1751,7 +1748,6 @@ async def test_resume_fan_in_both_predecessors_completed(
   # After resume, C should again receive a valid predecessor output.
   assert len(node_c.captured_inputs) >= 2
   assert node_c.captured_inputs[-1] in ('output_from_a', 'output_from_b')
-  assert node_c.captured_triggered_by[-1] in ('NodeA', 'NodeB')
 
 
 @pytest.mark.parametrize(
@@ -1825,7 +1821,6 @@ async def test_resume_loop_receives_latest_input(
 
   # First iteration: triggered by START.
   assert len(node_a.captured_inputs) == 1
-  assert node_a.captured_triggered_by[0] == '__START__'
 
   # Run 2: resume A -> A completes -> B fires -> B routes 'loop' -> A runs again.
   events2 = await runner.run_async(
@@ -1839,11 +1834,9 @@ async def test_resume_loop_receives_latest_input(
   assert len(node_a.captured_inputs) == 3
 
   # Capture[1] = rerun on resume, still triggered by START.
-  assert node_a.captured_triggered_by[1] == '__START__'
 
   # Capture[2] = loop-back from B with B's output.
   assert node_a.captured_inputs[2] == 'output_from_b'
-  assert node_a.captured_triggered_by[2] == 'NodeB'
 
   # run_id should have incremented (visible in event paths).
   node_a_paths = [

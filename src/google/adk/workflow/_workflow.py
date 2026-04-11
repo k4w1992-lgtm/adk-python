@@ -320,9 +320,7 @@ class Workflow(BaseNode):
     is_parallel = len(start_edges) > 1
     for edge in start_edges:
       loop_state.trigger_buffer.setdefault(edge.to_node.name, []).append(
-          Trigger(
-              input=node_input, triggered_by=START.name, is_parallel=is_parallel
-          )
+          Trigger(input=node_input, is_parallel=is_parallel)
       )
 
   def _schedule_ready_nodes(self, loop_state: _LoopState, ctx: Context) -> None:
@@ -398,7 +396,6 @@ class Workflow(BaseNode):
         loop_state.nodes[node_name] = node_state
 
     node_state.input = trigger.input
-    node_state.triggered_by = trigger.triggered_by
     node_state.status = NodeStatus.RUNNING
 
   def _start_node_task(
@@ -422,7 +419,6 @@ class Workflow(BaseNode):
         node=node,
         parent_ctx=ctx,
         run_id=run_id,
-        triggered_by=trigger.triggered_by,
         additional_output_for_ancestor=(ctx.node_path if is_terminal else None),
         is_parallel=trigger.is_parallel,
         override_branch=trigger.branch,
@@ -519,7 +515,6 @@ class Workflow(BaseNode):
           loop_state.trigger_buffer.setdefault(target_name, []).append(
               Trigger(
                   input=outputs,
-                  triggered_by=node_name,
                   is_parallel=False,
                   branch=common_branch,
               )
@@ -529,7 +524,6 @@ class Workflow(BaseNode):
         loop_state.trigger_buffer.setdefault(target_name, []).append(
             Trigger(
                 input=output,
-                triggered_by=node_name,
                 is_parallel=is_parallel,
                 branch=branch,
             )
@@ -626,7 +620,6 @@ class Workflow(BaseNode):
             child_name, node_outputs, node_input
         )
         node_state.input = pred_input
-        node_state.triggered_by = triggered_by
 
     loop_state.nodes = nodes
     loop_state.node_outputs = node_outputs
@@ -883,7 +876,6 @@ class Workflow(BaseNode):
         loop_state.trigger_buffer.setdefault(node_name, []).append(
             Trigger(
                 input=node_state.input,
-                triggered_by=node_state.triggered_by or '',
             )
         )
 

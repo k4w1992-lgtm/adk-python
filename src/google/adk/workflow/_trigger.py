@@ -30,9 +30,6 @@ class Trigger(BaseModel):
   input: Any = None
   """The input to pass to the triggered node."""
 
-  triggered_by: str = ''
-  """Name of the predecessor node that produced this trigger."""
-
   is_parallel: bool = False
   """Whether this trigger is part of a parallel execution."""
 

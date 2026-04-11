@@ -263,7 +263,7 @@ def simplify_events_with_node_and_agent_state(
 ):
   fields_to_exclude = {'run_id'}
   if not include_inputs_and_triggers:
-    fields_to_exclude.update({'input', 'triggered_by'})
+    fields_to_exclude.add('input')
   if not include_resume_inputs:
     fields_to_exclude.add('resume_inputs')
 

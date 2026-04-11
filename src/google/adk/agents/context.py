@@ -69,7 +69,7 @@ class Context(ReadonlyContext):
   """The context within an agent run.
 
   When used in a workflow, additional fields are available:
-  ``node_path``, ``run_id``, ``triggered_by``, ``in_nodes``,
+  ``node_path``, ``run_id``, ``in_nodes``,
   ``resume_inputs``, ``retry_count``,
   ``run_node()``, and ``get_next_child_run_id()``.
   """
@@ -84,7 +84,6 @@ class Context(ReadonlyContext):
       # Workflow-specific fields (optional)
       node_path: str = '',
       run_id: str = '',
-      triggered_by: str = '',
       resume_inputs: dict[str, Any] | None = None,
       schedule_dynamic_node_internal: ScheduleDynamicNodeInternal | None = None,
       node_rerun_on_resume: bool = True,
@@ -105,7 +104,6 @@ class Context(ReadonlyContext):
       tool_confirmation: The tool confirmation of the current tool call.
       node_path: The path of the current node in the workflow graph.
       run_id: The execution ID of the current node.
-      triggered_by: The name of the node that triggered the current node.
       resume_inputs: Inputs for resuming node, keyed by interrupt id.
       node_rerun_on_resume: Whether the node reruns on resume.
       retry_count: Number of times this node has been retried.
@@ -131,7 +129,6 @@ class Context(ReadonlyContext):
     # Workflow-specific fields
     self._node_path = node_path
     self._run_id = run_id
-    self._triggered_by = triggered_by
     self._resume_inputs = resume_inputs or {}
     self._workflow_scheduler = schedule_dynamic_node_internal
     self._node_rerun_on_resume = node_rerun_on_resume
@@ -211,11 +208,6 @@ class Context(ReadonlyContext):
   def run_id(self) -> str:
     """Returns the execution ID of the current node."""
     return self._run_id
-
-  @property
-  def triggered_by(self) -> str:
-    """Returns the name of the node that triggered the current node."""
-    return self._triggered_by
 
   @property
   def attempt_count(self) -> int:
