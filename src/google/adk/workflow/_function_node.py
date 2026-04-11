@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import collections.abc
+import functools
 import inspect
 import logging
 import typing
@@ -61,6 +62,40 @@ _GENERATOR_ORIGINS = (
     collections.abc.Generator,
     collections.abc.AsyncGenerator,
 )
+
+
+def _unwrap_callable(func: Callable[..., Any]) -> Callable[..., Any]:
+  """Unwraps partials, bound methods and callable objects to find the stable underlying function."""
+  while True:
+    if isinstance(func, functools.partial):
+      func = func.func
+    elif hasattr(func, "__func__"):  # bound method
+      func = func.__func__
+    elif (
+        hasattr(func, "__call__")
+        and not inspect.isfunction(func)
+        and not inspect.ismethod(func)
+    ):
+      # callable object, unwrap to its __call__ method
+      func = func.__call__
+    else:
+      break
+  return func
+
+
+@functools.lru_cache(maxsize=1024)
+def _get_type_hints_for_unwrapped(func: Callable[..., Any]) -> dict[str, Any]:
+  """Cached version of typing.get_type_hints."""
+  try:
+    return typing.get_type_hints(func)
+  except Exception:
+    return {}
+
+
+def _get_type_hints_cached(func: Callable[..., Any]) -> dict[str, Any]:
+  """Cached version of typing.get_type_hints with robust unwrapping."""
+  unwrapped = _unwrap_callable(func)
+  return _get_type_hints_for_unwrapped(unwrapped)
 
 
 def _content_to_str(
@@ -194,10 +229,7 @@ class FunctionNode(BaseNode):
     )
 
     sig = inspect.signature(func)
-    try:
-      type_hints = typing.get_type_hints(func)
-    except Exception:
-      type_hints = {}
+    type_hints = _get_type_hints_cached(func)
 
     # Detect the context parameter name (e.g. 'ctx', 'tool_context').
     from ..utils.context_utils import find_context_parameter
