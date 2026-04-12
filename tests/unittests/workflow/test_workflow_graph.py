@@ -19,6 +19,7 @@ from google.adk.workflow import FunctionNode
 from google.adk.workflow import START
 from google.adk.workflow._workflow_graph import DEFAULT_ROUTE
 from google.adk.workflow._workflow_graph import WorkflowGraph
+from pydantic import BaseModel
 import pytest
 
 from .workflow_testing_utils import TestingNode
@@ -539,17 +540,13 @@ def test_routing_map_chain_ending_with_dict() -> None:
   # START->A (None), A->B (r1), A->C (r2)
   assert len(graph.edges) == 3
 
-  start_edge = next(
-      e for e in graph.edges if e.from_node.name == '__START__'
-  )
+  start_edge = next(e for e in graph.edges if e.from_node.name == '__START__')
   assert start_edge.to_node.name == 'NodeA'
   assert start_edge.route is None
 
   routed_edges = [e for e in graph.edges if e.route is not None]
   assert len(routed_edges) == 2
-  routes_and_targets = {
-      (e.route, e.to_node.name) for e in routed_edges
-  }
+  routes_and_targets = {(e.route, e.to_node.name) for e in routed_edges}
   assert routes_and_targets == {('r1', 'NodeB'), ('r2', 'NodeC')}
   for e in routed_edges:
     assert e.from_node.name == 'NodeA'
@@ -663,3 +660,54 @@ def test_routing_map_2_tuple_backward_compat() -> None:
   ])
   graph.validate_graph()
   assert len(graph.edges) == 3
+
+
+class ModelA(BaseModel):
+  x: int
+
+
+class ModelB(BaseModel):
+  x: int
+
+
+def test_schema_match_passes() -> None:
+  """Tests that edges with matching schemas pass validation."""
+  node_a = TestingNode(name='NodeA', output_schema=ModelA)
+  node_b = TestingNode(name='NodeB', input_schema=ModelA)
+  graph = WorkflowGraph(
+      edges=[
+          Edge(START, node_a),
+          Edge(node_a, node_b),
+      ],
+  )
+  graph.validate_graph()  # Should not raise
+
+
+def test_schema_mismatch_raises() -> None:
+  """Tests that edges with mismatching schemas fail validation."""
+  node_a = TestingNode(name='NodeA', output_schema=ModelA)
+  node_b = TestingNode(name='NodeB', input_schema=ModelB)
+  graph = WorkflowGraph(
+      edges=[
+          Edge(START, node_a),
+          Edge(node_a, node_b),
+      ],
+  )
+  with pytest.raises(
+      ValueError,
+      match=r'Graph validation failed\. Schema mismatch on edge',
+  ):
+    graph.validate_graph()
+
+
+def test_schema_missing_passes() -> None:
+  """Tests that edges with missing schemas pass validation."""
+  node_a = TestingNode(name='NodeA', output_schema=ModelA)
+  node_b = TestingNode(name='NodeB')  # No input schema
+  graph = WorkflowGraph(
+      edges=[
+          Edge(START, node_a),
+          Edge(node_a, node_b),
+      ],
+  )
+  graph.validate_graph()  # Should not raise

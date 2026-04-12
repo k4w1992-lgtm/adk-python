@@ -385,6 +385,19 @@ class WorkflowGraph(BaseModel):
     # (with a route) are allowed to form cycles (loop patterns).
     self._detect_unconditional_cycles(node_names)
 
+    # 7. Static schema validation.
+    for edge in self.edges:
+      from_node = edge.from_node
+      to_node = edge.to_node
+      if from_node.output_schema and to_node.input_schema:
+        if from_node.output_schema != to_node.input_schema:
+          raise ValueError(
+              'Graph validation failed. Schema mismatch on edge'
+              f' {from_node.name} -> {to_node.name}.'
+              f' Output schema {from_node.output_schema} does not match'
+              f' input schema {to_node.input_schema}.'
+          )
+
     # Compute terminal nodes (no outgoing edges).
     from_names = {edge.from_node.name for edge in self.edges}
     self._terminal_node_names = {
