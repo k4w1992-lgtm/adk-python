@@ -392,6 +392,7 @@ class _ChildScanState:
   run_id: str | None = None
   output: Any = None
   route: str | None = None
+  branch: str | None = None
   interrupt_ids: set[str] = field(default_factory=set)
   resolved_ids: set[str] = field(default_factory=set)
   resolved_responses: dict[str, Any] = field(default_factory=dict)
@@ -517,6 +518,7 @@ def _scan_node_events(
     if is_direct or is_delegated:
       if event.output is not None:
         child.output = event.output
+        child.branch = event.branch
       elif use_message_as_output:
         child.output = event.content
       if event.actions and event.actions.route is not None:
