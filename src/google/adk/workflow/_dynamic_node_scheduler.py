@@ -257,7 +257,7 @@ class DynamicNodeScheduler:
 
     target_state = results.get(node_path)
     if not target_state:
-      extracted_run_id = node_path.rsplit('@', 1)[-1]
+      extracted_run_id = _NodePathBuilder.from_string(node_path).run_id
       target_state = _ChildScanState(run_id=extracted_run_id)
 
     unresolved = target_state.interrupt_ids - target_state.resolved_ids
