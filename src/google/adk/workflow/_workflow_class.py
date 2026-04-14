@@ -32,6 +32,7 @@ from pydantic import Field
 
 from ._base_node import BaseNode
 from ._base_node import START
+from ._definitions import RouteValue
 from ._dynamic_node_scheduler import DynamicNodeScheduler
 from ._dynamic_node_scheduler import DynamicNodeState
 from ._node_runner_class import NodeRunner
@@ -84,7 +85,7 @@ class _LoopState(DynamicNodeState):
   node_outputs: dict[str, Any] = field(default_factory=dict)
   """Cached static node outputs."""
 
-  pending_tasks: dict[str, asyncio.Task] = field(default_factory=dict)
+  pending_tasks: dict[str, asyncio.Task[Context]] = field(default_factory=dict)
   """Running static node tasks."""
 
   trigger_buffer: dict[str, list[Trigger]] = field(default_factory=dict)
@@ -558,7 +559,7 @@ class Workflow(BaseNode):
 
     nodes: dict[str, NodeState] = {}
     node_outputs: dict[str, Any] = {}
-    nodes_to_trigger: list[tuple[str, Any, str | None]] = []
+    nodes_to_trigger: list[tuple[str, Any, RouteValue | None]] = []
 
     for child_name, child in children.items():
       node_state, output, trigger = self._infer_node_state(child_name, child, ctx)
@@ -611,7 +612,7 @@ class Workflow(BaseNode):
       child_name: str,
       child: _ChildScanState,
       ctx: Context,
-  ) -> tuple[NodeState, Any | None, tuple[str, Any, str | None] | None]:
+  ) -> tuple[NodeState, Any | None, tuple[str, Any, RouteValue | None] | None]:
     """Infer NodeState for a child node based on its scanned events.
 
     Status priority:
@@ -625,7 +626,7 @@ class Workflow(BaseNode):
     run_counter = int(existing_evt_run_id) if existing_evt_run_id else 0
 
     node_output = None
-    trigger = None
+    trigger: tuple[str, Any, RouteValue | None] | None = None
 
     # Case 1: Node has unresolved interrupts.
     if unresolved:
@@ -842,7 +843,7 @@ class Workflow(BaseNode):
     raise ValueError(f'Node {name} not found in graph.')
 
   def _pop_completed_task(
-      self, loop_state: _LoopState, task: asyncio.Task
+      self, loop_state: _LoopState, task: asyncio.Task[Context]
   ) -> str:
     """Remove a completed task and return its node name."""
     for name, t in loop_state.pending_tasks.items():

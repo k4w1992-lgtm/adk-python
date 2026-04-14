@@ -16,19 +16,21 @@ from __future__ import annotations
 
 """Type definitions for building workflow graphs."""
 
+from typing import Any
 from typing import Callable
 from typing import Literal
+from typing import TypeAlias
 
 from ..tools.base_tool import BaseTool
 from ._base_node import BaseNode
 
-RouteValue = bool | int | str
+RouteValue: TypeAlias = bool | int | str
 """Type alias for valid routing values used in conditional graph edges."""
 
-NodeLike = BaseNode | BaseTool | Callable | Literal['START']
+NodeLike: TypeAlias = BaseNode | BaseTool | Callable[..., Any] | Literal['START']
 """Type alias for objects that can be converted to a workflow node."""
 
-RoutingMap = dict[RouteValue, NodeLike | tuple[NodeLike, ...]]
+RoutingMap: TypeAlias = dict[RouteValue, NodeLike | tuple[NodeLike, ...]]
 """A mapping from route values to destination nodes.
 
 Syntactic sugar for declaring multiple routed edges from a single source.

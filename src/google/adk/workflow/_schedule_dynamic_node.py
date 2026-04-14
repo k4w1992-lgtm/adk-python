@@ -36,6 +36,7 @@ class ScheduleDynamicNode(Protocol):
       *,
       node_name: str | None = None,
       use_as_output: bool = False,
-      run_id: str | None = None,
+      run_id: str,
+      is_parallel: bool = False,
   ) -> Awaitable[Context]:
     ...

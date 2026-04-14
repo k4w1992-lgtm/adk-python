@@ -21,6 +21,7 @@ from collections.abc import Set
 from typing import Annotated
 from typing import Any
 from typing import get_args
+from typing import TypeAlias
 from typing import Optional
 
 from pydantic import BaseModel
@@ -407,6 +408,6 @@ class WorkflowGraph(BaseModel):
     }
 
 
-ChainElement = NodeLike | tuple[NodeLike, ...] | RoutingMap
+ChainElement: TypeAlias = NodeLike | tuple[NodeLike, ...] | RoutingMap
 
-EdgeItem = Edge | tuple[ChainElement, ...]
+EdgeItem: TypeAlias = Edge | tuple[ChainElement, ...]

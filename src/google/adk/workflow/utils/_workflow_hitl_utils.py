@@ -149,7 +149,7 @@ def create_request_input_response(
 
 def get_request_input_interrupt_ids(event: Event) -> list[str]:
   """Extracts interrupt_ids from an event containing `request_input` function calls."""
-  interrupt_ids = []
+  interrupt_ids: list[str] = []
   if not event.content or not event.content.parts:
     return interrupt_ids
   for part in event.content.parts:
@@ -361,7 +361,7 @@ def validate_resume_response(response_data: Any, schema: Any) -> Any:
         if prop_name in required:
           fields[prop_name] = (prop_type, ...)
         else:
-          fields[prop_name] = (prop_type | None, None)
+          fields[prop_name] = (prop_type | None, None)  # type: ignore[assignment]
 
       try:
         DynamicModel = create_model('DynamicModel', **fields)

@@ -52,7 +52,7 @@ class DynamicNodeRun:
   output: Any = None
   """The final output of the node once it completes."""
 
-  task: asyncio.Task | None = None
+  task: asyncio.Task[Context] | None = None
   """The running asyncio Task for this node execution."""
 
 
@@ -84,7 +84,7 @@ class DynamicNodeState:
   completes.
   """
 
-  def get_dynamic_tasks(self) -> list[asyncio.Task]:
+  def get_dynamic_tasks(self) -> list[asyncio.Task[Context]]:
     """Get all active dynamic node tasks."""
     return [run.task for run in self.runs.values() if run.task]
 

@@ -74,7 +74,7 @@ def build_node(
   from ...agents.llm_agent import LlmAgent
 
   if isinstance(node_like, BaseNode):
-    kwargs = {}
+    kwargs: dict[str, Any] = {}
     if name is not None:
       kwargs['name'] = name
     if rerun_on_resume is not None:

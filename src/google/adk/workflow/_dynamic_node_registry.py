@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 class DynamicNodeRegistry:
   """A registry for workflow nodes."""
 
-  def __init__(self):
+  def __init__(self) -> None:
     # This dict stores reference to the source dynamic nodes.
     # The keys are workflow names and the values are dicts of node name to
     # node implementation.

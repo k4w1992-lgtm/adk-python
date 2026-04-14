@@ -42,7 +42,9 @@ from .utils._workflow_hitl_utils import process_auth_resume
 logger = logging.getLogger('google_adk.' + __name__)
 
 
-async def _sync_to_async_gen(sync_gen):
+async def _sync_to_async_gen(
+    sync_gen: collections.abc.Generator[Any, None, None],
+) -> AsyncGenerator[Any, None]:
   """Wraps a synchronous generator as an async generator."""
   for item in sync_gen:
     yield item
@@ -409,7 +411,7 @@ class FunctionNode(BaseNode):
   @override
   def model_copy(
       self, *, update: dict[str, Any] | None = None, deep: bool = False
-  ):
+  ) -> FunctionNode:
     copied = super().model_copy(update=update, deep=deep)
     if not update or 'name' not in update:
       return copied
