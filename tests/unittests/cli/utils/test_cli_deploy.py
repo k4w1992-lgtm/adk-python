@@ -226,19 +226,6 @@ def test_get_service_option_by_adk_version(
   assert actual.rstrip() == expected.rstrip()
 
 
-def test_agent_engine_app_template_compiles_with_windows_paths() -> None:
-  """It should not emit invalid Python when paths contain `\\u` segments."""
-  rendered = cli_deploy._AGENT_ENGINE_APP_TEMPLATE.format(
-      is_config_agent=True,
-      agent_folder=r".\user_agent_tmp20260101_000000",
-      adk_app_object="root_agent",
-      adk_app_type="agent",
-      trace_to_cloud_option=False,
-      express_mode=False,
-  )
-  compile(rendered, "<agent_engine_app.py>", "exec")
-
-
 def test_print_agent_engine_url() -> None:
   """It should print the correct URL for a fully-qualified resource name."""
   with mock.patch("click.secho") as mocked_secho:
@@ -268,8 +255,8 @@ def test_to_agent_engine_happy_path(
 
   class _FakeAgentEngines:
 
-    def create(self, *, config: Dict[str, Any]) -> Any:
-      create_recorder(config=config)
+    def create(self, **kwargs: Any) -> Any:
+      create_recorder(**kwargs)
       return types.SimpleNamespace(
           api_resource=types.SimpleNamespace(
               name="projects/p/locations/l/reasoningEngines/e"
@@ -300,6 +287,7 @@ def test_to_agent_engine_happy_path(
       region="us-central1",
       display_name="My Test Agent",
       description="A test agent.",
+      adk_version="1.2.0",
   )
   agent_file = tmp_dir / "agent.py"
   assert agent_file.is_file()
@@ -341,6 +329,7 @@ def test_to_agent_engine_raises_when_explicit_config_file_missing(
         display_name="My Test Agent",
         description="A test agent.",
         agent_engine_config_file=str(missing_config),
+        adk_version="1.2.0",
     )
 
   assert "Agent engine config file not found" in str(exc_info.value)
@@ -366,8 +355,7 @@ def test_to_agent_engine_skips_agent_import_validation_by_default(
 
   class _FakeAgentEngines:
 
-    def create(self, *, config: Dict[str, Any]) -> Any:
-      del config
+    def create(self, **kwargs: Any) -> Any:
       return types.SimpleNamespace(
           api_resource=types.SimpleNamespace(
               name="projects/p/locations/l/reasoningEngines/e"
@@ -394,6 +382,7 @@ def test_to_agent_engine_skips_agent_import_validation_by_default(
       region="us-central1",
       display_name="My Test Agent",
       description="A test agent.",
+      adk_version="1.2.0",
   )
 
   assert validate_recorder.calls == []
@@ -417,8 +406,7 @@ def test_to_agent_engine_validates_agent_import_when_enabled(
 
   class _FakeAgentEngines:
 
-    def create(self, *, config: Dict[str, Any]) -> Any:
-      del config
+    def create(self, **kwargs: Any) -> Any:
       return types.SimpleNamespace(
           api_resource=types.SimpleNamespace(
               name="projects/p/locations/l/reasoningEngines/e"
@@ -446,6 +434,7 @@ def test_to_agent_engine_validates_agent_import_when_enabled(
       display_name="My Test Agent",
       description="A test agent.",
       skip_agent_import_validation=False,
+      adk_version="1.2.0",
   )
 
   assert len(validate_recorder.calls) == 1

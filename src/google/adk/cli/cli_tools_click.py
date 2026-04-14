@@ -1398,12 +1398,25 @@ def web_options():
   return decorator
 
 
-def _deprecate_staging_bucket(ctx, param, value):
+def _deprecate_parameter(ctx, param, value):
   if value:
     click.echo(
         click.style(
             f"WARNING: --{param} is deprecated and will be removed. Please"
             " leave it unspecified.",
+            fg="yellow",
+        ),
+        err=True,
+    )
+  return value
+
+
+def _deprecate_trace_to_cloud(ctx, param, value):
+  if value:
+    click.echo(
+        click.style(
+            f"WARNING: --{param} is deprecated and will be removed. Please"
+            " use --otel_to_cloud instead.",
             fg="yellow",
         ),
         err=True,
@@ -1720,6 +1733,15 @@ def cli_web(
         "Automatically create a session if it doesn't exist when calling /run."
     ),
 )
+@click.option(
+    "--gemini_enterprise_app_name",
+    type=str,
+    default=None,
+    help=(
+        "The app_name to register with Gemini Enterprise via"
+        " https://docs.cloud.google.com/gemini/enterprise/docs/register-and-manage-an-adk-agent"
+    ),
+)
 def cli_api_server(
     agents_dir: str,
     eval_storage_uri: Optional[str] = None,
@@ -1742,6 +1764,7 @@ def cli_api_server(
     extra_plugins: Optional[list[str]] = None,
     auto_create_session: bool = False,
     trigger_sources: Optional[list[str]] = None,
+    gemini_enterprise_app_name: Optional[str] = None,
 ):
   """Starts a FastAPI server for agents.
 
@@ -1776,6 +1799,7 @@ def cli_api_server(
           extra_plugins=extra_plugins,
           auto_create_session=auto_create_session,
           trigger_sources=trigger_sources,
+          gemini_enterprise_app_name=gemini_enterprise_app_name,
       ),
       host=host,
       port=port,
@@ -2123,7 +2147,7 @@ def cli_migrate_session(
     type=str,
     default=None,
     help="Deprecated. This argument is no longer required or used.",
-    callback=_deprecate_staging_bucket,
+    callback=_deprecate_parameter,
 )
 @click.option(
     "--agent_engine_id",
@@ -2145,7 +2169,8 @@ def cli_migrate_session(
     is_flag=True,
     show_default=True,
     default=None,
-    help="Optional. Whether to enable Cloud Trace for Agent Engine.",
+    help=" NOTE: This flag is deprecated and will be removed in the future.",
+    callback=_deprecate_trace_to_cloud,
 )
 @click.option(
     "--otel_to_cloud",
@@ -2173,10 +2198,8 @@ def cli_migrate_session(
     "--adk_app",
     type=str,
     default="agent_engine_app",
-    help=(
-        "Optional. Python file for defining the ADK application"
-        " (default: a file named agent_engine_app.py)"
-    ),
+    help=" NOTE: This flag is deprecated and will be removed in the future.",
+    callback=_deprecate_parameter,
 )
 @click.option(
     "--temp_folder",
@@ -2192,35 +2215,29 @@ def cli_migrate_session(
     "--adk_app_object",
     type=str,
     default=None,
-    help=(
-        "Optional. Python object corresponding to the root ADK agent or app."
-        " It can only be `root_agent` or `app`. (default: `root_agent`)"
-    ),
+    help=" NOTE: This flag is deprecated and will be removed in the future.",
+    callback=_deprecate_parameter,
 )
 @click.option(
     "--env_file",
     type=str,
     default="",
-    help=(
-        "Optional. The filepath to the `.env` file for environment variables."
-        " (default: the `.env` file in the `agent` directory, if any.)"
-    ),
+    help=" NOTE: This flag is deprecated and will be removed in the future.",
+    callback=_deprecate_parameter,
 )
 @click.option(
     "--requirements_file",
     type=str,
     default="",
-    help=(
-        "Optional. The filepath to the `requirements.txt` file to use."
-        " (default: the `requirements.txt` file in the `agent` directory, if"
-        " any.)"
-    ),
+    help=" NOTE: This flag is deprecated and will be removed in the future.",
+    callback=_deprecate_parameter,
 )
 @click.option(
     "--absolutize_imports",
     type=bool,
     default=False,
     help=" NOTE: This flag is deprecated and will be removed in the future.",
+    callback=_deprecate_parameter,
 )
 @click.option(
     "--agent_engine_config_file",
@@ -2236,21 +2253,52 @@ def cli_migrate_session(
 @click.option(
     "--validate-agent-import/--no-validate-agent-import",
     default=False,
-    help=(
-        "Optional. Validate that the agent module can be imported before"
-        " deployment. This requires your local environment to have the same"
-        " dependencies as the deployment environment. (default: disabled)"
-    ),
+    help=" NOTE: This flag is deprecated and will be removed in the future.",
+    callback=_deprecate_parameter,
 )
 @click.option(
     "--skip-agent-import-validation",
     "skip_agent_import_validation_alias",
     is_flag=True,
     default=False,
+    help=" NOTE: This flag is deprecated and will be removed in the future.",
+    callback=_deprecate_parameter,
+)
+# Kept as raw str (not parsed to list) — interpolated directly into Dockerfile CMD.
+@click.option(
+    "--trigger_sources",
+    type=str,
     help=(
-        "Optional. Skip pre-deployment import validation of `agent.py`. This is"
-        " the default; use --validate-agent-import to enable validation."
+        "Optional. Comma-separated list of trigger sources to enable"
+        " (e.g., 'pubsub,eventarc'). Registers /trigger/* endpoints"
+        " for batch and event-driven agent invocations."
     ),
+    default=None,
+)
+@click.option(
+    "--adk_version",
+    type=str,
+    default=version.__version__,
+    show_default=True,
+    help=(
+        "Optional. The ADK version used in Agent Engine deployment. (default: "
+        " the version in the dev environment)"
+    ),
+)
+@click.option(
+    "--artifact_service_uri",
+    type=str,
+    help=textwrap.dedent(
+        """\
+        Optional. The URI of the artifact service. If set, ADK uses this service.
+
+        \b
+        If unset, ADK chooses a default artifact service.
+        - Use 'gs://<bucket_name>' to connect to the GCS artifact service.
+        - Use 'memory://' to force the in-memory artifact service.
+        - Use 'file://<path>' to store artifacts in a custom local directory."""
+    ),
+    default=None,
 )
 @click.argument(
     "agent",
@@ -2278,6 +2326,9 @@ def cli_deploy_agent_engine(
     agent_engine_config_file: str,
     validate_agent_import: bool = False,
     skip_agent_import_validation_alias: bool = False,
+    adk_version: Optional[str] = None,
+    trigger_sources: Optional[str] = None,
+    artifact_service_uri: Optional[str] = None,
 ):
   """Deploys an agent to Agent Engine.
 
@@ -2317,6 +2368,9 @@ def cli_deploy_agent_engine(
         absolutize_imports=absolutize_imports,
         agent_engine_config_file=agent_engine_config_file,
         skip_agent_import_validation=not validate_agent_import,
+        trigger_sources=trigger_sources,
+        artifact_service_uri=artifact_service_uri,
+        adk_version=adk_version,
     )
   except Exception as e:
     click.secho(f"Deploy failed: {e}", fg="red", err=True)
