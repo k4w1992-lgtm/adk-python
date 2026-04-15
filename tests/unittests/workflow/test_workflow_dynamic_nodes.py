@@ -34,7 +34,7 @@ from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.workflow._base_node import BaseNode
 from google.adk.workflow._base_node import START
 from google.adk.workflow._errors import DynamicNodeFailError
-from google.adk.workflow._workflow_class import Workflow
+from google.adk.workflow._workflow import Workflow
 from google.genai import types
 import pytest
 

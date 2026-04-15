@@ -31,7 +31,7 @@ from google.adk.events.event_actions import EventActions
 from google.adk.features import FeatureName
 from google.adk.features import override_feature_enabled
 from google.adk.workflow import START
-from google.adk.workflow import Workflow
+from google.adk.workflow._workflow import Workflow
 from google.adk.workflow.utils._workflow_graph_utils import build_node
 from google.genai import types
 from pydantic import BaseModel
@@ -465,7 +465,7 @@ async def test_react_path_user_content_visible_to_llm(
     request: pytest.FixtureRequest,
 ):
   """First-node LLM agent sees the user message in the new Workflow."""
-  from google.adk.workflow._workflow_class import Workflow as NewWorkflow
+  from google.adk.workflow._workflow import Workflow as NewWorkflow
 
   from . import testing_utils
 
@@ -503,7 +503,7 @@ async def test_react_path_output_reaches_downstream(
     request: pytest.FixtureRequest,
 ):
   """LLM output flows to the next node in the new Workflow."""
-  from google.adk.workflow._workflow_class import Workflow as NewWorkflow
+  from google.adk.workflow._workflow import Workflow as NewWorkflow
 
   from . import testing_utils
 
@@ -536,7 +536,7 @@ async def test_react_path_output_key_stored_in_state(
     request: pytest.FixtureRequest,
 ):
   """output_key stores LLM output in state in the new Workflow."""
-  from google.adk.workflow._workflow_class import Workflow as NewWorkflow
+  from google.adk.workflow._workflow import Workflow as NewWorkflow
 
   from . import testing_utils
 
@@ -570,7 +570,7 @@ async def test_react_path_output_schema_validated(
     request: pytest.FixtureRequest,
 ):
   """output_schema is validated and parsed in the new Workflow."""
-  from google.adk.workflow._workflow_class import Workflow as NewWorkflow
+  from google.adk.workflow._workflow import Workflow as NewWorkflow
 
   from . import testing_utils
 
@@ -609,7 +609,7 @@ async def test_react_path_predecessor_input_visible_to_llm(
     request: pytest.FixtureRequest,
 ):
   """Predecessor output is injected as user content for the LLM."""
-  from google.adk.workflow._workflow_class import Workflow as NewWorkflow
+  from google.adk.workflow._workflow import Workflow as NewWorkflow
 
   from . import testing_utils
 
@@ -653,7 +653,7 @@ async def test_long_running_tool_interrupts_workflow(
 ):
   """Long-running tool stops the workflow after one LLM call."""
   from google.adk.tools.long_running_tool import LongRunningFunctionTool
-  from google.adk.workflow._workflow_class import Workflow as NewWorkflow
+  from google.adk.workflow._workflow import Workflow as NewWorkflow
 
   from . import testing_utils
 
@@ -691,7 +691,7 @@ async def test_resume_after_interrupt_completes_workflow(
   from google.adk.apps.app import App
   from google.adk.apps.app import ResumabilityConfig
   from google.adk.tools.long_running_tool import LongRunningFunctionTool
-  from google.adk.workflow._workflow_class import Workflow as NewWorkflow
+  from google.adk.workflow._workflow import Workflow as NewWorkflow
 
   from . import testing_utils
 
@@ -773,7 +773,7 @@ async def test_multiple_sequential_interrupts_in_workflow(
   from google.adk.apps.app import App
   from google.adk.apps.app import ResumabilityConfig
   from google.adk.tools.long_running_tool import LongRunningFunctionTool
-  from google.adk.workflow._workflow_class import Workflow as NewWorkflow
+  from google.adk.workflow._workflow import Workflow as NewWorkflow
 
   from . import testing_utils
 

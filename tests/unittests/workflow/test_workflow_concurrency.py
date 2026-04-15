@@ -22,7 +22,7 @@ from google.adk.events.event import Event
 from google.adk.workflow import BaseNode
 from google.adk.workflow import START
 from google.adk.workflow._parallel_worker import _ParallelWorker as ParallelWorker
-from google.adk.workflow._workflow_class import Workflow
+from google.adk.workflow._workflow import Workflow
 from pydantic import Field
 import pytest
 from typing_extensions import override

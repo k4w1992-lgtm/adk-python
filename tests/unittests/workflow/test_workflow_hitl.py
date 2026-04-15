@@ -36,7 +36,7 @@ from google.adk.workflow import Edge
 from google.adk.workflow import node
 from google.adk.workflow import START
 from google.adk.workflow._node_status import NodeStatus
-from google.adk.workflow._workflow_class import Workflow
+from google.adk.workflow._workflow import Workflow
 from google.adk.workflow.utils._workflow_hitl_utils import create_request_input_response
 from google.adk.workflow.utils._workflow_hitl_utils import get_request_input_interrupt_ids
 from google.adk.workflow.utils._workflow_hitl_utils import REQUEST_CREDENTIAL_FUNCTION_CALL_NAME

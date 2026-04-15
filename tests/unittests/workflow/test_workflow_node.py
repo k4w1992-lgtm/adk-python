@@ -32,7 +32,7 @@ from google.adk.workflow._node import Node
 from google.adk.workflow._parallel_worker import _ParallelWorker as ParallelWorker
 from google.adk.workflow._retry_config import RetryConfig
 from google.adk.workflow._tool_node import _ToolNode as ToolNode
-from google.adk.workflow._workflow_class import Workflow
+from google.adk.workflow._workflow import Workflow
 from google.genai import types
 import pytest
 

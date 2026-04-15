@@ -25,7 +25,7 @@ from google.adk.workflow import START
 from google.adk.workflow._errors import NodeTimeoutError
 from google.adk.workflow._node import node
 from google.adk.workflow._retry_config import RetryConfig
-from google.adk.workflow._workflow_class import Workflow
+from google.adk.workflow._workflow import Workflow
 from google.genai import types
 import pytest
 

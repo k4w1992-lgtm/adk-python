@@ -20,7 +20,7 @@ from google.adk.workflow import _base_node as base_node
 from google.adk.workflow import _join_node as join_node
 from google.adk.workflow import _workflow_graph as workflow_graph
 from google.adk.workflow import START
-from google.adk.workflow._workflow_class import Workflow
+from google.adk.workflow._workflow import Workflow
 from pydantic import BaseModel
 import pytest
 

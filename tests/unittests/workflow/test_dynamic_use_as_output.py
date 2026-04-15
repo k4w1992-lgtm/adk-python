@@ -27,7 +27,7 @@ from google.adk.events.request_input import RequestInput
 from google.adk.workflow import BaseNode
 from google.adk.workflow import FunctionNode
 from google.adk.workflow import START
-from google.adk.workflow._workflow_class import Workflow
+from google.adk.workflow._workflow import Workflow
 from google.genai import types
 from pydantic import ConfigDict
 import pytest

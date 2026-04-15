@@ -56,7 +56,7 @@ async def build_graph(
     None
   """
   from ..workflow._base_node import START
-  from ..workflow._workflow_class import Workflow
+  from ..workflow._workflow import Workflow
 
   dark_green = '#0F5223'
   light_green = '#69CB87'

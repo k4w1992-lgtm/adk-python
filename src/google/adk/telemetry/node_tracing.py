@@ -32,7 +32,7 @@ from .tracing import tracer
 
 if TYPE_CHECKING:
   from ..agents.base_agent import BaseAgent
-  from ..workflow._workflow_class import Workflow
+  from ..workflow._workflow import Workflow
   from ..events.event import Event
 
 
@@ -107,7 +107,7 @@ async def start_as_current_node_span(
 
 def _span_metadata(context: Context, node: BaseNode) -> _SpanMetadata | None:
   from ..agents.base_agent import BaseAgent
-  from ..workflow._workflow_class import Workflow
+  from ..workflow._workflow import Workflow
 
   if isinstance(node, BaseAgent):
     return _agent_span_metadata(context, node)

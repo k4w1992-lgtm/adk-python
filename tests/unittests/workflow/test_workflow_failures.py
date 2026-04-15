@@ -32,7 +32,7 @@ from google.adk.workflow._node import node
 from google.adk.workflow._node import Node
 from google.adk.workflow._node_status import NodeStatus
 from google.adk.workflow._retry_config import RetryConfig
-from google.adk.workflow._workflow_class import Workflow
+from google.adk.workflow._workflow import Workflow
 from google.adk.workflow._workflow_graph import WorkflowGraph
 from google.genai import types
 from pydantic import ConfigDict
@@ -1030,7 +1030,7 @@ async def test_error_event_emitted_on_each_retry(
   ]
 
 
-# --- Moved from test_workflow_class_failure.py ---
+# --- Moved from test_workflow_failure.py ---
 
 
 @pytest.mark.asyncio

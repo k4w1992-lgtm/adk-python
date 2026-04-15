@@ -1444,7 +1444,7 @@ class Runner:
     """
     # Mesh and Workflow Agents handle their own internal routing.
     # Workflow will figure which node is interrupted and should be resumed.
-    from .workflow._workflow_class import Workflow
+    from .workflow._workflow import Workflow
 
     if isinstance(root_agent, Workflow):
       return root_agent

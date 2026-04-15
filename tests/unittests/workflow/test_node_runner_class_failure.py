@@ -32,7 +32,7 @@ from google.adk.workflow._node import node
 from google.adk.workflow._node import Node
 from google.adk.workflow._node_status import NodeStatus
 from google.adk.workflow._retry_config import RetryConfig
-from google.adk.workflow._workflow_class import Workflow
+from google.adk.workflow._workflow import Workflow
 from google.adk.workflow._workflow_graph import WorkflowGraph
 from google.genai import types
 from pydantic import ConfigDict

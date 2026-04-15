@@ -212,7 +212,7 @@ def _make_nodes_sequential(obj, visited=None):
   visited.add(id(obj))
 
   from google.adk.workflow._parallel_worker import _ParallelWorker
-  from google.adk.workflow._workflow_class import Workflow
+  from google.adk.workflow._workflow import Workflow
 
   if isinstance(obj, Workflow):
     obj.max_concurrency = 1

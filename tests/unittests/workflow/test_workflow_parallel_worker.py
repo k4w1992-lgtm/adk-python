@@ -24,7 +24,7 @@ from google.adk.workflow import BaseNode
 from google.adk.workflow import START
 from google.adk.workflow._node import node
 from google.adk.workflow._parallel_worker import _ParallelWorker as ParallelWorker
-from google.adk.workflow._workflow_class import Workflow
+from google.adk.workflow._workflow import Workflow
 from google.adk.workflow.utils._workflow_hitl_utils import get_request_input_interrupt_ids
 from google.adk.workflow.utils._workflow_hitl_utils import has_request_input_function_call
 from google.genai import types

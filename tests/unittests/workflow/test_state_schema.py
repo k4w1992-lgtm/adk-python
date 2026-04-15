@@ -25,7 +25,7 @@ from google.adk.sessions.state import State
 from google.adk.sessions.state import StateSchemaError
 from google.adk.workflow import FunctionNode
 from google.adk.workflow import START
-from google.adk.workflow._workflow_class import Workflow
+from google.adk.workflow._workflow import Workflow
 from pydantic import BaseModel
 import pytest
 

@@ -22,7 +22,7 @@ from google.adk.apps.app import App
 from google.adk.workflow import Edge
 from google.adk.workflow import START
 from google.adk.workflow._join_node import JoinNode
-from google.adk.workflow._workflow_class import Workflow
+from google.adk.workflow._workflow import Workflow
 from google.adk.workflow._workflow_graph import DEFAULT_ROUTE
 from google.adk.workflow._workflow_graph import WorkflowGraph
 import pytest

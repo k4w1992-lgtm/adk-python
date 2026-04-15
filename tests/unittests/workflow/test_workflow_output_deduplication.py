@@ -22,7 +22,7 @@ from typing import Any
 
 from google.adk.apps.app import App
 from google.adk.events.event import Event
-from google.adk.workflow._workflow_class import Workflow
+from google.adk.workflow._workflow import Workflow
 import pytest
 
 from . import testing_utils
