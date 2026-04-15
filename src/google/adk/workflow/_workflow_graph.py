@@ -138,6 +138,97 @@ def _flatten_element(
     return [element]
 
 
+def _get_or_build_node(
+    node_like: NodeLike, node_map: dict[int, BaseNode]
+) -> BaseNode:
+    """Gets a node from the map or builds it if not present."""
+    if node_like == "START":
+        return START
+
+    node_id = id(node_like)
+    if node_id in node_map:
+        return node_map[node_id]
+
+    if isinstance(node_like, BaseNode):
+        wrapped = build_node(node_like)
+        if wrapped is not node_like:
+            node_map[node_id] = wrapped
+            return wrapped
+        return node_like
+
+    node = build_node(node_like)
+    node_map[node_id] = node
+    return node
+
+
+def _process_explicit_edge(
+    edge: Edge, node_map: dict[int, BaseNode], graph_edges: list[Edge]
+) -> None:
+    """Processes an explicit Edge object."""
+    graph_edges.append(
+        Edge(
+            from_node=_get_or_build_node(edge.from_node, node_map),
+            to_node=_get_or_build_node(edge.to_node, node_map),
+            route=edge.route,
+        )
+    )
+
+
+def _process_chain(
+    chain: tuple, node_map: dict[int, BaseNode], graph_edges: list[Edge]
+) -> None:
+    """Processes a chain of elements (tuple)."""
+    for i in range(len(chain) - 1):
+        from_el = chain[i]
+        to_el = chain[i + 1]
+
+        if isinstance(to_el, dict):
+            _process_routing_map_edge(from_el, to_el, node_map, graph_edges)
+        else:
+            _process_unconditional_edge(from_el, to_el, node_map, graph_edges)
+
+
+def _process_routing_map_edge(
+    from_el: Any, to_el: dict, node_map: dict[int, BaseNode], graph_edges: list[Edge]
+) -> None:
+    """Processes edges where the destination is a routing map."""
+    if isinstance(from_el, dict):
+        raise ValueError(
+            "Consecutive routing maps are not allowed in a chain."
+            " Split them into separate edge items."
+        )
+
+    # A routing map (dict) in a chain behaves like a fan-out tuple
+    # but with conditioned incoming edges.
+    for exp_from, exp_to, route in _expand_routing_map(from_el, to_el):
+        for from_node in _flatten_element(exp_from):
+            for to_node in _flatten_element(exp_to):
+                graph_edges.append(
+                    Edge(
+                        from_node=_get_or_build_node(from_node, node_map),
+                        to_node=_get_or_build_node(to_node, node_map),
+                        route=route,
+                    )
+                )
+
+
+def _process_unconditional_edge(
+    from_el: Any, to_el: Any, node_map: dict[int, BaseNode], graph_edges: list[Edge]
+) -> None:
+    """Processes unconditional edges between elements."""
+    # _flatten_element handles dicts (fan-in from routing map values)
+    # and tuples (fan-in/out).
+    for from_node in _flatten_element(from_el):
+        for to_node in _flatten_element(to_el):
+            graph_edges.append(
+                Edge(
+                    from_node=_get_or_build_node(from_node, node_map),
+                    to_node=_get_or_build_node(to_node, node_map),
+                    route=None,
+                )
+            )
+
+
 class WorkflowGraph(BaseModel):
     """A workflow graph."""
 
@@ -156,79 +247,16 @@ class WorkflowGraph(BaseModel):
     def from_edge_items(cls, edge_items: list[EdgeItem]) -> WorkflowGraph:
         """Creates a WorkflowGraph from a list of edge items."""
         node_map: dict[int, BaseNode] = {}
-
-        def get_node(node_like: NodeLike) -> BaseNode:
-            if node_like == "START":
-                return START
-            elif isinstance(node_like, BaseNode):
-                node_id = id(node_like)
-                if node_id in node_map:
-                    return node_map[node_id]
-                wrapped = build_node(node_like)
-                if wrapped is not node_like:
-                    node_map[node_id] = wrapped
-                    return wrapped
-                return node_like
-            node_id = id(node_like)
-            if node_id in node_map:
-                return node_map[node_id]
-            node = build_node(node_like)
-            node_map[node_id] = node
-            return node
-
         graph_edges: list[Edge] = []
+
         for item in edge_items:
             if isinstance(item, Edge):
-                graph_edges.append(
-                    Edge(
-                        from_node=get_node(item.from_node),
-                        to_node=get_node(item.to_node),
-                        route=item.route,
-                    )
-                )
-                continue
-            if not isinstance(item, tuple):
+                _process_explicit_edge(item, node_map, graph_edges)
+            elif isinstance(item, tuple):
+                _process_chain(item, node_map, graph_edges)
+            else:
                 raise ValueError(f"Invalid edge type: {type(item)}")
 
-            # Chain with potential fan-in/fan-out and inline routing maps.
-            # A routing map (dict) in a chain behaves like a fan-out tuple
-            # but with conditioned incoming edges.
-            for i in range(len(item) - 1):
-                from_el = item[i]
-                to_el = item[i + 1]
-
-                if isinstance(to_el, dict):
-                    # to_el is a routing map: create conditioned edges.
-                    if isinstance(from_el, dict):
-                        raise ValueError(
-                            "Consecutive routing maps are not allowed in a chain."
-                            " Split them into separate edge items."
-                        )
-                    from_chain_el = from_el
-                    for exp_from, exp_to, route in _expand_routing_map(
-                        from_chain_el, to_el
-                    ):
-                        for from_node in _flatten_element(exp_from):
-                            for to_node in _flatten_element(exp_to):
-                                graph_edges.append(
-                                    Edge(
-                                        from_node=get_node(from_node),
-                                        to_node=get_node(to_node),
-                                        route=route,
-                                    )
-                                )
-                else:
-                    # Unconditional edges. _flatten_element handles dicts
-                    # (fan-in from routing map values) and tuples (fan-in/out).
-                    for from_node in _flatten_element(from_el):
-                        for to_node in _flatten_element(to_el):
-                            graph_edges.append(
-                                Edge(
-                                    from_node=get_node(from_node),
-                                    to_node=get_node(to_node),
-                                    route=None,
-                                )
-                            )
         return WorkflowGraph(edges=graph_edges)
 
     def model_post_init(self, context: Any) -> None:
