@@ -737,3 +737,39 @@ def test_schema_missing_passes() -> None:
       ],
   )
   graph.validate_graph()  # Should not raise
+
+
+def test_get_next_pending_nodes() -> None:
+  """Tests that get_next_pending_nodes returns correct nodes based on routes."""
+  node_a = TestingNode(name='NodeA')
+  node_b = TestingNode(name='NodeB')
+  node_c = TestingNode(name='NodeC')
+  node_d = TestingNode(name='NodeD')
+
+  graph = WorkflowGraph(
+      edges=[
+          Edge(from_node=node_a, to_node=node_b),  # Unconditional
+          Edge(from_node=node_a, to_node=node_c, route='route1'),  # Conditional
+          Edge(from_node=node_a, to_node=node_d, route=DEFAULT_ROUTE),  # Default
+      ],
+  )
+
+  # Test unconditional edge triggered
+  next_nodes = graph.get_next_pending_nodes('NodeA', routes_to_match=None)
+  assert set(next_nodes) == {'NodeB', 'NodeD'}
+
+  # Test specific route matched
+  next_nodes = graph.get_next_pending_nodes('NodeA', routes_to_match='route1')
+  assert set(next_nodes) == {'NodeB', 'NodeC'}
+
+  # Test unmatched route falls back to default
+  next_nodes = graph.get_next_pending_nodes(
+      'NodeA', routes_to_match='unknown_route'
+  )
+  assert set(next_nodes) == {'NodeB', 'NodeD'}
+
+  # Test list of routes to match
+  next_nodes = graph.get_next_pending_nodes(
+      'NodeA', routes_to_match=['route1', 'unknown_route']
+  )
+  assert set(next_nodes) == {'NodeB', 'NodeC'}

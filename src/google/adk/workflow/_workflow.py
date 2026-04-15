@@ -39,7 +39,6 @@ from ._node_runner_class import NodeRunner
 from ._node_state import NodeState
 from ._node_status import NodeStatus
 from ._trigger import Trigger
-from ._trigger_processor import _get_next_pending_nodes
 from ._graph_definitions import EdgeItem
 from ._workflow_graph import WorkflowGraph
 from .utils._rehydration_utils import _ChildScanState
@@ -475,10 +474,9 @@ class Workflow(BaseNode):
   ) -> None:
     """Find downstream edges and add triggers to the buffer."""
     assert self.graph is not None
-    next_nodes = _get_next_pending_nodes(
+    next_nodes = self.graph.get_next_pending_nodes(
         node_name=node_name,
         routes_to_match=route,
-        graph=self.graph,
     )
     is_parallel = len(next_nodes) > 1
     for target_name in next_nodes:
