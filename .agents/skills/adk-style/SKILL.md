@@ -30,8 +30,8 @@ description: ADK development style guide — architecture patterns, testing best
 - [API Principles](references/style/api-principles.md) — stability, backward compatibility, and self-containment.
 - [Visibility](references/style/visibility.md) — naming conventions for module-private, internal, and package-private visibility.
 - [Imports](references/style/imports.md) — relative vs absolute imports, `TYPE_CHECKING` patterns.
-- [Typing](references/style/typing.md) — strong typing, avoiding Any, and bare type names.
-- [Pydantic Patterns](references/style/pydantic.md) — Pydantic v2 usage, private attributes, post-init setup.
+- [Typing](references/style/typing.md) — strong typing, avoiding Any, bare type names, keyword-only arguments, `Optional` vs `| None`, abstract parameter types, mutable default avoidance, runtime type discrimination.
+- [Pydantic Patterns](references/style/pydantic.md) — Pydantic v2 usage, `Field()` constraints, `field_validator`, `model_validator`, private attributes, deprecation migration, post-init setup.
 - [Formatting](references/style/formatting.md) — indentation, line limits, and running pre-commit hooks.
 - [Documentation](references/style/documentation.md) — comments and docstrings.
 - [Logging](references/style/logging.md) — lazy evaluation and log levels.
