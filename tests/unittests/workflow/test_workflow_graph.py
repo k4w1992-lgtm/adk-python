@@ -67,8 +67,34 @@ def test_unreachable_node() -> None:
       ValueError,
       match=(
           r'Graph validation failed\. The following nodes are unreachable'
-          r' \(not a'
-          r" to_node in any edge\): \['NodeB'\]"
+          r" from START: \['NodeB'\]"
+      ),
+  ):
+    graph.validate_graph()
+
+
+def test_disconnected_routed_subgraph_is_unreachable() -> None:
+  """Tests that a disconnected subgraph with routed edges fails validation.
+
+  Even though B and C each appear as a to_node in some edge, neither is
+  reachable from START.  The old "has incoming edge" heuristic would let
+  this pass; true reachability from START catches it.
+  """
+  node_a = TestingNode(name='NodeA')
+  node_b = TestingNode(name='NodeB')
+  node_c = TestingNode(name='NodeC')
+  graph = WorkflowGraph(
+      edges=[
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_b, to_node=node_c, route='x'),
+          Edge(from_node=node_c, to_node=node_b, route='y'),
+      ],
+  )
+  with pytest.raises(
+      ValueError,
+      match=(
+          r'Graph validation failed\. The following nodes are unreachable'
+          r" from START: \['NodeB', 'NodeC'\]"
       ),
   ):
     graph.validate_graph()

@@ -301,16 +301,28 @@ class WorkflowGraph(BaseModel):
                 f"'{START.name}') not found in graph nodes."
             )
 
-        # 2. Connectivity check
-        to_nodes = {edge.to_node.name for edge in self.edges}
+        # 2. Connectivity check — true reachability from START via DFS.
+        to_nodes: set[str] = set()
+        adj: dict[str, set[str]] = {name: set() for name in node_names}
+        for edge in self.edges:
+            adj[edge.from_node.name].add(edge.to_node.name)
+            to_nodes.add(edge.to_node.name)
 
-        unreachable_nodes = node_names - to_nodes - {START.name}
+        reachable: set[str] = set()
+        stack = [START.name]
+        while stack:
+            node = stack.pop()
+            if node in reachable:
+                continue
+            reachable.add(node)
+            stack.extend(adj[node] - reachable)
+
+        unreachable_nodes = node_names - reachable
         if unreachable_nodes:
             raise ValueError(
-                "Graph validation failed. The following nodes are unreachable (not a"
-                f" to_node in any edge): {sorted(list(unreachable_nodes))}"
+                "Graph validation failed. The following nodes are unreachable"
+                f" from START: {sorted(unreachable_nodes)}"
             )
-
         if START.name in to_nodes:
             raise ValueError(
                 "Graph validation failed. START node must not have incoming edges."
