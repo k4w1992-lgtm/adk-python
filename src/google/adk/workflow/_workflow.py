@@ -746,10 +746,12 @@ class Workflow(BaseNode):
         group_by_direct_child=True,
     )
 
+    from ..events._node_path_builder import _NodePathBuilder
+
     # Group by logical name, letting later instances override earlier ones.
     results: dict[str, _ChildScanState] = {}
     for key, state in raw_results.items():
-      logical_name = key.split('@')[0]
+      logical_name = _NodePathBuilder([key]).node_name
       results[logical_name] = state
 
     return results

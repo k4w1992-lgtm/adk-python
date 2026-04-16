@@ -26,7 +26,7 @@ from pydantic import TypeAdapter
 
 from ...events.event import Event
 from ...events.request_input import RequestInput
-from .._node_path_builder import _NodePathBuilder
+from ...events._node_path_builder import _NodePathBuilder
 from ._workflow_hitl_utils import REQUEST_INPUT_FUNCTION_CALL_NAME
 
 _RESULT_KEY = 'result'

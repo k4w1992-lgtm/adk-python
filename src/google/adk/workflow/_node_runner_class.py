@@ -30,7 +30,7 @@ from typing import Any
 from typing import TYPE_CHECKING
 
 from ..telemetry import node_tracing
-from ._node_path_builder import _NodePathBuilder
+from ..events._node_path_builder import _NodePathBuilder
 
 if TYPE_CHECKING:
   from ..agents.context import Context

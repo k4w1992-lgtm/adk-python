@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from google.adk.workflow._node_path_builder import _NodePathBuilder
+from google.adk.events._node_path_builder import _NodePathBuilder
 import pytest
 
 

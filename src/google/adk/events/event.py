@@ -67,33 +67,24 @@ class NodeInfo(BaseModel):
   @property
   def run_id(self) -> str:
     """The run ID of the node that generated the event."""
-    if '@' in self.path:
-      segments = self.path.split('/')
-      if segments:
-        last_segment = segments[-1]
-        if '@' in last_segment:
-          return last_segment.rsplit('@', 1)[-1]
-    return ''
+    from ._node_path_builder import _NodePathBuilder
+    return _NodePathBuilder.from_string(self.path).run_id or ''
 
   @property
   def parent_run_id(self) -> str | None:
     """The run ID of the parent node that dynamically scheduled
     this node. Used to reconstruct dynamic node state from session events."""
-    if '@' in self.path:
-      segments = self.path.split('/')
-      if len(segments) > 1:
-        parent_segment = segments[-2]
-        if '@' in parent_segment:
-          return parent_segment.rsplit('@', 1)[-1]
+    from ._node_path_builder import _NodePathBuilder
+    builder = _NodePathBuilder.from_string(self.path)
+    if builder.parent:
+      return builder.parent.run_id
     return None
 
   @property
   def name(self) -> str:
     """The clean name of the node (without @run_id)."""
-    if not self.path:
-      return ''
-    last_segment = self.path.rsplit('/', 1)[-1]
-    return last_segment.rsplit('@', 1)[0]
+    from ._node_path_builder import _NodePathBuilder
+    return _NodePathBuilder.from_string(self.path).node_name
 
 
 class Event(LlmResponse):
