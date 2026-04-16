@@ -97,7 +97,7 @@ class _ParallelWorker(BaseNode):
             ctx.run_node(
                 self._node,
                 node_input=item,
-                is_parallel=True,
+                use_sub_branch=True,
             )
         )
         # Store index on task so we can place result correctly when done

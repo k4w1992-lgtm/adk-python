@@ -374,7 +374,7 @@ class Context(ReadonlyContext):
       *,
       use_as_output: bool = False,
       run_id: str | None = None,
-      is_parallel: bool = False,
+      use_sub_branch: bool = False,
       override_branch: str | None = None,
   ) -> Any:
     """Executes a node dynamically.
@@ -400,6 +400,8 @@ class Context(ReadonlyContext):
       run_id: An optional custom run ID for the dynamic node execution.
         If not provided, a default run ID is generated. Useful for
         correlating events across runs.
+      use_sub_branch: If True, the dynamic node will be executed in a sub-branch
+        to isolate its state and events from the main branch.
       override_branch: An optional branch to use instead of parent's branch.
 
     Returns:
@@ -458,7 +460,7 @@ class Context(ReadonlyContext):
           node_name=built_node.name,
           use_as_output=use_as_output,
           run_id=run_id,
-          is_parallel=is_parallel,
+          use_sub_branch=use_sub_branch,
           override_branch=override_branch,
       )
       if child_ctx.error:
@@ -482,7 +484,7 @@ class Context(ReadonlyContext):
         built_node,
         node_input,
         use_as_output=use_as_output,
-        is_parallel=is_parallel,
+        use_sub_branch=use_sub_branch,
     )
     return result.output
 
@@ -493,7 +495,7 @@ class Context(ReadonlyContext):
       *,
       use_as_output: bool = False,
       run_id: str | None = None,
-      is_parallel: bool = False,
+      use_sub_branch: bool = False,
   ) -> Context:
     """Run a node directly via NodeRunner without an orchestrator."""
     from ..workflow._node_runner import NodeRunner
@@ -505,7 +507,7 @@ class Context(ReadonlyContext):
         additional_output_for_ancestor=(
             self.node_path if use_as_output else None
         ),
-        is_parallel=is_parallel,
+        use_sub_branch=use_sub_branch,
     )
     return await runner.run(node_input=node_input)
 

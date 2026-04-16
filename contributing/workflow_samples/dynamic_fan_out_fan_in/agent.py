@@ -47,7 +47,7 @@ async def orchestrator(ctx: Context, node_input: str) -> str:
         ctx.run_node(
             generator,
             node_input=topic,
-            is_parallel=True,
+            use_sub_branch=True,
         )
     )
 

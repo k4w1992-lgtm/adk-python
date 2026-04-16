@@ -60,7 +60,7 @@ class NodeRunner:
       # Resume state from a previous run
       prior_output: Any = None,
       prior_interrupt_ids: set[str] | None = None,
-      is_parallel: bool = False,
+      use_sub_branch: bool = False,
       override_branch: str | None = None,
   ) -> None:
     """Initialize a NodeRunner.
@@ -79,7 +79,7 @@ class NodeRunner:
         interrupts.
       prior_interrupt_ids: Unresolved interrupt IDs (set) from a
         previous run, carried forward on resume.
-      is_parallel: Whether the node is running in parallel.
+      use_sub_branch: Whether the node should use a sub-branch.
       override_branch: Optional branch to use instead of parent's branch.
     """
     # Core
@@ -87,7 +87,7 @@ class NodeRunner:
     self._parent_ctx = parent_ctx
 
     self._run_id = str(run_id) if run_id else "1"
-    self._is_parallel = is_parallel
+    self._use_sub_branch = use_sub_branch
     self._override_branch = override_branch
 
     # Output delegation
@@ -180,6 +180,7 @@ class NodeRunner:
     await asyncio.sleep(delay)
     return True
 
+
   def _create_child_context(
       self,
       resume_inputs: dict[str, Any] | None,
@@ -207,7 +208,7 @@ class NodeRunner:
         else ic.branch
     )
 
-    if self._is_parallel:
+    if self._use_sub_branch:
       segment = f"{self._node.name}@{self._run_id}"
       branch = f"{base_branch}.{segment}" if base_branch else segment
       ic = ic.model_copy(update={"branch": branch})

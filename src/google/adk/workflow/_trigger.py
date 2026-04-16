@@ -30,8 +30,8 @@ class Trigger(BaseModel):
   input: Any = None
   """The input to pass to the triggered node."""
 
-  is_parallel: bool = False
-  """Whether this trigger is part of a parallel execution."""
+  use_sub_branch: bool = False
+  """Whether this trigger should use a sub-branch."""
 
   branch: str | None = None
   """The branch inherited from the predecessor node."""

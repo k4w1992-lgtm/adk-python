@@ -549,8 +549,8 @@ async def test_override_branch_used_in_node_runner():
 
 
 @pytest.mark.asyncio
-async def test_is_parallel_appends_segment_to_branch():
-  """NodeRunner appends node_name@run_id to branch when is_parallel is True."""
+async def test_use_sub_branch_appends_segment_to_branch():
+  """NodeRunner appends node_name@run_id to branch when use_sub_branch is True."""
 
   class _Node(BaseNode):
 
@@ -562,7 +562,7 @@ async def test_is_parallel_appends_segment_to_branch():
   await NodeRunner(
       node=_Node(name='n'),
       parent_ctx=parent_ctx,
-      is_parallel=True,
+      use_sub_branch=True,
       run_id='1',
   ).run()
 
@@ -571,7 +571,7 @@ async def test_is_parallel_appends_segment_to_branch():
 
 @pytest.mark.asyncio
 async def test_sequential_branch_propagation():
-  """NodeRunner inherits parent branch when is_parallel is False."""
+  """NodeRunner inherits parent branch when use_sub_branch is False."""
 
   class _Node(BaseNode):
 
@@ -583,7 +583,7 @@ async def test_sequential_branch_propagation():
   await NodeRunner(
       node=_Node(name='n'),
       parent_ctx=parent_ctx,
-      is_parallel=False,
+      use_sub_branch=False,
   ).run()
 
   assert events[0].branch == 'parent_branch'

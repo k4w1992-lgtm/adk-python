@@ -317,10 +317,10 @@ class Workflow(BaseNode):
     start_edges = [
         e for e in self.graph.edges if e.from_node.name == START.name
     ]
-    is_parallel = len(start_edges) > 1
+    use_sub_branch = len(start_edges) > 1
     for edge in start_edges:
       loop_state.trigger_buffer.setdefault(edge.to_node.name, []).append(
-          Trigger(input=node_input, is_parallel=is_parallel)
+          Trigger(input=node_input, use_sub_branch=use_sub_branch)
       )
 
   def _schedule_ready_nodes(self, loop_state: _LoopState, ctx: Context) -> None:
@@ -420,7 +420,7 @@ class Workflow(BaseNode):
         parent_ctx=ctx,
         run_id=run_id,
         additional_output_for_ancestor=(ctx.node_path if is_terminal else None),
-        is_parallel=trigger.is_parallel,
+        use_sub_branch=trigger.use_sub_branch,
         override_branch=trigger.branch,
     )
     node_state.run_id = runner.run_id
@@ -490,7 +490,7 @@ class Workflow(BaseNode):
         node_name=node_name,
         routes_to_match=route,
     )
-    is_parallel = len(next_nodes) > 1
+    use_sub_branch = len(next_nodes) > 1
     for target_name in next_nodes:
       target_node = self._get_static_node_by_name(target_name)
       target_state = loop_state.nodes.get(target_name)
@@ -515,7 +515,7 @@ class Workflow(BaseNode):
           loop_state.trigger_buffer.setdefault(target_name, []).append(
               Trigger(
                   input=outputs,
-                  is_parallel=False,
+                  use_sub_branch=False,
                   branch=common_branch,
               )
           )
@@ -524,7 +524,7 @@ class Workflow(BaseNode):
         loop_state.trigger_buffer.setdefault(target_name, []).append(
             Trigger(
                 input=output,
-                is_parallel=is_parallel,
+                use_sub_branch=use_sub_branch,
                 branch=branch,
             )
         )

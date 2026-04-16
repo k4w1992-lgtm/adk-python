@@ -114,7 +114,7 @@ class DynamicNodeScheduler:
       node_name: str | None = None,
       use_as_output: bool = False,
       run_id: str,
-      is_parallel: bool = False,
+      use_sub_branch: bool = False,
       override_branch: str | None = None,
   ) -> Context:
     """Schedule a dynamic node: dedup, resume, or fresh run.
@@ -130,7 +130,7 @@ class DynamicNodeScheduler:
       use_as_output: If True, the child's output replaces the
         calling node's output.
       run_id: Custom run ID for the child node execution.
-      is_parallel: Whether the node is running in parallel.
+      use_sub_branch: Whether the node should use a sub-branch.
 
     Returns:
       Child Context with output, route, and interrupt_ids set.
@@ -173,7 +173,7 @@ class DynamicNodeScheduler:
           node_input,
           use_as_output,
           is_fresh=True,
-          is_parallel=is_parallel,
+          use_sub_branch=use_sub_branch,
           override_branch=override_branch,
       )
 
@@ -236,7 +236,7 @@ class DynamicNodeScheduler:
           node_input,
           use_as_output,
           is_fresh=False,
-          is_parallel=is_parallel,
+          use_sub_branch=use_sub_branch,
           override_branch=override_branch,
       )
 
@@ -341,7 +341,7 @@ class DynamicNodeScheduler:
       node_input: Any,
       use_as_output: bool,
       is_fresh: bool,
-      is_parallel: bool = False,
+      use_sub_branch: bool = False,
       override_branch: str | None = None,
   ) -> Context:
     """Unified runner for both fresh and resume executions."""
@@ -371,7 +371,7 @@ class DynamicNodeScheduler:
         additional_output_for_ancestor=(
             ctx.node_path if use_as_output else None
         ),
-        is_parallel=is_parallel,
+        use_sub_branch=use_sub_branch,
         override_branch=override_branch,
     )
     run.task = asyncio.create_task(
