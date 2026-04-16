@@ -161,9 +161,11 @@ def test_startup_no_validation_when_schema_none() -> None:
 
 def test_workflow_state_schema_field_exists() -> None:
   """Workflow accepts a state_schema parameter."""
+  def produce_done():
+    return Event(output='done')
   wf = Workflow(
       name='wf',
-      edges=[(START, lambda: Event(output='done'))],
+      edges=[(START, produce_done)],
       state_schema=_PipelineSchema,
   )
   assert wf.state_schema is _PipelineSchema
@@ -171,9 +173,11 @@ def test_workflow_state_schema_field_exists() -> None:
 
 def test_workflow_state_schema_defaults_to_none() -> None:
   """state_schema defaults to None when not provided."""
+  def produce_done():
+    return Event(output='done')
   wf = Workflow(
       name='wf',
-      edges=[(START, lambda: Event(output='done'))],
+      edges=[(START, produce_done)],
   )
   assert wf.state_schema is None
 

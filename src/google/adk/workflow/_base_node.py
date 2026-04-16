@@ -23,6 +23,7 @@ from google.genai import types
 from pydantic import BaseModel
 from pydantic import ConfigDict
 from pydantic import Field
+from pydantic import field_validator
 from pydantic import TypeAdapter
 
 from ..utils._schema_utils import SchemaType
@@ -40,6 +41,15 @@ class BaseNode(BaseModel):
 
   name: str = Field(...)
   """The unique name of the node within the workflow graph."""
+
+  @field_validator('name')
+  @classmethod
+  def _validate_name(cls, v: str) -> str:
+    if not v.isidentifier():
+      raise ValueError(
+          f"Node name '{v}' must be a valid Python identifier."
+      )
+    return v
 
   description: str = ''
   """A human-readable description of what this node does."""

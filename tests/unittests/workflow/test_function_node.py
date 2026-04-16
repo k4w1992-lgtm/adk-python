@@ -776,12 +776,20 @@ async def test_content_to_str_warns_on_non_text(
   assert 'non-text parts' in caplog.text
 
 
+def _produce_list():
+  return [1, 2, 3]
+
+
+def _produce_dict():
+  return {'key': 'value'}
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     'produce_value, expected',
     [
-        (lambda: [1, 2, 3], [1, 2, 3]),
-        (lambda: {'key': 'value'}, {'key': 'value'}),
+        (_produce_list, [1, 2, 3]),
+        (_produce_dict, {'key': 'value'}),
     ],
     ids=['list', 'dict'],
 )
