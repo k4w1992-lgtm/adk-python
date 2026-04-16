@@ -163,14 +163,14 @@ class TestValidateResumeResponse:
 class TestScanNodeEvents:
 
   def test_scan_empty_events(self):
-    results = _reconstruct_node_states([], "/wf@1")
+    results = _reconstruct_node_states([], "/wf@1", invocation_id="test_id")
     assert results == {}
 
   def test_scan_direct_child_output(self):
     event = Event(
-        node_info=NodeInfo(path="/wf@1/node_a@1"), output="node_a output"
+        node_info=NodeInfo(path="/wf@1/node_a@1"), output="node_a output", invocation_id="test_id"
     )
-    results = _reconstruct_node_states([event], "/wf@1", group_by_direct_child=True)
+    results = _reconstruct_node_states([event], "/wf@1", invocation_id="test_id", group_by_direct_child=True)
 
     assert "node_a@1" in results
     assert results["node_a@1"].output == "node_a output"
@@ -181,10 +181,11 @@ class TestScanNodeEvents:
     event = Event(
         node_info=NodeInfo(path="/wf@1/node_a@1"),
         content=content,
+        invocation_id="test_id",
     )
     event.node_info.message_as_output = True
 
-    results = _reconstruct_node_states([event], "/wf@1", group_by_direct_child=True)
+    results = _reconstruct_node_states([event], "/wf@1", invocation_id="test_id", group_by_direct_child=True)
 
     assert "node_a@1" in results
     assert results["node_a@1"].output == content
@@ -193,8 +194,9 @@ class TestScanNodeEvents:
     event = Event(
         node_info=NodeInfo(path="/wf@1/node_a@1/sub_node@1"),
         long_running_tool_ids={"interrupt-1"},
+        invocation_id="test_id",
     )
-    results = _reconstruct_node_states([event], "/wf@1", group_by_direct_child=True)
+    results = _reconstruct_node_states([event], "/wf@1", invocation_id="test_id", group_by_direct_child=True)
 
     assert "node_a@1" in results
     assert "interrupt-1" in results["node_a@1"].interrupt_ids
@@ -203,6 +205,7 @@ class TestScanNodeEvents:
     event_int = Event(
         node_info=NodeInfo(path="/wf@1/node_a@1"),
         long_running_tool_ids={"interrupt-1"},
+        invocation_id="test_id",
     )
     event_fr = Event(
         author="user",
@@ -217,11 +220,12 @@ class TestScanNodeEvents:
                 )
             ]
         ),
+        invocation_id="test_id",
     )
 
     # Act
     results = _reconstruct_node_states(
-        [event_int, event_fr], "/wf@1", group_by_direct_child=True
+        [event_int, event_fr], "/wf@1", invocation_id="test_id", group_by_direct_child=True
     )
 
     # Assert
@@ -232,12 +236,12 @@ class TestScanNodeEvents:
   def test_scan_matches_specific_node_path_without_child_grouping(self):
     """Scanning matches events for a specific node path when not grouping by direct child."""
     event = Event(
-        node_info=NodeInfo(path="/wf@1/node_a@1"), output="node_a output"
+        node_info=NodeInfo(path="/wf@1/node_a@1"), output="node_a output", invocation_id="test_id"
     )
 
     # Act
     results = _reconstruct_node_states(
-        [event], "/wf@1/node_a@1", group_by_direct_child=False
+        [event], "/wf@1/node_a@1", invocation_id="test_id", group_by_direct_child=False
     )
 
     # Assert
@@ -255,6 +259,7 @@ class TestScanNodeEvents:
     )
     event_int = create_request_input_event(ri)
     event_int.node_info = NodeInfo(path="/wf@1/node_a@1")
+    event_int.invocation_id = "test_id"
 
     event_fr = Event(
         author="user",
@@ -269,11 +274,12 @@ class TestScanNodeEvents:
                 )
             ]
         ),
+        invocation_id="test_id",
     )
 
     # Act
     results = _reconstruct_node_states(
-        [event_int, event_fr], "/wf@1", group_by_direct_child=True
+        [event_int, event_fr], "/wf@1", invocation_id="test_id", group_by_direct_child=True
     )
 
     # Assert

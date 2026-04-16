@@ -777,6 +777,7 @@ async def test_workflow_rerun_with_multiple_inputs(
       ),
       invocation_id=invocation_id,
   )
+  assert all(e.invocation_id == invocation_id for e in events2 if e.invocation_id)
   simplified_events2 = (
       workflow_testing_utils.simplify_events_with_node_and_agent_state(
           copy.deepcopy(events2),
@@ -841,6 +842,7 @@ async def test_workflow_rerun_with_multiple_inputs(
       ),
       invocation_id=invocation_id,
   )
+  assert all(e.invocation_id == invocation_id for e in events3 if e.invocation_id)
   simplified_events3 = (
       workflow_testing_utils.simplify_events_with_node_and_agent_state(
           copy.deepcopy(events3),
@@ -1846,3 +1848,122 @@ async def test_resume_loop_receives_latest_input(
   ]
   run_ids = sorted({p.split('NodeA@')[1].split('/')[0] for p in node_a_paths})
   assert len(run_ids) >= 2, f'Expected multiple run_ids, got {run_ids}'
+
+
+@pytest.mark.asyncio
+async def test_multiple_invocations_isolation(request: pytest.FixtureRequest):
+  """Verify that a new invocation ignores events from a previous invocation."""
+
+  class CounterNode(BaseNode):
+    name: str = Field(default='counter_node')
+    run_count: int = Field(default=0)
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      self.run_count += 1
+      yield f'Run {self.run_count}'
+
+  node_a = CounterNode()
+  wf = Workflow(name='wf', edges=[(START, node_a)])
+
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  # Invocation 1
+  msg1 = types.Content(parts=[types.Part(text='go 1')], role='user')
+  events1 = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg1
+  ):
+    events1.append(event)
+
+  assert node_a.run_count == 1
+
+  # Invocation 2 (New invocation in SAME session)
+  msg2 = types.Content(parts=[types.Part(text='go 2')], role='user')
+  events2 = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg2
+  ):
+    events2.append(event)
+
+  # If isolation works, CounterNode should run AGAIN!
+  assert node_a.run_count == 2
+
+
+@pytest.mark.asyncio
+async def test_multiple_pending_interrupts_isolation(
+    request: pytest.FixtureRequest,
+):
+  """Verify that responding to one interrupt resumes its specific invocation and ignores others."""
+
+  class InterruptNode(BaseNode):
+    name: str = Field(default='interrupt_node')
+    rerun_on_resume: bool = Field(default=True)
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      text = node_input.parts[0].text if node_input else ''
+      if ctx.resume_inputs and 'req1' in ctx.resume_inputs:
+        yield Event(output=f"Resumed 1: {ctx.resume_inputs['req1']['ans']}")
+        return
+      if ctx.resume_inputs and 'req2' in ctx.resume_inputs:
+        yield Event(output=f"Resumed 2: {ctx.resume_inputs['req2']['ans']}")
+        return
+
+      fc_id = 'req1' if '1' in text else 'req2'
+      yield Event(
+          content=types.Content(
+              parts=[
+                  types.Part(
+                      function_call=types.FunctionCall(
+                          name=REQUEST_INPUT_FUNCTION_CALL_NAME,
+                          args={
+                              'interrupt_id': fc_id,
+                              'message': f'input {fc_id}',
+                          },
+                          id=fc_id,
+                      )
+                  )
+              ]
+          ),
+          long_running_tool_ids={fc_id},
+      )
+      return
+
+  node = InterruptNode()
+  wf = Workflow(name='wf', edges=[(START, node)])
+
+  runner = testing_utils.InMemoryRunner(node=wf)
+
+  # Invocation 1: yields req1
+  events1 = await runner.run_async('go 1')
+
+  # Find the function call ID generated for req1
+  fc_event = workflow_testing_utils.find_function_call_event(
+      events1, REQUEST_INPUT_FUNCTION_CALL_NAME
+  )
+  function_call_id = fc_event.content.parts[0].function_call.id
+
+  # Invocation 2: yields req2 (New run, same session)
+  events2 = await runner.run_async('go 2')
+
+  # Invocation 3: respond to req1
+  msg3 = types.Content(
+      parts=[
+          types.Part(
+              function_response=types.FunctionResponse(
+                  name=REQUEST_INPUT_FUNCTION_CALL_NAME, id=function_call_id, response={'ans': 'val1'}
+              )
+          )
+      ],
+      role='user',
+  )
+  events3 = await runner.run_async(msg3)
+
+  # Verify that Invocation 1 resumed and produced output
+  outputs3 = [e.output for e in events3 if e.output is not None]
+  assert "Resumed 1: val1" in outputs3

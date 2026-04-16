@@ -170,6 +170,7 @@ def _validate_resume_response(response_data: Any, schema: Any) -> Any:
 def _reconstruct_node_states(
     events: list[Event],
     base_path: str,
+    invocation_id: str,
     group_by_direct_child: bool = False,
 ) -> dict[str, _ChildScanState]:
   """Scans session events to reconstruct node states for resume."""
@@ -193,6 +194,9 @@ def _reconstruct_node_states(
       return None
 
   for event in events:
+    if invocation_id and event.invocation_id != invocation_id:
+      continue
+
     # 1. Handle FunctionResponse (User responses to interrupts)
     if event.author == 'user' and event.content and event.content.parts:
       for part in event.content.parts:

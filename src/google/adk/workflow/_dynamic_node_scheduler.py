@@ -259,6 +259,7 @@ class DynamicNodeScheduler:
         events=ic.session.events,
         base_path=node_path,
         group_by_direct_child=False,
+        invocation_id=ic.invocation_id,
     )
 
     target_state = results.get(node_path)

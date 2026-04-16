@@ -824,6 +824,7 @@ class Workflow(BaseNode):
         events=ic.session.events,
         base_path=ctx.node_path,
         group_by_direct_child=True,
+        invocation_id=ic.invocation_id,
     )
 
     from ..events._node_path_builder import _NodePathBuilder

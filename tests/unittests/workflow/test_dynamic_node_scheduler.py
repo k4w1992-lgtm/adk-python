@@ -141,6 +141,26 @@ async def test_rehydrate_finds_completed_node():
 
 
 @pytest.mark.asyncio
+async def test_rehydrate_ignores_events_from_different_invocation():
+  """Scan ignores events with a different invocation_id."""
+  events = [
+      _make_event(
+          path='wf/parent/child@r-1',
+          output='result',
+          invocation_id='inv-different',
+      ),
+  ]
+  ctx, _ = _make_parent_ctx(events=events)
+  ctx._invocation_context.invocation_id = 'inv-current'
+  ls = _LoopState()
+  scheduler = DynamicNodeScheduler(state=ls)
+
+  scheduler._rehydrate_from_events(ctx, 'wf/parent/child@r-1')
+
+  assert 'wf/parent/child@r-1' not in ls.runs
+
+
+@pytest.mark.asyncio
 async def test_rehydrate_finds_interrupted_node():
   """Scan finds interrupt event → node marked WAITING."""
   events = [

@@ -28,6 +28,7 @@ from google.adk.agents.context import Context
 from google.adk.events.event import Event
 from google.adk.runners import Runner
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
+from google.adk.workflow import node
 from google.adk.workflow._base_node import BaseNode
 from google.adk.workflow._base_node import START
 from google.adk.workflow._workflow import Workflow
@@ -1057,3 +1058,53 @@ async def test_run_node_custom_non_numeric_id_accepted():
   events, _, _ = await _run_node(_ParentNode(name="parent"), message="go")
   outputs = [e.output for e in events if e.output is not None]
   assert "run:user-123" in outputs
+
+
+@pytest.mark.asyncio
+async def test_run_node_isolation_across_invocations():
+  """Verify that a new invocation ignores events from a previous invocation for dynamic nodes."""
+
+  call_counts = {'child': 0}
+
+  @node(name='child')
+  async def counting_child(ctx: Context, node_input: Any):
+    call_counts['child'] += 1
+    yield f"child_out_{call_counts['child']}"
+
+  class _Parent(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      res = await ctx.run_node(counting_child, 'x')
+      yield res
+
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=_Parent(name='p'), session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  # Invocation 1
+  msg1 = types.Content(parts=[types.Part(text='go 1')], role='user')
+  events1 = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg1
+  ):
+    events1.append(event)
+
+  assert call_counts['child'] == 1
+  outputs1 = [e.output for e in events1 if e.output is not None]
+  assert 'child_out_1' in outputs1
+
+  # Invocation 2 (New invocation in SAME session)
+  msg2 = types.Content(parts=[types.Part(text='go 2')], role='user')
+  events2 = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg2
+  ):
+    events2.append(event)
+
+  # If isolation works, CounterNode should run AGAIN!
+  assert call_counts['child'] == 2
+  outputs2 = [e.output for e in events2 if e.output is not None]
+  assert 'child_out_2' in outputs2

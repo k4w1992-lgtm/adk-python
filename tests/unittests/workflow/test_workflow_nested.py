@@ -1139,14 +1139,17 @@ async def test_scan_child_events_ignores_descendant_run_id_resets():
   event1 = Event(
       author='node',
       node_info=NodeInfo(path='wf@1/child@1', run_id='1'),
+      invocation_id='test_inv',
   )
   event2 = Event(
       author='node',
       node_info=NodeInfo(path='wf@1/child@1/grandchild@2', run_id='2'),
+      invocation_id='test_inv',
   )
 
   ctx = MagicMock()
   ctx._invocation_context = MagicMock()
+  ctx._invocation_context.invocation_id = 'test_inv'
   ctx._invocation_context.session = MagicMock()
   ctx._invocation_context.session.events = [event1, event2]
   # _scan_child_events reads ctx.node_path to determine the base workflow path.
