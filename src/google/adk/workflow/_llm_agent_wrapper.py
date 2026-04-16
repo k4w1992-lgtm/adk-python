@@ -16,9 +16,9 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
 from contextlib import aclosing
 import json
-from collections.abc import AsyncGenerator
 from typing import Any
 
 from google.genai import types
@@ -87,11 +87,7 @@ def process_llm_agent_output(agent: Any, ctx: Context, event: Event) -> None:
 
   output = None
   text = (
-      ''.join(
-          p.text
-          for p in event.content.parts
-          if p.text and not p.thought
-      )
+      ''.join(p.text for p in event.content.parts if p.text and not p.thought)
       if event.content.parts
       else ''
   )
@@ -144,6 +140,30 @@ async def run_llm_agent_as_node(
     elif agent.mode == 'chat':
       async for event in run_iter:
         yield event
+        if event.actions.request_task:
+          for fc_id, task_req in event.actions.request_task.items():
+            target_name = task_req.get('agentName')
+            if target_name:
+              target_agent = agent.root_agent.find_agent(target_name)
+              if target_agent:
+                from .utils._workflow_graph_utils import build_node
+
+                wrapped_target = build_node(target_agent)
+                wrapped_target.parent_agent = target_agent.parent_agent
+
+                # TODO: decide branch format and have a util for it.
+                override_branch = f'task:{fc_id}'
+                await ctx.run_node(
+                    wrapped_target,
+                    node_input=None,
+                    override_branch=override_branch,
+                )
+                if ctx._invocation_context.is_resumable:
+                  ctx._invocation_context.set_agent_state(
+                      agent.name, end_of_agent=True
+                  )
+                  yield agent._create_agent_state_event(ctx._invocation_context)
+          break
         if event.actions.transfer_to_agent:
           target_name = event.actions.transfer_to_agent
           if target_name != agent.name:
@@ -167,5 +187,18 @@ async def run_llm_agent_as_node(
         if event.actions.finish_task:
           event.output = event.actions.finish_task.get('output')
           yield event
+
+          if agent.parent_agent:
+            from .utils._workflow_graph_utils import build_node
+
+            wrapped_parent = build_node(agent.parent_agent)
+            wrapped_parent.parent_agent = agent.parent_agent.parent_agent
+            await ctx.run_node(wrapped_parent, node_input=None)
+
+            if ctx._invocation_context.is_resumable:
+              ctx._invocation_context.set_agent_state(
+                  agent.name, end_of_agent=True
+              )
+              yield agent._create_agent_state_event(ctx._invocation_context)
           break
         yield event
