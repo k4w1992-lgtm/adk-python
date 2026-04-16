@@ -342,6 +342,7 @@ class Context(ReadonlyContext):
       use_as_output: bool = False,
       run_id: str | None = None,
       is_parallel: bool = False,
+      override_branch: str | None = None,
   ) -> Any:
     """Executes a node dynamically.
 
@@ -366,6 +367,7 @@ class Context(ReadonlyContext):
       run_id: An optional custom run ID for the dynamic node execution.
         If not provided, a default run ID is generated. Useful for
         correlating events across runs.
+      override_branch: An optional branch to use instead of parent's branch.
 
     Returns:
       The output of the dynamically executed node, once it finishes executing.
@@ -424,6 +426,7 @@ class Context(ReadonlyContext):
           use_as_output=use_as_output,
           run_id=run_id,
           is_parallel=is_parallel,
+          override_branch=override_branch,
       )
       if child_ctx.error:
         from ..workflow._errors import DynamicNodeFailError
@@ -449,7 +452,6 @@ class Context(ReadonlyContext):
         is_parallel=is_parallel,
     )
     return result.output
-
 
   async def _run_node_standalone(
       self,

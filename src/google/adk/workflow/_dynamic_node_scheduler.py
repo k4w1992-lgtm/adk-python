@@ -115,6 +115,7 @@ class DynamicNodeScheduler:
       use_as_output: bool = False,
       run_id: str,
       is_parallel: bool = False,
+      override_branch: str | None = None,
   ) -> Context:
     """Schedule a dynamic node: dedup, resume, or fresh run.
 
@@ -137,7 +138,11 @@ class DynamicNodeScheduler:
     # node_name is always provided by ctx.run_node() (either
     # user-specified or auto-generated via _next_child_name).
     name = node_name or node.name
-    base_path_builder = _NodePathBuilder.from_string(ctx.node_path) if ctx.node_path else _NodePathBuilder([])
+    base_path_builder = (
+        _NodePathBuilder.from_string(ctx.node_path)
+        if ctx.node_path
+        else _NodePathBuilder([])
+    )
     node_path = str(base_path_builder.append(name, run_id))
 
     # Runtime schema validation.
@@ -169,6 +174,7 @@ class DynamicNodeScheduler:
           use_as_output,
           is_fresh=True,
           is_parallel=is_parallel,
+          override_branch=override_branch,
       )
 
     # Found an existing run for this node and run_id -> rerun, interrupt,
@@ -230,6 +236,7 @@ class DynamicNodeScheduler:
           use_as_output,
           is_fresh=False,
           is_parallel=is_parallel,
+          override_branch=override_branch,
       )
 
     # Running in this invocation — await existing task.
@@ -238,8 +245,7 @@ class DynamicNodeScheduler:
       return await run.task
 
     raise RuntimeError(
-        f'Dynamic node {node_path} is in state'
-        f' {run.state.status} with no task.'
+        f'Dynamic node {node_path} is in state {run.state.status} with no task.'
     )
 
   # --- Lazy scan ---
@@ -333,6 +339,7 @@ class DynamicNodeScheduler:
       use_as_output: bool,
       is_fresh: bool,
       is_parallel: bool = False,
+      override_branch: str | None = None,
   ) -> Context:
     """Unified runner for both fresh and resume executions."""
     if is_fresh:
@@ -362,6 +369,7 @@ class DynamicNodeScheduler:
             ctx.node_path if use_as_output else None
         ),
         is_parallel=is_parallel,
+        override_branch=override_branch,
     )
     run.task = asyncio.create_task(
         runner.run(node_input=node_input, resume_inputs=resume_inputs)

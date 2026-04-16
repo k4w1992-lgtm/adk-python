@@ -38,5 +38,6 @@ class ScheduleDynamicNode(Protocol):
       use_as_output: bool = False,
       run_id: str,
       is_parallel: bool = False,
+      override_branch: str | None = None,
   ) -> Awaitable[Context]:
     ...
