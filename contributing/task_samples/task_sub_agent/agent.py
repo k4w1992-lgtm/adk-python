@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 from google.adk import Agent
+from google.adk.tools.function_tool import FunctionTool
 from pydantic import BaseModel
 from pydantic import Field
 
@@ -35,6 +38,11 @@ def place_order(orders: list[OrderItem], payment_info: PaymentInfo) -> str:
   return f"Successfully placed order for {total_items} items."
 
 
+def confirmation() -> str:
+  """Confirm proceeding with the order."""
+  return "Proceeding with order."
+
+
 order_collector = Agent(
     name="order_collector",
     mode="task",
@@ -43,9 +51,13 @@ order_collector = Agent(
 You are an order collection assistant for a food delivery service.
 Our menu today has exactly 3 items: 1. Pizza, 2. Burger, 3. Salad.
 Ask the user what they would like to order and collect their choice and quantity.
-Do not offer anything else. Once you have their final order, finish your task.
+Do not offer anything else.
+If the combined quantity of items exceeds 5, you MUST use the `confirmation` tool to get user's confirmation before proceeding.
+Do not ask for confirmation in natural language, always use the confirmation tool.
+Once you have their final order and confirmation if needed, finish your task.
     """),
     description="Collects the food order from the user.",
+    tools=[FunctionTool(confirmation, require_confirmation=True)],
 )
 
 payment_collector = Agent(
