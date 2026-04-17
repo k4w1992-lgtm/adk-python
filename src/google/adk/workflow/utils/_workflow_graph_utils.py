@@ -21,8 +21,8 @@ from typing import Any
 from ...tools.base_tool import BaseTool
 from .._base_node import BaseNode
 from .._base_node import START
-from .._graph_definitions import NodeLike
 from .._function_node import FunctionNode
+from .._graph_definitions import NodeLike
 from .._retry_config import RetryConfig
 from .._tool_node import _ToolNode
 
@@ -88,6 +88,8 @@ def build_node(
       if rerun_on_resume is None:
         kwargs['rerun_on_resume'] = True
       node = node_like.clone(update=kwargs)
+      # Preserve parent agent reference that was lost during clone
+      node.parent_agent = node_like.parent_agent
 
       if node.mode is None:
         node.mode = 'single_turn'
