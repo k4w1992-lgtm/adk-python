@@ -164,3 +164,41 @@ async def test_node_timeout_with_retry():
 
   # Verify that the node was actually executed more than once (i.e., retried).
   assert run_count == 2, f"Expected run_count == 2, got {run_count}"
+
+
+@pytest.mark.asyncio
+async def test_nested_workflow_timeout():
+  """A nested workflow that exceeds its timeout in the outer workflow should fail.
+
+  Setup: outer_wf -> inner_wf -> slow_node. inner_wf has timeout=0.05.
+  Act: Run the outer workflow.
+  Assert: Execution raises NodeTimeoutError referencing inner_wf.
+  """
+  import sys
+
+  if sys.version_info < (3, 11):
+    pytest.skip("asyncio.timeout requires Python 3.11+")
+
+  # Given an outer workflow containing a slow inner workflow with a timeout
+  @node()
+  async def slow_node():
+    await asyncio.sleep(1.0)
+    return 'done'
+
+  inner_wf = Workflow(
+      name='inner_wf',
+      edges=[(START, slow_node)],
+      timeout=0.05,
+  )
+
+  outer_wf = Workflow(
+      name='outer_wf',
+      edges=[(START, inner_wf)],
+  )
+
+  # When the outer workflow is executed
+  # Then it should raise NodeTimeoutError referencing the inner workflow
+  with pytest.raises(NodeTimeoutError) as exc_info:
+    await _run_workflow(outer_wf)
+
+  assert 'inner_wf' in str(exc_info.value)
