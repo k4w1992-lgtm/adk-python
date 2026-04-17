@@ -21,7 +21,6 @@ from typing import Self
 
 from google.adk import Event
 from google.adk import Workflow
-from google.adk.agents import base_agent
 from google.adk.agents.llm_agent import Agent
 from google.adk.runners import InMemoryRunner
 from google.adk.telemetry import node_tracing
@@ -126,7 +125,6 @@ def span_exporter(monkeypatch: pytest.MonkeyPatch) -> InMemorySpanExporter:
     )
 
   do_replace(tracing.tracer)
-  do_replace(base_agent.tracer)
   do_replace(node_tracing.tracer)
 
   return span_exporter

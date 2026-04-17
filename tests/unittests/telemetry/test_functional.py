@@ -112,7 +112,6 @@ async def test_tracer_start_as_current_span(
       'execute_tool some_tool',
       'generate_content mock',
       'generate_content mock',
-      'invocation',
       'invoke_agent some_root_agent',
       'invoke_agent some_root_agent',
   ]
