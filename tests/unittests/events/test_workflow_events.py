@@ -13,6 +13,8 @@
 # limitations under the License.
 
 from google.adk.events.event import Event
+from google.adk.events.event import NodeInfo
+from google.adk.events.request_input import RequestInput
 
 
 def test_event_constructor_with_state():
@@ -27,3 +29,42 @@ def test_event_constructor_without_state():
   my_event = Event()
   assert my_event.actions is not None
   assert my_event.actions.state_delta == {}
+
+
+def test_event_serialization_always_camel_case():
+  """Tests that Event serialization produces camelCase keys."""
+  request_input = RequestInput(interrupt_id="fc-1", message="test")
+
+  # Create an event with fields that would produce snake_case if not dumped by alias
+  event = Event(
+      invocation_id="i-1",
+      node_info=NodeInfo(
+          path="a/b",
+          output_for=["c"],
+          message_as_output=True,
+      ),
+      output=request_input,
+  )
+
+  dumped = event.model_dump(by_alias=True)
+
+  def check_no_snake_case_keys(data):
+    if isinstance(data, dict):
+      for key, value in data.items():
+        assert "_" not in key, f"Found snake_case key: {key} in {data}"
+        check_no_snake_case_keys(value)
+    elif isinstance(data, list):
+      for item in data:
+        check_no_snake_case_keys(item)
+
+  check_no_snake_case_keys(dumped)
+
+  # Also verify that expected keys are indeed camelCased
+  assert "invocationId" in dumped
+  assert "nodeInfo" in dumped
+  assert "outputFor" in dumped["nodeInfo"]
+  assert "messageAsOutput" in dumped["nodeInfo"]
+
+  # Verify RequestInput fields are camelCased
+  assert "output" in dumped
+  assert "interruptId" in dumped["output"]
