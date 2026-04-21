@@ -1,4 +1,4 @@
-# Agent Development Kit (ADK) 2.0 Alpha
+# Agent Development Kit (ADK) 2.0 Beta
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
@@ -17,9 +17,9 @@
 
 ______________________________________________________________________
 
-> **⚠️ EARLY PREVIEW — BREAKING CHANGES FROM 1.x**
+> **⚠️ BETA RELEASE — BREAKING CHANGES FROM 1.x**
 >
-> This is an early alpha of ADK 2.0. It includes breaking changes to the
+> This is an early beta of ADK 2.0. It includes breaking changes to the
 > agent API, event model, and session schema. **Do NOT use with ADK 1.x
 > databases or sessions** — they are incompatible. APIs are subject to
 > change without notice.
@@ -27,7 +27,7 @@ ______________________________________________________________________
 > Install only with an explicit version pin:
 >
 > ```bash
-> pip install google-adk==2.0.0a1
+> pip install google-adk==2.0.0b1
 > ```
 >
 > `pip install google-adk` will NOT install this version.
@@ -48,7 +48,7 @@ ______________________________________________________________________
 ## 🚀 Installation
 
 ```bash
-pip install google-adk==2.0.0a1
+pip install google-adk==2.0.0b1
 ```
 
 **Requirements:** Python 3.11+.
