@@ -7112,6 +7112,70 @@ class TestMultiLoopShutdownDrainsOtherLoops:
       assert call_args[0][1] is other_loop
 
 
+class TestCacheMetadataLogging:
+  """Tests for logging cache_metadata from LlmResponse."""
+
+  @pytest.mark.asyncio
+  async def test_cache_metadata_logged_when_present(
+      self,
+      bq_plugin_inst,
+      mock_write_client,
+      callback_context,
+      dummy_arrow_schema,
+  ):
+    """Verifies cache_metadata is logged into BigQuery attributes when present."""
+    llm_response = llm_response_lib.LlmResponse(
+        content=types.Content(parts=[types.Part(text="Cache test")]),
+        cache_metadata={"fingerprint": "abc-123", "contents_count": 2},
+    )
+    bigquery_agent_analytics_plugin.TraceManager.push_span(callback_context)
+    await bq_plugin_inst.after_model_callback(
+        callback_context=callback_context,
+        llm_response=llm_response,
+    )
+    await asyncio.sleep(0.05)
+    rows = await _get_captured_rows_async(mock_write_client, dummy_arrow_schema)
+    log_entry = next(r for r in rows if r["event_type"] == "LLM_RESPONSE")
+
+    attributes = json.loads(log_entry["attributes"])
+    assert "cache_metadata" in attributes
+    assert attributes["cache_metadata"]["fingerprint"] == "abc-123"
+    assert attributes["cache_metadata"]["contents_count"] == 2
+
+  @pytest.mark.asyncio
+  async def test_missing_cache_metadata_does_not_crash(
+      self,
+      bq_plugin_inst,
+      mock_write_client,
+      callback_context,
+      dummy_arrow_schema,
+  ):
+    """Verifies missing cache_metadata gracefully defaults using getattr."""
+
+    class LegacyLlmResponse:
+
+      def __init__(self):
+        self.content = types.Content(parts=[types.Part(text="Mock text")])
+        self.usage_metadata = None
+        self.model_version = "v1"
+        self.partial = False
+        # Deliberately omitting cache_metadata
+
+    mock_response = LegacyLlmResponse()
+
+    bigquery_agent_analytics_plugin.TraceManager.push_span(callback_context)
+    await bq_plugin_inst.after_model_callback(
+        callback_context=callback_context,
+        llm_response=mock_response,
+    )
+    await asyncio.sleep(0.05)
+    rows = await _get_captured_rows_async(mock_write_client, dummy_arrow_schema)
+    log_entry = next(r for r in rows if r["event_type"] == "LLM_RESPONSE")
+
+    attributes = json.loads(log_entry["attributes"])
+    assert "cache_metadata" not in attributes
+
+
 # ==============================================================
 # TEST CLASS: A2A_INTERACTION event logging via on_event_callback
 # ==============================================================
