@@ -116,3 +116,20 @@ CLAUDE.md
 .rooignore
 .bolt/
 .v0/
+
+# === SECURITY: Credential patterns — added per Issue #5520 ===
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.tokencache
+credentials.json
+service-account.json
+.env
+.env.*
+!.env.example
+*.secret
+secrets.yaml
+secrets.yml
